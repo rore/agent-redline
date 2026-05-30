@@ -41,8 +41,8 @@ zones:
   blue:
     - path: src/test/**
       reason: tests and verification (excluding architecture/**)
-    - path: src/main/java/**/adapter/**/persistence/**/dto/**
-      reason: DB row / persistence-internal DTOs (not API surface)
+    - path: src/main/java/**/adapter/**/persistence/**
+      reason: persistence adapter implementation; boundary rules ensure callers go through the port
 
   grayWatch:
     - path: src/main/java/**/application/**/*Service.java

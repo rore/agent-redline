@@ -4,7 +4,7 @@
   },
   "boundaryViolations": [
     {
-      "detail": "Architecture Violation: Rule 'no classes that reside in a package '..application..' should depend on classes that reside in any package ['..adapter..persistence..']' was violated (1 times):",
+      "detail": "Architecture Violation: Rule 'no classes that reside in a package '..application..' should depend on classes that reside in any package ['..adapter..persistence..']' was violated (1 times): Class <com.example.orders.application.OrderService> depends on <com.example.orders.adapter.persistence.PostgresOrderRepository>",
       "rule": "application_must_not_depend_on_persistence_adapters",
       "severity": "error",
       "source": "archunit"

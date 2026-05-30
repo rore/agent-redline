@@ -264,7 +264,7 @@ def parse_archunit_junit_xml(xml_text: str) -> list[BoundaryViolation]:
             violations.append(
                 BoundaryViolation(
                     rule=test_name,
-                    detail=_first_line(detail),
+                    detail=_summarize_violation(detail),
                     severity="error",
                     source="archunit",
                 )
@@ -275,6 +275,25 @@ def parse_archunit_junit_xml(xml_text: str) -> list[BoundaryViolation]:
 def _first_line(text: str, max_len: int = 200) -> str:
     line = (text or "").strip().splitlines()[0] if text else ""
     return line[:max_len]
+
+
+def _summarize_violation(text: str, max_len: int = 400) -> str:
+    """
+    Summarize an ArchUnit failure message into a single readable line.
+
+    The raw message looks like:
+        Architecture Violation [Priority: MEDIUM] - Rule '<rule statement>'
+        was violated (1 times):
+        Class <com.example.X> depends on <com.example.Y>
+
+    We want a one-line version that keeps the rule statement and the
+    specific violation. Joins lines and truncates to max_len.
+    """
+    if not text:
+        return ""
+    # Collapse newlines / extra whitespace.
+    one_line = " ".join(line.strip() for line in text.splitlines() if line.strip())
+    return one_line[:max_len] + ("…" if len(one_line) > max_len else "")
 
 
 # --------------------------------------------------------------------------

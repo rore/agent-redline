@@ -37,12 +37,12 @@ INVALID_DIR = REPO_ROOT / "tests" / "schema" / "invalid"
 
 
 def load_schema() -> dict:
-    with SCHEMA_PATH.open() as f:
+    with SCHEMA_PATH.open(encoding="utf-8") as f:
         return json.load(f)
 
 
 def load_yaml(path: Path) -> dict:
-    with path.open() as f:
+    with path.open(encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 

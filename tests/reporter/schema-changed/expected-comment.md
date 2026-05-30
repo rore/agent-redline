@@ -8,7 +8,7 @@
 | Gray | `src/main/resources/db/migration/V2__add_orders_index.sql` |
 
 **Required checkpoints:**
-- [ ] `persistence-review` — Persistence migration changed. Satisfy by: label `persistence-reviewed`
+- [ ] `persistence-review` â€” Persistence migration changed. Satisfy by: label `persistence-reviewed`
 
 **Boundary check:** passed
 **API check:** no changes

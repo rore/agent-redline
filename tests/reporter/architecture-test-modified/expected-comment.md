@@ -7,7 +7,7 @@
 | Red | `src/test/java/com/example/orders/architecture/DependencyArchitectureTest.java` |
 
 **Required checkpoints:**
-- [ ] `architecture-review` — red-zone change: src/test/java/com/example/orders/architecture/DependencyArchitectureTest.java. Satisfy by: CODEOWNER approval or label `architecture-reviewed`
+- [ ] `architecture-review` â€” red-zone change: src/test/java/com/example/orders/architecture/DependencyArchitectureTest.java. Satisfy by: CODEOWNER approval or label `architecture-reviewed`
 
 **Boundary check:** passed
 **API check:** no changes

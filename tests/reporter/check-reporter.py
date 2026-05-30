@@ -48,7 +48,7 @@ def find_fixtures() -> list[Path]:
 def read_lines(path: Path) -> list[str]:
     if not path.exists():
         return []
-    return [line.strip() for line in path.read_text().splitlines() if line.strip()]
+    return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
 def resolve_policy(fixture: Path) -> Path:
@@ -62,7 +62,7 @@ def read_lines_changed(fixture: Path) -> int:
     path = fixture / "lines-changed.txt"
     if not path.exists():
         return 0
-    return int(path.read_text().strip() or "0")
+    return int(path.read_text(encoding="utf-8").strip() or "0")
 
 
 def run_fixture(fixture: Path) -> tuple[dict, str]:
@@ -114,8 +114,8 @@ def main(argv: list[str] | None = None) -> int:
         expected_comment_path = fixture / "expected-comment.md"
 
         if update:
-            expected_verdict_path.write_text(verdict_text)
-            expected_comment_path.write_text(comment)
+            expected_verdict_path.write_text(verdict_text, encoding="utf-8")
+            expected_comment_path.write_text(comment, encoding="utf-8")
             print(f"upd   {name}")
             continue
 
@@ -124,9 +124,9 @@ def main(argv: list[str] | None = None) -> int:
             continue
 
         actual_verdict = verdict_text
-        expected_verdict = normalize_json(expected_verdict_path.read_text())
+        expected_verdict = normalize_json(expected_verdict_path.read_text(encoding="utf-8"))
         actual_comment = comment
-        expected_comment = expected_comment_path.read_text()
+        expected_comment = expected_comment_path.read_text(encoding="utf-8")
 
         if actual_verdict != expected_verdict:
             failures.append(f"FAIL  {name}: verdict mismatch")

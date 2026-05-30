@@ -591,7 +591,7 @@ def render_markdown(verdict: Verdict) -> str:
 # --------------------------------------------------------------------------
 
 def load_policy(path: Path) -> dict[str, Any]:
-    with path.open() as f:
+    with path.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
     if not isinstance(data, dict):
         raise SystemExit(f"error: policy at {path} is not a mapping")
@@ -599,14 +599,14 @@ def load_policy(path: Path) -> dict[str, Any]:
 
 
 def load_diff_from_files(changed_files_path: Path, lines_changed: int = 0) -> Diff:
-    files = [line.strip() for line in changed_files_path.read_text().splitlines() if line.strip()]
+    files = [line.strip() for line in changed_files_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     return Diff(changed_files=files, files_changed=len(files), lines_changed=lines_changed)
 
 
 def load_archunit_xml(path: Path | None) -> str | None:
     if path is None or not path.exists():
         return None
-    return path.read_text()
+    return path.read_text(encoding="utf-8")
 
 
 # --------------------------------------------------------------------------
@@ -656,13 +656,13 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if args.json_out:
-        args.json_out.write_text(json.dumps(verdict.to_dict(), indent=2) + "\n")
+        args.json_out.write_text(json.dumps(verdict.to_dict(), indent=2) + "\n", encoding="utf-8")
     else:
         print(json.dumps(verdict.to_dict(), indent=2))
 
     comment = render_markdown(verdict)
     if args.comment_out:
-        args.comment_out.write_text(comment)
+        args.comment_out.write_text(comment, encoding="utf-8")
 
     return verdict.exit_code
 

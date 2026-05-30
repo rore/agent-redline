@@ -87,9 +87,9 @@ jobs:
         id: report
         run: |
           set -euo pipefail
-          ARCHUNIT_XML=""
+          ARCHUNIT_ARG=""
           if compgen -G "build/test-results/test/TEST-*ArchitectureTest*.xml" > /dev/null; then
-            ARCHUNIT_XML="--archunit-xml $(ls build/test-results/test/TEST-*ArchitectureTest*.xml | head -1)"
+            ARCHUNIT_ARG="--archunit-xml $(ls build/test-results/test/TEST-*ArchitectureTest*.xml | head -1)"
           fi
           LABELS=""
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
@@ -101,6 +101,7 @@ jobs:
             --lines-changed ${{ steps.diff.outputs.lines_changed }} \
             --mode shadow \
             --pr-labels "$LABELS" \
+            $ARCHUNIT_ARG \
             --json-out /tmp/agent-redline/verdict.json \
             --comment-out /tmp/agent-redline/comment.md \
             || echo "exit_code=$?" >> "$GITHUB_OUTPUT"

@@ -227,3 +227,32 @@ All eight files passed the budget check at 47%-89% utilization with comfortable 
 - Python is universally available on developer machines and in CI, has good readability, and the standard libraries are stable enough that the code can stay dependency-light.
 
 **Revisit if:** the reporter grows substantially in scope (e.g., a dashboard, a watchdog, a server) such that another language fits better, or if Python ecosystem changes (3.x sunset, jsonschema breaking changes) make maintenance painful.
+
+---
+
+## 2026-05-30 — Demo as paired repo with `greenfield` + `main` branches
+
+**Decision:** The Layer 5 demo lives in a separate GitHub repo (`agent-redline-demo`), not as a subdirectory inside agent-redline. The demo's content is generated from agent-redline's `demo-source/` (artifact templates) + `examples/spring-hexagonal/` (Spring source) via `scripts/sync-demo.sh`. The demo repo has two long-lived branches:
+
+- **`greenfield`** — bare Spring service. No `agent-policy.yaml`, no `AGENTS.md`, no per-checkpoint docs, no CI workflow. Used to exercise **bootstrap mode**: drop the agent-redline skill into a session pointed at this branch and ask the agent to set up agent-redline.
+- **`main`** — the bootstrapped state. Spring source plus all agent-redline artifacts (policy, AGENTS.md, docs/agent/, vendored reporter, scripts, CI workflow, CODEOWNERS). Used to exercise **operating mode**. The three planned PR branches branch from `main`.
+
+Plus three PR-scenario branches (`demo/blue-only-pr`, `demo/red-with-checkpoint-pr`, `demo/boundary-violation-pr`) for end-to-end Layer 5 PR validation.
+
+**Alternatives considered:**
+
+- **Demo as a subdirectory inside agent-redline** (`demo/`): rejected because it doesn't actually validate anything end-to-end. The agent's mode-dispatch detects `agent-policy.yaml` at the repo root; an `agent-policy.yaml` at `demo/agent-policy.yaml` would never trigger operating mode for an agent working in agent-redline. CI workflows in subdirectories don't run on GitHub Actions. Branch protection, real PR comments, real CODEOWNERS routing — none can be exercised in subdirectory PRs.
+- **Demo's content as the source of truth, no in-repo `demo-source/`**: rejected because demo content drifts from agent-redline. When the policy schema changes, someone has to remember to update the demo too. With `demo-source/` versioned in agent-redline and `sync-demo.sh` regenerating the demo, drift is impossible by construction.
+- **Single `main` branch in the demo, no `greenfield`**: rejected because bootstrap mode and operating mode are two distinct halves of the framework, and demonstrating both requires two starting points. BEAR has a similar dual-state pattern (spec-only vs governed-baseline). The framework's pitch is "skill that works in both modes"; the demo should exercise both.
+
+**Rationale:**
+
+- Layer 5 in `docs/VALIDATION.md` is "the whole pipeline works against real GitHub." Real-GitHub validation requires a real GitHub repo. Subdirectory demos are theater.
+- The two-branch shape (greenfield + main) maps cleanly to the two skill modes. An observer can run bootstrap against `greenfield`, run operating-mode tasks against `main`, and run the three PR branches as the canonical verdict-shapes demo.
+- `demo-source/` in agent-redline is the source of truth. The `sync-demo.sh` script regenerates the demo repo's branches deterministically. The demo repo is regenerable; never the source of policy or skill content.
+- Keeping the Spring source canonical in `examples/spring-hexagonal/` means agent-redline has one Spring fixture serving two roles (Layer 3 dry-run + demo source code). No duplication.
+
+**Revisit if:**
+
+- The demo grows multiple flavors (different language extensions); at that point, paired repos per stack may make sense.
+- `sync-demo.sh` becomes unwieldy because the demo's content diverges meaningfully from what agent-redline produces. That would suggest agent-redline's bootstrap output isn't right and should be fixed at the source.

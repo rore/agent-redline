@@ -245,10 +245,18 @@ agent-redline/
 │       ├── checklist.md                   # manual review checklist
 │       └── fixtures/                      # repos to run the skill against
 ├── examples/
-│   └── spring-hexagonal/                  # demo repo: 3 planned PRs (BLUE / RED-with-checkpoint / BOUNDARY_VIOLATION)
+│   └── spring-hexagonal/                  # Layer 3 fixture (Spring source-of-truth, also used by demo)
+├── demo-source/                            # canonical content for the paired agent-redline-demo repo
+│   ├── agent-policy.yaml
+│   ├── AGENTS.md
+│   ├── README.md
+│   ├── CODEOWNERS
+│   ├── docs/agent/                        # per-checkpoint docs copied into the demo repo
+│   ├── scripts/agent-redline-check.sh
+│   ├── .github/{pull_request_template.md, workflows/agent-redline.yml}
+│   └── pr-scenarios/{blue-only, red-with-checkpoint, boundary-violation}/
 ├── scripts/
-│   ├── clean-demo.sh                      # reset demo repo state
-│   └── sync-demo.sh                       # push current agent-redline artifacts into demo
+│   └── sync-demo.sh                       # populate the paired demo repo's branches
 ├── docs/
 │   ├── SPEC.md                            # this file
 │   ├── PHILOSOPHY.md
@@ -736,11 +744,11 @@ agent-redline v0.1 is not "done" until all of the following are in place. See [V
 - **Policy schema** (`core/schema/agent-policy.schema.json`) — JSON Schema for `agent-policy.yaml`
 - **Schema fixtures** (`tests/schema/valid/`, `tests/schema/invalid/`) — known-good and known-bad policies
 - **Reporter golden fixtures** (`tests/reporter/<scenario>/`) — at least the 11 scenarios listed in VALIDATION.md
-- **Extension dry-run fixture** (`tests/extensions/spring-archunit/fixture-repo/`) — minimal Spring service used to verify the scaffold compiles and runs
+- **Extension dry-run target** (`examples/spring-hexagonal/`) — minimal Spring service used to verify the scaffold compiles and runs (Layer 3 harness lives at `tests/extensions/spring-archunit/`)
 - **Skill smoke check** (`tests/skill-smoke/`) — fixture inputs + post-bootstrap assertions
 - **Skill review checklist** (`tests/skill-review/checklist.md`) — manual checklist run by a human in Claude Code / Codex against fixture repos
-- **Demo repo** (`examples/spring-hexagonal/`) with three planned PRs: `BLUE`, `RED-with-checkpoint`, `BOUNDARY_VIOLATION`
-- **Demo prep scripts** (`scripts/clean-demo.sh`, `scripts/sync-demo.sh`) — reset demo state for re-runs
+- **Paired demo repo** (`agent-redline-demo` on GitHub) with two long-lived branches (`greenfield`, `main`) and three PR-scenario branches (`demo/blue-only-pr`, `demo/red-with-checkpoint-pr`, `demo/boundary-violation-pr`). Source-of-truth at `demo-source/` in this repo.
+- **Demo sync script** (`scripts/sync-demo.sh`) — regenerates the demo repo's branches deterministically from `demo-source/` + `examples/spring-hexagonal/`
 - **Token-budget check** — every artifact under its declared budget (see §1.4.1)
 
 The CI for agent-redline itself runs Layers 1–3 mechanically. Layers 4 and 5 are gated by manual sign-off before a v0.1 release.

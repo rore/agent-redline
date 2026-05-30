@@ -1,0 +1,8 @@
+# CODEOWNERS for agent-redline-demo
+#
+# In a real repo these would be team or individual handles. For this demo
+# they're left as the repo owner. agent-redline checkpoint satisfaction
+# via codeownerApproval will treat any approval from the owner as
+# satisfying the checkpoint for any red-zone path.
+
+* @rore

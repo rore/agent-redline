@@ -150,17 +150,24 @@ For v0.1, this is a documented checklist (`tests/skill-review/checklist.md`) and
 
 **How it works:**
 
-A paired `agent-redline-demo` repo (or, for v0.1, a folder under `examples/spring-hexagonal/` with instructions to push it to a fresh GitHub repo). The demo has at least three planned PRs:
+A paired GitHub repo `agent-redline-demo` with two long-lived branches and three PR-scenario branches. Source-of-truth content lives at `demo-source/` in this repo; `scripts/sync-demo.sh` regenerates the demo repo's branches deterministically.
 
-1. **Blue-only PR** → expected verdict `BLUE`, CI green, no checkpoint required
-2. **Red-zone PR with checkpoint label applied** → verdict `RED`, CI green
-3. **Boundary violation PR** → verdict `BOUNDARY_VIOLATION`, CI red, ArchUnit failure surfaced in PR comment
+**Long-lived branches:**
 
-Each PR has a known shape and a known expected outcome. Running the demo means: branch from main, apply the planned changes, push, observe.
+- **`greenfield`** — bare Spring service, no agent-redline artifacts. Use to exercise **bootstrap mode**: drop the skill into Claude Code or Codex pointed at this branch, ask the agent to set up agent-redline, observe what it produces.
+- **`main`** — bootstrapped state: Spring service plus all agent-redline artifacts (policy, AGENTS.md, docs/agent/, vendored reporter, scripts, CI workflow, CODEOWNERS). Use to exercise **operating mode**.
 
-**Demo prep scripts** keep the demo deterministic across runs: `scripts/clean-demo.sh` resets the demo repo to a known state; `scripts/sync-demo.sh` pushes the latest agent-redline artifacts into it.
+**Three PR-scenario branches** (all branched from `main`):
 
-**Effort:** medium (one-time setup), small per re-run. **Value:** essential — without this, "the whole pipeline works" is a claim, not a fact.
+1. `demo/blue-only-pr` → verdict `BLUE`, CI green, no checkpoint required
+2. `demo/red-with-checkpoint-pr` → verdict `RED`, CI green when checkpoint label applied
+3. `demo/boundary-violation-pr` → verdict `BOUNDARY_VIOLATION`, CI red, ArchUnit failure surfaced
+
+Each PR has a known shape and a known expected outcome (see `demo-source/pr-scenarios/`). Running the demo means: clone the demo repo, run sync-demo.sh from agent-redline, push, observe.
+
+**Demo sync:** `scripts/sync-demo.sh --target ../agent-redline-demo --with-pr-branches` rebuilds all five branches from agent-redline's `demo-source/` and `examples/spring-hexagonal/`. The target's branches are replaced, not merged — the demo is regenerable, not authoritative.
+
+**Effort:** medium (one-time setup, then `sync-demo.sh` for re-runs). **Value:** essential — without this, "the whole pipeline works" is a claim, not a fact.
 
 ## What "v0.1 is done" looks like
 
@@ -172,7 +179,7 @@ All of the following hold:
 - [ ] Layer 3 dry-run for `spring-archunit` passes (test compiles, runs, fails on injected violation)
 - [ ] Layer 4a smoke check runs against the `examples/spring-hexagonal/` fixture and passes
 - [ ] Layer 4b manual checklist has been run at least once by a developer using Claude Code or Codex with the skill loaded, and findings written down
-- [ ] Layer 5 demo: three PRs, three expected outcomes, all observed correctly on real GitHub
+- [ ] Layer 5 demo: greenfield bootstrap test passes; three PR-scenario branches produce their expected verdicts on real GitHub
 
 If any of these are red, v0.1 isn't done.
 

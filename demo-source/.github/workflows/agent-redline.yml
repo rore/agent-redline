@@ -1,0 +1,105 @@
+name: agent-redline
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  archunit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v3
+      - name: Run architecture tests
+        run: gradle --no-daemon test --tests '*ArchitectureTest'
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: archunit-results
+          path: build/test-results/test/
+
+  report:
+    runs-on: ubuntu-latest
+    needs: archunit
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install reporter dependencies
+        run: pip install pyyaml
+
+      - name: Download ArchUnit results
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          name: archunit-results
+          path: build/test-results/test/
+        continue-on-error: true
+
+      - name: Compute diff inputs
+        id: diff
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.sha }}"
+          fi
+          mkdir -p /tmp/agent-redline
+          git diff --name-only "$BASE_SHA"..."$HEAD_SHA" > /tmp/agent-redline/changed-files.txt
+          ADD=$(git diff --shortstat "$BASE_SHA"..."$HEAD_SHA" | grep -oE '[0-9]+ insertion' | head -1 | grep -oE '[0-9]+' || echo 0)
+          DEL=$(git diff --shortstat "$BASE_SHA"..."$HEAD_SHA" | grep -oE '[0-9]+ deletion' | head -1 | grep -oE '[0-9]+' || echo 0)
+          echo "lines_changed=$((ADD + DEL))" >> "$GITHUB_OUTPUT"
+          echo "Changed files:"
+          cat /tmp/agent-redline/changed-files.txt
+
+      - name: Run reporter
+        id: report
+        run: |
+          set -euo pipefail
+          ARCHUNIT_XML=""
+          if compgen -G "build/test-results/test/TEST-*ArchitectureTest*.xml" > /dev/null; then
+            ARCHUNIT_XML="--archunit-xml $(ls build/test-results/test/TEST-*ArchitectureTest*.xml | head -1)"
+          fi
+          LABELS=""
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            LABELS=$(echo '${{ toJSON(github.event.pull_request.labels) }}' | python -c "import sys, json; print(','.join(l['name'] for l in json.load(sys.stdin)))")
+          fi
+          python scripts/agent-redline-report.py \
+            --policy agent-policy.yaml \
+            --changed-files /tmp/agent-redline/changed-files.txt \
+            --lines-changed ${{ steps.diff.outputs.lines_changed }} \
+            --mode shadow \
+            --pr-labels "$LABELS" \
+            --json-out /tmp/agent-redline/verdict.json \
+            --comment-out /tmp/agent-redline/comment.md \
+            || echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          echo "--- verdict.json ---"
+          cat /tmp/agent-redline/verdict.json
+          echo "--- comment.md ---"
+          cat /tmp/agent-redline/comment.md
+
+      - name: Post / update PR comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: agent-redline
+          path: /tmp/agent-redline/comment.md

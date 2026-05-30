@@ -1,0 +1,29 @@
+name: extension
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  spring-archunit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Spring/ArchUnit extension dry-run
+        run: bash tests/extensions/spring-archunit/check-extension.sh

@@ -47,6 +47,19 @@ The skill inspects the repo's layout, build system, conventions, and existing CI
 - Refuses to work around boundary rules; fixes the structure or escalates instead
 - Runs the local check before opening a PR
 
+## Install
+
+Drop the packaged skill at [`dist/agent-redline/`](dist/agent-redline/) into your harness's skills directory. agent-redline follows the [Agent Skills](https://agentskills.io) standard, so it works with Claude Code, Codex, Cursor, Gemini CLI, and others.
+
+Quick start (Claude Code, personal scope):
+
+```bash
+git clone https://github.com/rore/agent-redline.git
+cp -r agent-redline/dist/agent-redline ~/.claude/skills/
+```
+
+Other tools and project-scope installs: see [`INSTALL.md`](INSTALL.md).
+
 ## Status
 
-Pre-implementation. The detailed spec lives in [`docs/SPEC.md`](docs/SPEC.md).
+In active development; pre-v0.1. The detailed spec lives in [`docs/SPEC.md`](docs/SPEC.md). Project state, decisions, and roadmap: [`docs/DECISIONS.md`](docs/DECISIONS.md), [`docs/SPEC.md §15`](docs/SPEC.md).

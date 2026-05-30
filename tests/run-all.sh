@@ -53,6 +53,7 @@ layers=(
   "workflow-scripts|bash tests/workflow-scripts/test-diff-inputs.sh|"
   "links|python tests/links/check-links.py|REQUIRES_PYTHON"
   "gitignore|bash tests/gitignore/check-gitignore.sh|"
+  "package|bash tests/package/check-package.sh|REQUIRES_PYTHON"
   "sync-demo|bash tests/sync/test-sync-demo.sh|"
   "extension|bash tests/extensions/spring-archunit/check-extension.sh|OPTIONAL_GRADLE"
 )

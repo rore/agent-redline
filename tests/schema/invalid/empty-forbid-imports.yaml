@@ -1,0 +1,22 @@
+# Invalid: boundary rule has empty forbidImports
+version: 1
+
+project:
+  name: empty-forbid
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+
+boundaries:
+  - id: domain-must-not-import-adapters
+    description: domain must not depend on adapters
+    from: src/main/java/**/domain/**
+    forbidImports: []
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval

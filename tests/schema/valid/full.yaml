@@ -1,0 +1,136 @@
+# Valid: full policy exercising every section
+version: 1
+
+project:
+  name: full-service
+  extension: spring-archunit
+
+defaults:
+  unclassifiedZone: gray
+  grayMode: cautious
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain model
+      checkpoint: architecture-review
+    - path: src/main/java/**/application/**/port/**
+      reason: port interfaces
+      checkpoint: architecture-review
+    - path: src/main/java/**/*Controller.java
+      reason: API surface
+      checkpoint: api-review
+    - path: src/main/java/**/security/**
+      reason: security
+      checkpoint: security-review
+    - path: src/main/resources/db/migration/**
+      reason: persistence contract
+      checkpoint: persistence-review
+    - path: src/test/java/**/architecture/**
+      reason: architecture test definitions
+      checkpoint: architecture-review
+  blue:
+    - path: src/test/**
+      reason: tests
+    - path: docs/**
+      reason: documentation
+    - path: src/main/java/**/adapter/**/persistence/**/dto/**
+      reason: DB row DTOs
+  grayWatch:
+    - path: src/main/java/**/*Configuration.java
+      reason: Spring configuration affects bean wiring
+    - path: src/main/java/**/*Filter.java
+      reason: filters affect request lifecycle
+
+boundaryBackend: archunit
+
+boundaries:
+  - id: domain-must-not-import-adapters
+    description: Domain layer must not depend on adapters
+    from: src/main/java/**/domain/**
+    forbidImports:
+      - src/main/java/**/adapter/**
+    severity: error
+  - id: application-must-not-import-concrete-infra
+    description: Application talks to ports
+    from: src/main/java/**/application/**
+    forbidImports:
+      - src/main/java/**/adapter/**/persistence/**
+    severity: error
+
+api:
+  type: openapi-spec-file
+  specPath: openapi/api.yaml
+  diffMode: structural
+  checkpoint: api-review
+
+persistence:
+  migrationPaths:
+    - src/main/resources/db/migration/**
+  checkpoint: persistence-review
+
+security:
+  paths:
+    - src/main/java/**/security/**
+  checkpoint: security-review
+
+runtimeConfig:
+  paths:
+    - src/main/resources/application*.yml
+  checkpoint: ops-review
+
+prRules:
+  maxChangedFiles:
+    warn: 50
+    fail: 100
+  maxLinesChanged:
+    warn: 1000
+    fail: 2000
+  rejectVerboseGeneratedDescriptions: true
+  requireVerificationSection: true
+
+changeRules:
+  - when: blue_only
+    action: allow
+  - when: red_changed
+    action: require_checkpoint
+  - when: gray_changed
+    action: warn
+  - when: boundary_violation
+    action: fail
+  - when: api_changed
+    action: require_checkpoint
+    checkpoint: api-review
+  - when: pr_size_warn
+    action: warn
+
+checkpoints:
+  architecture-review:
+    description: Architecture team review
+    satisfiedBy:
+      - codeownerApproval
+      - label: architecture-reviewed
+  api-review:
+    satisfiedBy:
+      - label: api-reviewed
+      - reviewerCount: 2
+  persistence-review:
+    satisfiedBy:
+      - codeownerApproval
+      - team: data-team
+  security-review:
+    satisfiedBy:
+      - label: security-reviewed
+  ops-review:
+    satisfiedBy:
+      - codeownerApproval
+
+modes:
+  default: shadow
+  perCheck:
+    boundary_violation: binding
+    archunit: binding
+
+excludes:
+  - src/main/generated/**
+  - build/**

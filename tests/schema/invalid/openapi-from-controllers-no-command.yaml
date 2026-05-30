@@ -1,0 +1,20 @@
+# Invalid: api.type=openapi-from-controllers without generationCommand
+version: 1
+
+project:
+  name: bad-api
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+
+api:
+  type: openapi-from-controllers
+  diffMode: structural
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval

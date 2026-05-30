@@ -1,0 +1,14 @@
+# Invalid: missing required `version`
+project:
+  name: missing-version
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval

@@ -1,0 +1,12 @@
+# Invalid: zones present but both red and blue absent (anyOf required)
+version: 1
+
+project:
+  name: empty-zones
+
+zones: {}
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval

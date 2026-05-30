@@ -1,0 +1,15 @@
+# Invalid: zone entry missing required `reason`
+version: 1
+
+project:
+  name: missing-reason
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      checkpoint: architecture-review
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval

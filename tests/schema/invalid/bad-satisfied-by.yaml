@@ -1,0 +1,16 @@
+# Invalid: checkpoint satisfiedBy contains an unknown form
+version: 1
+
+project:
+  name: bad-satisfied-by
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - magicTrust: anyone

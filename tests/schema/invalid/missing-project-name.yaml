@@ -1,0 +1,16 @@
+# Invalid: missing project.name
+version: 1
+
+project:
+  extension: spring-archunit
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval

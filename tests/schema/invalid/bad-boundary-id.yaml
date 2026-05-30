@@ -1,0 +1,23 @@
+# Invalid: boundary rule id is not kebab-case
+version: 1
+
+project:
+  name: bad-id
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+
+boundaries:
+  - id: DomainMustNotImportAdapters
+    description: bad id format
+    from: src/main/java/**/domain/**
+    forbidImports:
+      - src/main/java/**/adapter/**
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval

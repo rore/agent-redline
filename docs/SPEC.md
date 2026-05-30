@@ -317,8 +317,8 @@ description: Use when setting up agent governance for a repo, or when working in
 
 agent-redline operates in two modes:
 
-1. **Bootstrap mode** — invoked when the user asks to set up agent-redline for a repo. See [bootstrap-mode.md](bootstrap-mode.md).
-2. **Operating mode** — invoked automatically in any repo that contains `agent-policy.yaml`. See [operating-mode.md](operating-mode.md).
+1. **Bootstrap mode** — invoked when the user asks to set up agent-redline for a repo. See [`../core/skill/bootstrap-mode.md`](../core/skill/bootstrap-mode.md).
+2. **Operating mode** — invoked automatically in any repo that contains `agent-policy.yaml`. See [`../core/skill/operating-mode.md`](../core/skill/operating-mode.md).
 
 ## Detection
 

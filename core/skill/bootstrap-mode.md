@@ -40,7 +40,7 @@ Read what's in the repo:
 
 Propose a language extension:
 - Spring Boot + Gradle/Maven → `spring-archunit`
-- Other stacks → see `docs/EXTENSIONS.md`; ask developer to pick a third-party one or proceed without one
+- Other stacks → see [agent-redline EXTENSIONS docs](https://github.com/rore/agent-redline/blob/main/docs/EXTENSIONS.md); ask developer to pick a third-party one or proceed without one
 - No extension available → offer zone-only governance (no boundary backend)
 
 Don't modify anything yet. Produce a written summary; wait for developer confirmation.

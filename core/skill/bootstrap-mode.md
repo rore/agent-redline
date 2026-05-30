@@ -131,7 +131,7 @@ If `CLAUDE.md` / `GEMINI.md` exist, add a short reference section to them. Don't
 
 **PR template** — merge with any existing `.github/pull_request_template.md`. Don't overwrite.
 
-**Per-checkpoint docs** — copy from `core/templates/skills/` into `docs/agent/`. Initially: `blue-zone-work.md`, `red-zone-change.md`, `boundary-violation.md`. Add others only if the policy declares those checkpoints.
+**Per-checkpoint docs** — copy from `core/templates/skills/` into `docs/agent/` only the docs whose checkpoints or branches the policy actually uses. Always copy: `blue-zone-work.md`, `red-zone-change.md`, `gray-zone-change.md`, `boundary-violation.md`, `pr-discipline.md`. Copy `api-change-checkpoint.md`, `persistence-change-checkpoint.md`, `security-change-checkpoint.md` only if the policy declares the corresponding checkpoint.
 
 ## Phase 5 — Propose CI
 

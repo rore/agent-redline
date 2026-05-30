@@ -884,7 +884,7 @@ agent-redline v1 is successful when, in a real consuming repo:
 - The reference language extension: `extensions/spring-archunit/` (README, profile, scaffold, operating, adapter)
 - The reporter (small script: reads policy + diff + backend output, posts PR comment, returns exit code; runs locally and in CI)
 - Stack-neutral templates: `agent-policy.yaml`, `AGENTS.md`, `pr-template.md`, `pre-push-check.sh`
-- Three core per-checkpoint skill docs: `blue-zone-work`, `red-zone-change`, `boundary-violation`
+- Eight per-checkpoint skill docs (`blue-zone-work`, `red-zone-change`, `gray-zone-change`, `boundary-violation`, `api-change-checkpoint`, `persistence-change-checkpoint`, `security-change-checkpoint`, `pr-discipline`)
 - Policy schema: `core/schema/agent-policy.schema.json`
 - Docs: `PHILOSOPHY.md`, `BOOTSTRAP.md`, `OPERATING.md`, `CI_INTEGRATION.md`, `EXTENSIONS.md`, `POLICY_SCHEMA.md`, `VALIDATION.md`, `FAQ.md`
 - A worked example in `examples/spring-hexagonal/`

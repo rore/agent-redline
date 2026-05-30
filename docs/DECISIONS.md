@@ -179,3 +179,31 @@ Each entry: short title, date, decision, alternatives, rationale, revisit-if.
 - A single file makes it easy for new contributors to read the rationale trail in one pass.
 
 **Revisit if:** the file grows past comfortable readability (~50 entries, very rough threshold), at which point split into directory.
+
+---
+
+## 2026-05-30 — All eight per-checkpoint skill docs ship in v0.1
+
+**Decision:** `core/templates/skills/` ships with eight files: `blue-zone-work.md`, `red-zone-change.md`, `gray-zone-change.md`, `boundary-violation.md`, `api-change-checkpoint.md`, `persistence-change-checkpoint.md`, `security-change-checkpoint.md`, `pr-discipline.md`. Each is under the 600-token ceiling.
+
+**Alternatives considered:**
+- Ship none; the operating-mode skill file is sufficient for all branches.
+- Ship only `boundary-violation.md` (the strongest candidate by reasoning).
+- Ship only the three core ones (blue-zone-work, red-zone-change, boundary-violation) listed in the original SPEC.
+
+**Rationale:**
+
+This decision was made data-driven, in the sense available before the project has running smoke-test data. The method:
+
+1. **Option A — articulate uniqueness in advance.** For each candidate, list what unique behavioral content it would carry that's NOT in `agent-redline.md` or `operating-mode.md`. Predict whether it's enough to justify the file.
+2. **Option C — write each one under a uniqueness constraint.** Every line must add behavioral instruction NOT already in the core skill files. Measure the resulting size; if it lands at usable density (200+ tokens of unique content) under the 600-token ceiling, the doc earns a place.
+
+The full Option A predictions and the actual outcomes are recorded in `.local/PER_CHECKPOINT_DOCS_ANALYSIS.md`.
+
+**Result:** Option A's predictions were systematically too conservative. Predicted "no" or "lean no" candidates (`blue-zone-work.md`, `red-zone-change.md`, `gray-zone-change.md`, `pr-discipline.md`) all produced 150-350 tokens of genuinely unique content when actually attempted. The exercise of writing under a uniqueness constraint surfaced concrete behavioral patterns (specific anti-patterns to refuse, concrete reviewer needs, gray-vs-grayWatch distinctions) that abstract reasoning had missed.
+
+All eight files passed the budget check at 47%-89% utilization with comfortable headroom.
+
+**Lesson worth recording:** abstract reasoning about "what would this file contain?" tends to underestimate what focused, concrete instruction fits a single topic. The exercise of writing under a uniqueness constraint is empirically different from predicting it. Future "should this file exist?" decisions should run the experiment, not the prediction.
+
+**Revisit if:** smoke testing (Layer 4b) shows the agent ignores or duplicates content from a per-checkpoint doc — that would mean the content didn't change behavior despite the prediction. Revisit individual files based on observed agent behavior, not on a-priori reasoning.

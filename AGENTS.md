@@ -4,12 +4,21 @@ You're working on the agent-redline project itself, not a repo that uses agent-r
 
 This is a public open-source project. No internal terminology, no marketing language, smallest-version-first discipline.
 
-## Read first
+## Always read on session start
 
-1. **`.local/WORK_TRACKER.md`** — current state, what's next. Tactical session log. Read on session start; append at end.
-2. **`docs/SPEC.md`** — normative project specification. §5.1 has the full layout; §15 has v0.1 scope.
-3. **`docs/DECISIONS.md`** — why we chose what we chose. Read this before proposing changes that touch a prior decision.
-4. **`docs/SKILL_AUTHORING.md`** — read before editing any file an agent loads mid-task (`core/skill/*.md`, `core/templates/skills/*.md`, `extensions/*/profile.md`, `scaffold.md`, `operating.md`, generated `agent-policy.yaml` / `AGENTS.md` in consuming repos).
+Two files. Together ~1.8K tokens.
+
+1. **This file (`AGENTS.md`)** — orientation. ~480 tokens.
+2. **`.local/WORK_TRACKER.md`** — what state the previous session left work in, what to pick up next. ~1.3K tokens. Append a session entry when finishing substantive work.
+
+## Load when relevant (do not load on session start)
+
+Each of these is large. Load only the section you need, when you need it.
+
+- **`docs/SPEC.md`** (~8.9K tokens). Normative spec. §1.4 for token budgets, §5.1 for layout, §10 for extensions, §15 for v0.1 scope, etc. Use the table of contents; don't read whole.
+- **`docs/DECISIONS.md`** (~2.3K tokens). ADR-style rationale. Read when proposing a change that touches a prior decision, or when puzzled why something was chosen.
+- **`docs/SKILL_AUTHORING.md`** (~1.1K tokens). Read before editing any file an agent loads mid-task (`core/skill/*.md`, `core/templates/skills/*.md`, `extensions/*/profile.md`, `scaffold.md`, `operating.md`, generated `agent-policy.yaml` / `AGENTS.md` in consuming repos).
+- Other docs in `docs/` — read on demand by topic.
 
 ## Hard rules
 

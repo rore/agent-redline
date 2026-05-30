@@ -1,0 +1,79 @@
+# Common policy used by most reporter fixtures.
+version: 1
+
+project:
+  name: fixture-service
+  extension: spring-archunit
+
+defaults:
+  unclassifiedZone: gray
+  grayMode: cautious
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain model
+      checkpoint: architecture-review
+    - path: src/main/java/**/*Controller.java
+      reason: API surface
+      checkpoint: api-review
+    - path: src/test/java/**/architecture/**
+      reason: architecture test definitions
+      checkpoint: architecture-review
+  blue:
+    - path: src/test/**
+      reason: tests
+    - path: src/main/java/**/adapter/**/persistence/**/dto/**
+      reason: DB row DTOs
+
+boundaryBackend: archunit
+
+boundaries:
+  - id: domain-must-not-import-adapters
+    description: Domain layer must not depend on adapters
+    from: src/main/java/**/domain/**
+    forbidImports:
+      - src/main/java/**/adapter/**
+
+api:
+  type: openapi-spec-file
+  specPath: openapi/api.yaml
+  checkpoint: api-review
+
+persistence:
+  migrationPaths:
+    - src/main/resources/db/migration/**
+  checkpoint: persistence-review
+
+security:
+  paths:
+    - src/main/java/**/security/**
+  checkpoint: security-review
+
+prRules:
+  maxChangedFiles:
+    warn: 10
+    fail: 20
+  maxLinesChanged:
+    warn: 200
+    fail: 500
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+      - label: architecture-reviewed
+  api-review:
+    satisfiedBy:
+      - label: api-reviewed
+  persistence-review:
+    satisfiedBy:
+      - label: persistence-reviewed
+  security-review:
+    satisfiedBy:
+      - label: security-reviewed
+
+modes:
+  default: shadow
+  perCheck:
+    boundary_violation: binding

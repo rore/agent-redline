@@ -207,3 +207,23 @@ All eight files passed the budget check at 47%-89% utilization with comfortable 
 **Lesson worth recording:** abstract reasoning about "what would this file contain?" tends to underestimate what focused, concrete instruction fits a single topic. The exercise of writing under a uniqueness constraint is empirically different from predicting it. Future "should this file exist?" decisions should run the experiment, not the prediction.
 
 **Revisit if:** smoke testing (Layer 4b) shows the agent ignores or duplicates content from a per-checkpoint doc — that would mean the content didn't change behavior despite the prediction. Revisit individual files based on observed agent behavior, not on a-priori reasoning.
+
+---
+
+## 2026-05-30 — Reporter and validation tooling: Python
+
+**Decision:** The reporter (`core/reporter/`) and the schema-validation harness (`tests/schema/check-schema.py`) are written in Python. CI uses `actions/setup-python@v5` and installs `pyyaml` and `jsonschema` as dependencies.
+
+**Alternatives considered:**
+- Bash for the reporter (matching the existing `tests/budget/check-budget.sh`).
+- TypeScript / Node for parity with potential frontend tooling later.
+- Go, Rust, or other compiled languages.
+
+**Rationale:**
+- Python's standard library covers most of what the reporter needs: YAML via `pyyaml`, JSON Schema via `jsonschema`, glob matching via `pathlib`, JUnit XML via `xml.etree.ElementTree`. No exotic dependencies.
+- Bash is workable for the budget check (one file, simple parser) but brittle for XML and conditional schema validation. The reporter's logic genuinely benefits from a typed-ish language.
+- TypeScript adds Node, npm, lockfile management, and a build step. The reporter is ~500 lines of mostly procedural code; a build pipeline is overhead with no compensating value.
+- Compiled languages (Go, Rust) have a bigger setup cost for contributors and slower iteration without a clear payoff at this scale.
+- Python is universally available on developer machines and in CI, has good readability, and the standard libraries are stable enough that the code can stay dependency-light.
+
+**Revisit if:** the reporter grows substantially in scope (e.g., a dashboard, a watchdog, a server) such that another language fits better, or if Python ecosystem changes (3.x sunset, jsonschema breaking changes) make maintenance painful.

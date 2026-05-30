@@ -1,0 +1,37 @@
+{
+  "apiChanges": {
+    "detected": false
+  },
+  "boundaryViolations": [
+    {
+      "detail": "Architecture Violation: Rule 'no classes that reside in a package '..application..' should depend on classes that reside in any package ['..adapter..persistence..']' was violated (1 times):",
+      "rule": "application_must_not_depend_on_persistence_adapters",
+      "severity": "error",
+      "source": "archunit"
+    }
+  ],
+  "checkpoints": [],
+  "exitCode": 2,
+  "prSize": {
+    "files": 1,
+    "lines": 0,
+    "verdict": "ok"
+  },
+  "recommendedAction": "fix-boundary-violation",
+  "schemaChanges": {
+    "detected": false
+  },
+  "securityChanges": {
+    "detected": false
+  },
+  "summary": "1 boundary violation(s) detected.",
+  "verdict": "BOUNDARY_VIOLATION",
+  "zones": {
+    "blue": [],
+    "gray": [
+      "src/main/java/com/example/orders/application/OrderService.java"
+    ],
+    "grayWatch": [],
+    "red": []
+  }
+}

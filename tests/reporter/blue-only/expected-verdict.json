@@ -1,0 +1,31 @@
+{
+  "apiChanges": {
+    "detected": false
+  },
+  "boundaryViolations": [],
+  "checkpoints": [],
+  "exitCode": 0,
+  "prSize": {
+    "files": 2,
+    "lines": 35,
+    "verdict": "ok"
+  },
+  "recommendedAction": "none",
+  "schemaChanges": {
+    "detected": false
+  },
+  "securityChanges": {
+    "detected": false
+  },
+  "summary": "All changes in blue zones.",
+  "verdict": "BLUE",
+  "zones": {
+    "blue": [
+      "src/test/java/com/example/orders/OrderServiceTest.java",
+      "src/main/java/com/example/orders/adapter/persistence/dto/OrderRow.java"
+    ],
+    "gray": [],
+    "grayWatch": [],
+    "red": []
+  }
+}

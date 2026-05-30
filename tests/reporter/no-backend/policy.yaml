@@ -1,0 +1,36 @@
+# Policy without a boundary-rule backend (zone-only governance).
+version: 1
+
+project:
+  name: no-backend-fixture
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain model
+      checkpoint: architecture-review
+    - path: src/test/java/**/architecture/**
+      reason: architecture test definitions
+      checkpoint: architecture-review
+  blue:
+    - path: src/test/**
+      reason: tests
+
+# No boundaryBackend, no boundaries.
+
+prRules:
+  maxChangedFiles:
+    warn: 10
+    fail: 20
+  maxLinesChanged:
+    warn: 200
+    fail: 500
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+      - label: architecture-reviewed
+
+modes:
+  default: shadow

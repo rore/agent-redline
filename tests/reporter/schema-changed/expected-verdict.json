@@ -1,0 +1,41 @@
+{
+  "apiChanges": {
+    "detected": false
+  },
+  "boundaryViolations": [],
+  "checkpoints": [
+    {
+      "id": "persistence-review",
+      "reason": "Persistence migration changed",
+      "satisfied": false,
+      "satisfy_by": [
+        "label `persistence-reviewed`"
+      ]
+    }
+  ],
+  "exitCode": 1,
+  "prSize": {
+    "files": 2,
+    "lines": 0,
+    "verdict": "ok"
+  },
+  "recommendedAction": "review-shadow-warnings",
+  "schemaChanges": {
+    "detected": true
+  },
+  "securityChanges": {
+    "detected": false
+  },
+  "summary": "Persistence schema changed.",
+  "verdict": "SCHEMA_CHANGE",
+  "zones": {
+    "blue": [
+      "src/test/java/com/example/orders/OrderServiceTest.java"
+    ],
+    "gray": [
+      "src/main/resources/db/migration/V2__add_orders_index.sql"
+    ],
+    "grayWatch": [],
+    "red": []
+  }
+}

@@ -1,0 +1,1 @@
+src/test/java/com/example/orders/architecture/DependencyArchitectureTest.java

@@ -1,0 +1,40 @@
+{
+  "apiChanges": {
+    "detected": false
+  },
+  "boundaryViolations": [],
+  "checkpoints": [
+    {
+      "id": "architecture-review",
+      "reason": "red-zone change: src/test/java/com/example/orders/architecture/DependencyArchitectureTest.java",
+      "satisfied": false,
+      "satisfy_by": [
+        "CODEOWNER approval",
+        "label `architecture-reviewed`"
+      ]
+    }
+  ],
+  "exitCode": 1,
+  "prSize": {
+    "files": 1,
+    "lines": 0,
+    "verdict": "ok"
+  },
+  "recommendedAction": "review-shadow-warnings",
+  "schemaChanges": {
+    "detected": false
+  },
+  "securityChanges": {
+    "detected": false
+  },
+  "summary": "Architecture-test files modified; architecture-review required.",
+  "verdict": "RED",
+  "zones": {
+    "blue": [],
+    "gray": [],
+    "grayWatch": [],
+    "red": [
+      "src/test/java/com/example/orders/architecture/DependencyArchitectureTest.java"
+    ]
+  }
+}

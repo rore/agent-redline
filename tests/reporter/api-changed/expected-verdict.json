@@ -1,0 +1,41 @@
+{
+  "apiChanges": {
+    "detected": true
+  },
+  "boundaryViolations": [],
+  "checkpoints": [
+    {
+      "id": "api-review",
+      "reason": "API contract changed",
+      "satisfied": false,
+      "satisfy_by": [
+        "label `api-reviewed`"
+      ]
+    }
+  ],
+  "exitCode": 1,
+  "prSize": {
+    "files": 2,
+    "lines": 0,
+    "verdict": "ok"
+  },
+  "recommendedAction": "review-shadow-warnings",
+  "schemaChanges": {
+    "detected": false
+  },
+  "securityChanges": {
+    "detected": false
+  },
+  "summary": "Public API contract changed.",
+  "verdict": "API_CHANGE",
+  "zones": {
+    "blue": [
+      "src/test/java/com/example/orders/OrderServiceTest.java"
+    ],
+    "gray": [
+      "openapi/api.yaml"
+    ],
+    "grayWatch": [],
+    "red": []
+  }
+}

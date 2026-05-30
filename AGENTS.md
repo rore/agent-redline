@@ -6,18 +6,16 @@ This is a public open-source project. No internal terminology, no marketing lang
 
 ## Always read on session start
 
-Two files. Together ~1.8K tokens.
-
-1. **This file (`AGENTS.md`)** — orientation. ~480 tokens.
-2. **`.local/WORK_TRACKER.md`** — what state the previous session left work in, what to pick up next. ~1.3K tokens. Append a session entry when finishing substantive work.
+1. **This file (`AGENTS.md`)** — orientation.
+2. **`.local/WORK_TRACKER.md`** — what state the previous session left work in, what to pick up next. Append a session entry when finishing substantive work.
 
 ## Load when relevant (do not load on session start)
 
-Each of these is large. Load only the section you need, when you need it.
+These are larger. Load only the section you need, when you need it.
 
-- **`docs/SPEC.md`** (~8.9K tokens). Normative spec. §1.4 for token budgets, §5.1 for layout, §10 for extensions, §15 for v0.1 scope, etc. Use the table of contents; don't read whole.
-- **`docs/DECISIONS.md`** (~2.3K tokens). ADR-style rationale. Read when proposing a change that touches a prior decision, or when puzzled why something was chosen.
-- **`docs/SKILL_AUTHORING.md`** (~1.1K tokens). Read before editing any file an agent loads mid-task (`core/skill/*.md`, `core/templates/skills/*.md`, `extensions/*/profile.md`, `scaffold.md`, `operating.md`, generated `agent-policy.yaml` / `AGENTS.md` in consuming repos).
+- **`docs/SPEC.md`** — normative spec. §1.4 for token budgets, §5.1 for layout, §10 for extensions, §15 for v0.1 scope. Use the table of contents; don't read whole.
+- **`docs/DECISIONS.md`** — ADR-style rationale. Read when proposing a change that touches a prior decision, or when puzzled why something was chosen.
+- **`docs/SKILL_AUTHORING.md`** — read before editing any file an agent loads mid-task (`core/skill/*.md`, `core/templates/skills/*.md`, `extensions/*/profile.md`, `scaffold.md`, `operating.md`, generated `agent-policy.yaml` / `AGENTS.md` in consuming repos).
 - Other docs in `docs/` — read on demand by topic.
 
 ## Hard rules

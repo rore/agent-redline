@@ -1,0 +1,10 @@
+# Default: let git decide line endings.
+* text=auto
+
+# Shell scripts must stay LF — CRLF breaks on Linux/macOS.
+*.sh text eol=lf
+
+# YAML and markdown: text, but explicit is fine.
+*.yaml text
+*.yml text
+*.md text

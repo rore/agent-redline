@@ -1,0 +1,62 @@
+# tests/budget/budget.yaml
+#
+# Token-budget ceilings for every file loaded into an agent's context.
+#
+# Source of truth: SPEC §1.4.1. If this file and SPEC disagree, SPEC wins.
+#
+# Estimator: approx_tokens = words * 1.33 (whitespace-separated words).
+# This is a fast, deliberately rough approximation. It overestimates slightly on
+# prose (good — gives margin) and underestimates on code-heavy files (acceptable —
+# code is rare in skill files). A real tokenizer can be substituted later without
+# changing the budget contract.
+#
+# Pattern matching: a glob may apply to multiple files; in that case the ceiling
+# applies to each file individually.
+
+version: 1
+
+ceilings:
+  # Project-root AGENTS.md — auto-loaded by harnesses on session start when
+  # an agent is working on this project. Same ceiling as a generated AGENTS.md
+  # in a consuming repo: keep orientation cheap.
+  - path: AGENTS.md
+    max_tokens: 1000
+    why: auto-loaded by harnesses on session start while developing agent-redline
+
+  # Core skill — loaded into every agent session in an agent-redline-aware repo.
+  - path: core/skill/agent-redline.md
+    max_tokens: 800
+    why: loaded on every session
+  - path: core/skill/operating-mode.md
+    max_tokens: 1500
+    why: loaded on every operating-mode turn
+  - path: core/skill/bootstrap-mode.md
+    max_tokens: 2000
+    why: loaded only during bootstrap (rare)
+
+  # Per-checkpoint skill docs — each loaded only when its checkpoint is triggered.
+  - path: core/templates/skills/*.md
+    max_tokens: 600
+    why: loaded only when the relevant checkpoint is triggered
+
+  # Stack-neutral templates that are read by the agent.
+  - path: core/templates/agent-policy.yaml.template
+    max_tokens: 1500
+    why: read every operating-mode turn after bootstrap copies it
+  - path: core/templates/AGENTS.md.template
+    max_tokens: 1000
+    why: read on session start after bootstrap copies it
+
+  # Language-extension files.
+  - path: extensions/*/profile.md
+    max_tokens: 2500
+    why: loaded during bootstrap
+  - path: extensions/*/scaffold.md
+    max_tokens: 2000
+    why: loaded during scaffold phase of bootstrap
+  - path: extensions/*/operating.md
+    max_tokens: 600
+    why: loaded during operating mode if the extension provides one
+  - path: extensions/*/README.md
+    max_tokens: 1000
+    why: human-facing summary; not loaded by the agent but kept lean for consistency

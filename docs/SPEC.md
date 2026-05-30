@@ -303,234 +303,50 @@ repo/
 
 ## 6. The skill
 
-### 6.1 Skill manifest
+The skill is three markdown files under `core/skill/`. They are the normative source for agent behavior; this section summarizes their roles. Read the files for the actual instructions.
 
-The skill is a markdown document with frontmatter compatible with Claude Code skills, Codex skills, and similar formats. Sketch:
+### 6.1 Files
 
-```markdown
----
-name: agent-redline
-description: Use when setting up agent governance for a repo, or when working in a repo that has agent-redline configured. Classifies structural risk and routes human attention only to red-zone changes.
----
+- **`core/skill/agent-redline.md`** — entry point. Vocabulary, mode-dispatch, principles, decision-priority, resource pointers. The harness loads this on session start when the skill is installed.
+- **`core/skill/operating-mode.md`** — the everyday loop: read policy → classify → branch → edit/escalate → local check → PR description.
+- **`core/skill/bootstrap-mode.md`** — the one-time setup conversation: inspect → propose extension → adapt → write artifacts → propose CI → summary.
 
-# agent-redline
+### 6.2 Mode dispatch
 
-agent-redline operates in two modes:
+The skill picks a mode based on what it finds:
 
-1. **Bootstrap mode** — invoked when the user asks to set up agent-redline for a repo. See [`../core/skill/bootstrap-mode.md`](../core/skill/bootstrap-mode.md).
-2. **Operating mode** — invoked automatically in any repo that contains `agent-policy.yaml`. See [`../core/skill/operating-mode.md`](../core/skill/operating-mode.md).
+- `agent-policy.yaml` exists in the repo root → **operating mode**
+- The user asked to set up agent-redline → **bootstrap mode**
+- Neither → the skill is not relevant; get out of the way
 
-## Detection
+### 6.3 Skill behavior contracts
 
-Before doing anything, check for `agent-policy.yaml` in the repo root.
+These hold across both modes. They're stated in `core/skill/agent-redline.md` as principles; restated here so the spec is self-contained for reviewers.
 
-- If present → operating mode
-- If absent and the user asked to set up agent-redline → bootstrap mode
-- If absent and the user did not ask → do nothing; this skill is not relevant
+- Never silently write CI workflow files or modify branch protection. Propose; humans decide.
+- Never edit boundary-rule backend definitions (ArchUnit tests on JVM, etc.) in operating mode without an explicit checkpoint.
+- Never approve a boundary-rule violation by adding suppressions. Fix the structure or escalate.
+- Always classify before editing.
+- Default conservative on uncertainty. Gray > blue, red > gray, boundary risk > everything.
 
-## Vocabulary
+### 6.4 Authoring discipline
 
-[red/blue/gray, zones, boundary rules, checkpoints — full table from §4]
-
-## Principles
-
-[the four-line principle from §3]
-
-[...]
-```
-
-### 6.2 Bootstrap mode
-
-When invoked for setup, the skill instructs the agent to:
-
-1. **Inspect the repo:**
-   - Detect language and build system (Gradle, Maven, npm, pip, Go modules, etc.)
-   - Detect framework (Spring Boot, Express, FastAPI, etc.)
-   - Detect package layout (hexagonal? layered? flat? monorepo?)
-   - Detect existing CI (`.github/workflows/`, `.gitlab-ci.yml`, etc.)
-   - Detect existing agent-facing files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`)
-   - Detect existing CODEOWNERS, branch protection (read-only inspection where possible)
-   - Detect existing OpenAPI / GraphQL / proto / DB migration locations
-
-2. **Propose zones to the developer:**
-   - Use the matching language extension (e.g., `extensions/spring-archunit/`) as a starting point
-   - Adapt to the actual paths found in the repo
-   - Present the proposed `agent-policy.yaml` for review before writing
-   - Ask explicitly about domain-specific concerns: "Are there third-party adapter contracts? Customer-specific code? Multi-tenant persistence? Security boundaries?"
-
-3. **Generate the directly-committed artifacts:**
-   - `agent-policy.yaml`
-   - `AGENTS.md` (and a reference from any existing `CLAUDE.md` / `GEMINI.md`)
-   - Boundary-rule backend artifacts (ArchUnit test class for JVM/Spring; equivalent for other ecosystems)
-   - `scripts/agent-redline-check.sh` — local pre-push check
-   - `.github/pull_request_template.md` additions
-   - Skill docs under `docs/agent/`
-
-4. **Draft the CI integration proposal — do NOT commit:**
-   - Write a `docs/agent-redline-ci-proposal.md` containing:
-     - The proposed workflow YAML (ready to copy)
-     - Required-status-check additions for branch protection
-     - CODEOWNERS additions
-     - Recommended initial mode (always shadow)
-     - Explicit list of decisions the human must make
-   - Tell the developer: "I've written everything I'm allowed to write. CI integration is a structural change to your team's workflow — that's a red-zone decision. Open `docs/agent-redline-ci-proposal.md`, review it with whoever owns CI, and apply when you're ready."
-
-5. **Self-checkpoint:**
-   - Bootstrap mode is itself touching structural surface (CI, governance, agent instructions). The skill must produce a summary of what it changed, why, and what's pending human action.
-
-### 6.3 Operating mode
-
-When invoked in a repo with `agent-policy.yaml`, the skill instructs the agent to:
-
-1. **Read the policy** before any edit.
-2. **Classify the intended change:**
-   - Which files would change?
-   - What zone do they fall in?
-   - Do any boundary rules apply?
-   - Is the change touching API, schema, security, or runtime config paths?
-3. **Branch by classification:**
-   - **Blue:** proceed with normal autonomy.
-   - **Red:** stop. Produce a short change plan / checkpoint note before editing. Confirm with the human, or proceed if explicitly authorized.
-   - **Gray:** proceed cautiously. Surface in the PR description that this touched gray-zone code; suggest it be classified.
-   - **Boundary violation risk:** do not work around the rule. Either fix the structure (open the port, extend the interface) or escalate for a modeling checkpoint.
-4. **Run the local check** (`scripts/agent-redline-check.sh`) before declaring work done.
-5. **Write a PR description** that exposes the classification, what changed, why, how it was verified, and which checkpoint (if any) is needed.
-
-### 6.4 Skill behavior contracts
-
-The skill must:
-
-- **Never silently write CI workflow files or modify branch protection.** Always propose; humans decide.
-- **Never edit boundary-rule backend definitions (ArchUnit tests for JVM, dependency-cruiser config for Node, etc.) in operating mode without an explicit checkpoint.** Those files ARE the boundaries; weakening them silently would defeat the system.
-- **Never approve a boundary-rule violation by adding suppressions or exceptions.** Fix the structure or escalate.
-- **Always classify before editing,** not after.
-- **Always be explicit about uncertainty.** Gray-zone classification is a feature, not a failure.
+Skill files are subject to budget ceilings (§1.4) and the authoring rules in `docs/SKILL_AUTHORING.md`. The deletion test is the operative check: cut any sentence that doesn't change agent behavior.
 
 ---
 
 ## 7. The policy schema
 
-`agent-policy.yaml` is the single source of truth for a repo's governance. Schema:
+`agent-policy.yaml` is the single source of truth for a repo's governance. Two normative artifacts:
 
-```yaml
-# agent-policy.yaml — schema v1
+- **`core/schema/agent-policy.schema.json`** — JSON Schema (Draft 2020-12). The reporter validates against it; CI rejects non-conforming policies.
+- **[`POLICY_SCHEMA.md`](POLICY_SCHEMA.md)** — human-readable reference: every field, defaults, validation rules, glob syntax, the `when:` / `action:` tables, and `satisfiedBy` semantics.
 
-version: 1
-
-project:
-  name: <string>                    # required
-  extension: <string>               # optional; e.g. "spring-archunit"; names the language extension
-
-defaults:
-  unclassifiedZone: gray            # gray | red | blue
-  grayMode: cautious                # cautious | warn | allow
-
-zones:
-  red:
-    - path: <glob>
-      reason: <string>
-      checkpoint: <checkpoint-id>   # optional; defaults to "architecture-review"
-  blue:
-    - path: <glob>
-      reason: <string>
-  # gray is implicit (anything not classified)
-
-  grayWatch:                        # paths to flag in PR even though gray
-    - path: <glob>
-      reason: <string>
-
-boundaryBackend: archunit            # tool that enforces boundary rules.
-                                     # Examples: archunit (JVM), dependency-cruiser (Node),
-                                     # import-linter (Python), semgrep (generic).
-                                     # Profile-defaulted; bootstrap fills it in.
-
-boundaries:
-  - id: <string>                    # required, unique within file
-    description: <string>
-    from: <glob>
-    forbidImports:
-      - <glob>
-    severity: error                 # error | warn
-
-api:
-  type: openapi-from-controllers    # openapi-from-controllers | openapi-spec-file | graphql | proto | none
-  generationCommand: <string>       # optional; how to regenerate the spec for diffing
-  specPath: <path>                  # optional; where the spec lives if not generated
-  diffMode: structural              # structural | full
-  checkpoint: api-review
-
-persistence:
-  migrationPaths:
-    - <glob>
-  checkpoint: persistence-review
-
-security:
-  paths:
-    - <glob>
-  checkpoint: security-review
-
-runtimeConfig:
-  paths:
-    - <glob>
-  checkpoint: ops-review
-
-prRules:
-  maxChangedFiles:
-    warn: <int>
-    fail: <int>
-  maxLinesChanged:
-    warn: <int>
-    fail: <int>
-  rejectVerboseGeneratedDescriptions: true
-  requireVerificationSection: true
-
-changeRules:
-  - when: blue_only
-    action: allow
-  - when: red_changed
-    action: require_checkpoint
-  - when: gray_changed
-    action: warn
-  - when: boundary_violation
-    action: fail
-  - when: api_changed
-    action: require_checkpoint
-    checkpoint: api-review
-  - when: schema_changed
-    action: require_checkpoint
-    checkpoint: persistence-review
-  - when: security_changed
-    action: require_checkpoint
-    checkpoint: security-review
-  - when: pr_size_warn
-    action: warn
-  - when: pr_size_fail
-    action: require_split
-
-checkpoints:
-  architecture-review:
-    description: <string>
-    satisfiedBy:
-      - codeownerApproval
-      - label: architecture-reviewed
-  api-review:
-    satisfiedBy:
-      - codeownerApproval
-      - label: api-reviewed
-  # ... others as needed
-
-modes:
-  default: shadow                   # shadow | binding
-  perCheck:
-    archunit: binding               # named overrides
-    api_diff: shadow
-    pr_size: shadow
-    classification_comment: binding
-```
+Examples of valid and invalid policies live in `tests/schema/{valid,invalid}/`.
 
 ### 7.1 Mandatory rule: boundary-backend definitions are red-zone
 
-Every policy must include a zone entry covering the boundary-rule backend's definition files (ArchUnit test classes for JVM, dependency-cruiser config for Node, import-linter config for Python, Semgrep rule files, etc.), with a stricter checkpoint requirement than ordinary architecture changes. The bootstrap skill enforces this: a generated policy that does not protect its own boundary definitions is invalid.
+Every policy must include a zone entry covering the boundary-rule backend's definition files (ArchUnit test classes for JVM, dependency-cruiser config for Node, etc.) with a stricter checkpoint requirement than ordinary architecture changes. Bootstrap enforces this; a generated policy that doesn't protect its own boundary definitions is invalid.
 
 ```yaml
 zones:

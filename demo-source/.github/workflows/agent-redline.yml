@@ -55,14 +55,15 @@ jobs:
       - name: Compute diff inputs
         id: diff
         run: |
+          # ar-test-block: compute-diff-inputs
           set -euo pipefail
           ZERO="0000000000000000000000000000000000000000"
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            BASE_SHA="${{ github.event.pull_request.base.sha }}"
-            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          if [[ "${GITHUB_EVENT_NAME:-${{ github.event_name }}}" == "pull_request" ]]; then
+            BASE_SHA="${AR_PR_BASE_SHA:-${{ github.event.pull_request.base.sha }}}"
+            HEAD_SHA="${AR_PR_HEAD_SHA:-${{ github.event.pull_request.head.sha }}}"
           else
-            BASE_SHA="${{ github.event.before }}"
-            HEAD_SHA="${{ github.sha }}"
+            BASE_SHA="${AR_BEFORE_SHA:-${{ github.event.before }}}"
+            HEAD_SHA="${AR_GH_SHA:-${{ github.sha }}}"
           fi
 
           # On the first push to a branch (or after a force-push that wiped
@@ -75,13 +76,17 @@ jobs:
             BASE_SHA=$(git hash-object -t tree /dev/null)
           fi
 
-          mkdir -p /tmp/agent-redline
-          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > /tmp/agent-redline/changed-files.txt
+          OUT_DIR="${AR_OUT_DIR:-/tmp/agent-redline}"
+          mkdir -p "$OUT_DIR"
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$OUT_DIR/changed-files.txt"
           ADD=$(git diff --shortstat "$BASE_SHA" "$HEAD_SHA" | grep -oE '[0-9]+ insertion' | head -1 | grep -oE '[0-9]+' || echo 0)
           DEL=$(git diff --shortstat "$BASE_SHA" "$HEAD_SHA" | grep -oE '[0-9]+ deletion' | head -1 | grep -oE '[0-9]+' || echo 0)
-          echo "lines_changed=$((ADD + DEL))" >> "$GITHUB_OUTPUT"
+          LINES_CHANGED=$((ADD + DEL))
+          echo "lines_changed=$LINES_CHANGED" >> "${GITHUB_OUTPUT:-/dev/null}"
+          echo "lines_changed=$LINES_CHANGED" > "$OUT_DIR/lines-changed.txt"
           echo "Changed files:"
-          cat /tmp/agent-redline/changed-files.txt
+          cat "$OUT_DIR/changed-files.txt"
+          # ar-test-block-end: compute-diff-inputs
 
       - name: Run reporter
         id: report

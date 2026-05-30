@@ -1,0 +1,4 @@
+src/main/generated/Foo.java
+src/main/java/com/example/orders/domain/Order.java
+build/intermediate/Bar.java
+src/test/java/com/example/orders/OrderServiceTest.java

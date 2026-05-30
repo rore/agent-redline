@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="com.example.orders.architecture.DependencyArchitectureTest" tests="3" failures="2" errors="0" skipped="0">
+    <testcase name="domain_must_not_depend_on_adapters" classname="com.example.orders.architecture.DependencyArchitectureTest" time="0.012">
+      <failure type="java.lang.AssertionError" message="Architecture Violation [Priority: MEDIUM]">Architecture Violation: Rule 'no classes that reside in a package '..domain..' should depend on classes that reside in any package ['..adapter..']' was violated (1 times):
+Class &lt;com.example.orders.domain.Foo&gt; depends on &lt;com.example.orders.adapter.Bar&gt;</failure>
+    </testcase>
+    <testcase name="application_must_not_depend_on_persistence_adapters" classname="com.example.orders.architecture.DependencyArchitectureTest" time="0.011">
+      <failure type="java.lang.AssertionError" message="Architecture Violation [Priority: MEDIUM]">Architecture Violation: Rule 'no classes that reside in a package '..application..' should depend on classes that reside in any package ['..adapter..persistence..']' was violated (1 times):
+Class &lt;com.example.orders.application.OrderService&gt; depends on &lt;com.example.orders.adapter.persistence.PostgresOrderRepository&gt;</failure>
+    </testcase>
+    <testcase name="controllers_must_not_access_repositories_directly" classname="com.example.orders.architecture.DependencyArchitectureTest" time="0.005"/>
+  </testsuite>
+</testsuites>

@@ -56,6 +56,11 @@ def main() -> int:
 
     failures: list[str] = []
 
+    # Additional in-repo policies that should always be valid.
+    real_policies = [
+        REPO_ROOT / "demo-source" / "agent-policy.yaml",
+    ]
+
     # Valid fixtures: must validate.
     for path in sorted(VALID_DIR.glob("*.yaml")):
         try:
@@ -69,6 +74,23 @@ def main() -> int:
             failures.append(f"FAIL  {path.relative_to(REPO_ROOT)}: expected valid, got: {err_lines}")
         else:
             print(f"ok    {path.relative_to(REPO_ROOT)} (valid)")
+
+    # Real policies in the repo: must also validate.
+    for path in real_policies:
+        if not path.exists():
+            print(f"skip  {path.relative_to(REPO_ROOT)} (file not present)")
+            continue
+        try:
+            policy = load_yaml(path)
+        except yaml.YAMLError as e:
+            failures.append(f"FAIL  {path.relative_to(REPO_ROOT)}: YAML parse error: {e}")
+            continue
+        errors = list(validator.iter_errors(policy))
+        if errors:
+            err_lines = "; ".join(f"{e.message} (at {list(e.absolute_path)})" for e in errors)
+            failures.append(f"FAIL  {path.relative_to(REPO_ROOT)}: expected valid, got: {err_lines}")
+        else:
+            print(f"ok    {path.relative_to(REPO_ROOT)} (real policy, valid)")
 
     # Invalid fixtures: must fail.
     for path in sorted(INVALID_DIR.glob("*.yaml")):

@@ -117,6 +117,28 @@ def _glob_to_regex(pattern: str) -> re.Pattern:
                 continue
         elif c == "?":
             out.append("[^/]")
+        elif c == "[":
+            # Pass character class through. Find the matching ].
+            j = i + 1
+            # Allow leading `!` for negation (POSIX-style); also accept `^`.
+            if j < len(pattern) and pattern[j] in "!^":
+                j += 1
+            # Allow `]` as the first character to be literal (POSIX rule).
+            if j < len(pattern) and pattern[j] == "]":
+                j += 1
+            while j < len(pattern) and pattern[j] != "]":
+                j += 1
+            if j >= len(pattern):
+                # Unmatched [: treat as literal
+                out.append(r"\[")
+            else:
+                content = pattern[i + 1:j]
+                # Translate `!` negation to regex `^`.
+                if content.startswith("!"):
+                    content = "^" + content[1:]
+                out.append("[" + content + "]")
+                i = j + 1
+                continue
         elif c == ".":
             out.append(r"\.")
         elif c == "/":

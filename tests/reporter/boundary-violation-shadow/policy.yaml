@@ -1,0 +1,39 @@
+# Same as the common policy but boundary_violation is in shadow mode,
+# so a boundary violation should NOT produce exit code 2.
+version: 1
+
+project:
+  name: fixture-boundary-shadow
+  extension: spring-archunit
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain model
+      checkpoint: architecture-review
+    - path: src/test/java/**/architecture/**
+      reason: architecture test definitions
+      checkpoint: architecture-review
+  blue:
+    - path: src/test/**
+      reason: tests
+
+boundaryBackend: archunit
+
+boundaries:
+  - id: domain-must-not-import-adapters
+    description: Domain layer must not depend on adapters
+    from: src/main/java/**/domain/**
+    forbidImports:
+      - src/main/java/**/adapter/**
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+      - label: architecture-reviewed
+
+modes:
+  default: shadow
+  perCheck:
+    boundary_violation: shadow   # explicit shadow — soft warning, not fail

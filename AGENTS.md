@@ -22,18 +22,24 @@ These are larger. Load only the section you need, when you need it.
 
 1. **No internal or org-specific terminology.** Don't name particular companies, internal product names, internal team names, or internal service names anywhere. References to one shop's tooling leak context that doesn't belong in a public project. Keep examples generic.
 2. **Skill-authoring discipline applies to every file an agent loads mid-task.** Deletion test, imperative voice, ceiling enforced.
-3. **Budget compliance is enforced.** `bash tests/budget/check-budget.sh` must pass. Ceilings live in `tests/budget/budget.yaml` mirroring `docs/SPEC.md §1.4.1`. Smallest version that does the job.
+3. **Run `bash tests/run-all.sh` before pushing.** Budget compliance, schema, reporter, workflow-scripts, links, gitignore, sync-demo. Smallest version that does the job; don't expand budgets without justification. CI runs the same suite.
 4. **No marketing tone.** Developer-to-developer. If a sentence sounds like a pitch, cut it.
 5. **Decisions get recorded, not encoded silently.** Substantive decisions append to `docs/DECISIONS.md` with rationale; routine session work goes in `.local/WORK_TRACKER.md`.
 
 ## Build / test
 
+Run the full local suite before pushing:
+
 ```bash
-bash tests/budget/check-budget.sh             # all files within ceilings
-bash tests/budget/check-budget.sh --verbose   # show every file's utilization
+bash tests/run-all.sh                # ~35s without Java; +70s for the extension layer
+bash tests/run-all.sh --verbose      # show per-test detail
+bash tests/run-all.sh --only budget  # one layer
+bash tests/run-all.sh --skip extension   # skip optional Java step
 ```
 
-Other validation layers (schema, reporter goldens, extension dry-run, skill smoke, demo) are roadmap; see `docs/VALIDATION.md`.
+Layers covered: budget, schema (incl. demo policy), reporter goldens + unit tests, workflow-script bash blocks, markdown link check, gitignore presence, sync-demo dry-run, extension dry-run (optional, needs Gradle).
+
+Each layer is also runnable directly (`bash tests/budget/check-budget.sh`, etc.) for fast iteration.
 
 ## How to update the spec or make a project decision
 

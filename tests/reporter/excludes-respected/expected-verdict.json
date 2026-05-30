@@ -1,0 +1,42 @@
+{
+  "apiChanges": {
+    "detected": false
+  },
+  "boundaryViolations": [],
+  "checkpoints": [
+    {
+      "id": "architecture-review",
+      "reason": "red-zone change: src/main/java/com/example/orders/domain/Order.java",
+      "satisfied": false,
+      "satisfy_by": [
+        "CODEOWNER approval",
+        "label `architecture-reviewed`"
+      ]
+    }
+  ],
+  "exitCode": 1,
+  "prSize": {
+    "files": 4,
+    "lines": 0,
+    "verdict": "ok"
+  },
+  "recommendedAction": "review-shadow-warnings",
+  "schemaChanges": {
+    "detected": false
+  },
+  "securityChanges": {
+    "detected": false
+  },
+  "summary": "Red-zone files changed.",
+  "verdict": "RED",
+  "zones": {
+    "blue": [
+      "src/test/java/com/example/orders/OrderServiceTest.java"
+    ],
+    "gray": [],
+    "grayWatch": [],
+    "red": [
+      "src/main/java/com/example/orders/domain/Order.java"
+    ]
+  }
+}

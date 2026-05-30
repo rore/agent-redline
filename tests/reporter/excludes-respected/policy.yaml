@@ -1,0 +1,33 @@
+# Custom policy: same as common but with excludes for generated/ and build/.
+version: 1
+
+project:
+  name: fixture-excludes
+  extension: spring-archunit
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain model
+      checkpoint: architecture-review
+    - path: src/test/java/**/architecture/**
+      reason: architecture test definitions
+      checkpoint: architecture-review
+  blue:
+    - path: src/test/**
+      reason: tests
+
+excludes:
+  - src/main/generated/**
+  - build/**
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+      - label: architecture-reviewed
+
+modes:
+  default: shadow
+  perCheck:
+    boundary_violation: binding

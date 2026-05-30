@@ -1,0 +1,38 @@
+name: regression
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  workflow-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test workflow bash blocks
+        run: bash tests/workflow-scripts/test-diff-inputs.sh
+
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Markdown link check
+        run: python tests/links/check-links.py
+
+  gitignore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: gitignore presence check
+        run: bash tests/gitignore/check-gitignore.sh
+
+  sync-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test sync-demo.sh produces expected structure
+        run: bash tests/sync/test-sync-demo.sh

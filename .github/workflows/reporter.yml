@@ -17,7 +17,10 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install pyyaml jsonschema
+        run: pip install pyyaml jsonschema pytest
 
       - name: Reporter golden tests
         run: python tests/reporter/check-reporter.py
+
+      - name: Reporter unit tests
+        run: python -m pytest tests/reporter/test_reporter_unit.py -q

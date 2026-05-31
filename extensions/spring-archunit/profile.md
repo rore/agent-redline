@@ -62,6 +62,9 @@ zones:
     - path: src/test/java/**/*ArchitectureTest.java
       reason: dependency-rule definitions when not under architecture/
       checkpoint: architecture-review
+    - path: agent-policy.yaml
+      reason: governance source of truth; changes alter what counts as red elsewhere
+      checkpoint: architecture-review
 
     # Infra-as-code
     - path: terraform/**

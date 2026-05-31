@@ -193,7 +193,8 @@ Be honest about anything you couldn't classify cleanly.
 - Never overwrite an existing arch test (or other boundary-backend definition). Compose via `boundaries:` instead.
 - Never overwrite an existing agent-instruction file. Append a reference section.
 - Never overwrite an existing pre-push hook. Tell the developer how to chain.
-- The generated policy must classify the boundary-backend definition files as red.
+- The generated policy must classify the boundary-backend definition files as red (`architecture-review` checkpoint).
+- The generated policy must classify itself (`agent-policy.yaml`) as red with `architecture-review`. Without this, an agent can drop the red rule blocking its change and ship unchallenged.
 - Write artifacts only after the developer signs off on the policy in Phase 3.
 
 ## When the repo doesn't fit

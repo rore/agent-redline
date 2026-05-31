@@ -41,6 +41,10 @@ zones:
       reason: dependency-rule definitions; weakening these requires explicit checkpoint
       checkpoint: architecture-review
 
+    - path: agent-policy.yaml
+      reason: governance source of truth; changes alter what counts as red elsewhere
+      checkpoint: architecture-review
+
   blue:
     - path: src/test/**
       reason: tests and verification (excluding architecture/**)

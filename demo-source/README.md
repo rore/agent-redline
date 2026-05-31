@@ -23,7 +23,7 @@ Already-bootstrapped state. Has `agent-policy.yaml` at the root, `AGENTS.md` ref
 
 Use this branch to exercise **operating mode**. The three planned PR branches below all branch from `main`.
 
-## Six planned PRs (all branched from `main`)
+## Seven planned PRs (all branched from `main`)
 
 Each is a real PR you can open, observe, and use to validate the end-to-end pipeline.
 
@@ -50,6 +50,10 @@ Adds a Flyway migration (`V2__add_customer_email_to_orders.sql`) that adds a col
 ### `demo/oversized-pr` → expected verdict: `BLUE` (but blocked)
 
 Adds 60 trivial test files (all blue zone). Demonstrates the **PR-size guard**. The headline verdict is `BLUE` (every file is benign), but `prRules.maxChangedFiles.fail: 50` is breached and `modes.perCheck.pr_size: binding` makes the breach a hard fail. CI is red and branch protection blocks merge. The fix is to split the PR — there is no label that satisfies a size violation.
+
+### `demo/policy-change-pr` → expected verdict: `RED`
+
+Edits `agent-policy.yaml` itself (raises a PR-size threshold). Demonstrates **governance self-protection**: the policy lists itself in the red zone, so any edit to it fires `architecture-review` regardless of how trivial the change looks. Without this, an agent could quietly drop the red rule blocking its current change and ship unchallenged. The PR has the `architecture-reviewed` label applied, satisfying the checkpoint.
 
 ## Running the local check
 

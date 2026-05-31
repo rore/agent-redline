@@ -388,9 +388,14 @@ Skill files are subject to budget ceilings (§1.4) and the authoring rules in `d
 
 Examples of valid and invalid policies live in `tests/schema/{valid,invalid}/`.
 
-### 7.1 Mandatory rule: boundary-backend definitions are red-zone
+### 7.1 Mandatory rule: governance artifacts are red-zone
 
-Every policy must include a zone entry covering the boundary-rule backend's definition files (ArchUnit test classes for JVM, dependency-cruiser config for Node, etc.) with a stricter checkpoint requirement than ordinary architecture changes. Bootstrap enforces this; a generated policy that doesn't protect its own boundary definitions is invalid.
+Every policy must protect the artifacts that *define* the policy. An agent (or human) editing them needs the same kind of attention an architectural change gets, because they decide what counts as architectural for everything else. There are two such artifact classes, and both are mandatory:
+
+1. **The boundary-rule backend's definition files** — ArchUnit test classes for JVM, dependency-cruiser config for Node, etc. Weakening these silently is the canonical way to launder an architectural violation.
+2. **The policy itself** (`agent-policy.yaml`) — the source of truth for zones, boundary rules, and checkpoints. An agent that quietly drops a red entry to make its own change ship is the same failure mode at a higher level.
+
+Both must declare an explicit red entry with `checkpoint: architecture-review`:
 
 ```yaml
 zones:
@@ -398,7 +403,12 @@ zones:
     - path: src/test/java/**/architecture/**
       reason: dependency-rule definitions; weakening these requires explicit checkpoint
       checkpoint: architecture-review
+    - path: agent-policy.yaml
+      reason: governance source of truth; changes alter what counts as red elsewhere
+      checkpoint: architecture-review
 ```
+
+Bootstrap enforces this; a generated policy that doesn't protect both is invalid. Without these entries, the deterministic CI guard depends entirely on agent discipline — and *the rule that says agents can't edit the policy* lives in the policy. Self-reference doesn't enforce itself.
 
 ---
 
@@ -733,11 +743,12 @@ agent-redline v1 is successful when, in a real consuming repo:
 4. An agent producing an oversized PR is told to split it (and the PR is merge-blocked under binding mode). *Demo: `demo/oversized-pr`.*
 5. An agent working in tests / docs / isolated adapters proceeds without friction. *Demo: `demo/blue-only-pr`.*
 6. A red-zone change that has been explicitly reviewed (label or CODEOWNER) is allowed to merge. *Demo: `demo/red-with-checkpoint-pr`.*
-7. A developer can read the PR comment and understand what attention is needed in under 30 seconds.
-8. A developer can bootstrap agent-redline in a new repo, in conversation with the agent, in under one hour.
-9. Shadow mode produces actionable false-positive data the team can use to tune the policy.
+7. An agent editing `agent-policy.yaml` itself (the governance source of truth) is forced through `architecture-review`. *Demo: `demo/policy-change-pr`.*
+8. A developer can read the PR comment and understand what attention is needed in under 30 seconds.
+9. A developer can bootstrap agent-redline in a new repo, in conversation with the agent, in under one hour.
+10. Shadow mode produces actionable false-positive data the team can use to tune the policy.
 
-Items 1–6 each have a corresponding live PR scenario on `agent-redline-demo`. The end-to-end-demo guideline (see `DECISIONS.md`) makes those demo PRs a hard requirement: a success-criteria item without a live demo isn't shipped.
+Items 1–7 each have a corresponding live PR scenario on `agent-redline-demo`. The end-to-end-demo guideline (see `DECISIONS.md`) makes those demo PRs a hard requirement: a success-criteria item without a live demo isn't shipped.
 
 ---
 
@@ -867,6 +878,8 @@ See [§4](#4-vocabulary). Vocabulary is normative; implementations must use thes
 ---
 
 ## 19. Changelog
+
+- **2026-05-31 (governance self-protection):** Extended SPEC §7.1 to require every policy to declare `agent-policy.yaml` itself as red with `architecture-review`. Without this, an agent can quietly drop the red rule blocking its current change and ship unchallenged — the rule that says "agents can't edit the policy" lives in the policy. Bootstrap-mode hard rules updated to enforce both the existing arch-test-protection rule and the new policy-self-protection rule. Spring-archunit profile defaults updated. Demo policy adds the entry. New `demo/policy-change-pr` scenario (a 2-line threshold tweak that fires `RED + architecture-review`) demonstrates the chain end-to-end. Total live demo PRs: seven. SPEC §14 success-criteria item #7 added.
 
 - **2026-05-31 (e2e-demo guideline + two new scenarios):** New project guideline: a feature is not done until the demo proves it end-to-end. Documented in `DECISIONS.md` with rationale, `AGENTS.md` (hard rule #6) and `CONTRIBUTING.md` (process step #5). Added two demo PR scenarios that close gaps in SPEC §14 success criteria: `demo/schema-change-pr` exercises the persistence-review checkpoint via a Flyway migration; `demo/oversized-pr` exercises the binding pr_size gate via 60 trivial files. Demo policy gained `modes.perCheck.pr_size: binding` so the size gate actually blocks merge. SPEC §14 now annotates each success-criteria item with the demo scenario that proves it. Total live demo PRs: six.
 

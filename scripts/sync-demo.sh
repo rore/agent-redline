@@ -89,6 +89,8 @@ copy_demo_artifacts() {
   cp "$DEMO_SOURCE/AGENTS.md" "$dest/"
   cp "$DEMO_SOURCE/README.md" "$dest/"
   cp "$DEMO_SOURCE/CODEOWNERS" "$dest/"
+  cp "$DEMO_SOURCE/LICENSE" "$dest/"
+  cp "$DEMO_SOURCE/CONTRIBUTING.md" "$dest/"
 
   mkdir -p "$dest/docs/agent" "$dest/scripts" "$dest/.github/workflows"
   cp "$DEMO_SOURCE/docs/agent/"*.md "$dest/docs/agent/"

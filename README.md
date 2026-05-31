@@ -1,5 +1,9 @@
 # agent-redline
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Agent Skills](https://img.shields.io/badge/agent--skills-compliant-blue)](https://agentskills.io)
+[![Demo](https://img.shields.io/badge/demo-agent--redline--demo-purple)](https://github.com/rore/agent-redline-demo)
+
 Agent governance as a skill.
 
 agent-redline is a skill for AI coding agents. It teaches the agent to look at a change *before* editing, decide whether the change is structurally consequential, and route human attention only to the changes that actually shape the system.

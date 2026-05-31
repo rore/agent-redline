@@ -1,5 +1,8 @@
 # agent-redline-demo
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Framework](https://img.shields.io/badge/framework-agent--redline-purple)](https://github.com/rore/agent-redline)
+
 The paired demo repo for [agent-redline](https://github.com/rore/agent-redline). A minimal Spring Boot service used to demonstrate the framework end-to-end against real GitHub.
 
 This repo's content is generated from agent-redline's `demo-source/` and `examples/spring-hexagonal/`. To regenerate, run `scripts/sync-demo.sh` in the agent-redline repo.

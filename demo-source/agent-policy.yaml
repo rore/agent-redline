@@ -12,10 +12,6 @@ project:
   name: agent-redline-demo
   extension: spring-archunit
 
-defaults:
-  unclassifiedZone: gray
-  grayMode: cautious
-
 zones:
   red:
     - path: src/main/java/**/domain/**
@@ -47,8 +43,6 @@ zones:
   grayWatch:
     - path: src/main/java/**/application/**/*Service.java
       reason: application services orchestrate flows; changes are common but should be visible
-
-boundaryBackend: archunit
 
 boundaries:
   - id: domain-must-not-import-adapters
@@ -92,26 +86,6 @@ prRules:
     fail: 1000
   rejectVerboseGeneratedDescriptions: true
   requireVerificationSection: true
-
-changeRules:
-  - when: blue_only
-    action: allow
-  - when: red_changed
-    action: require_checkpoint
-  - when: gray_changed
-    action: warn
-  - when: boundary_violation
-    action: fail
-  - when: api_changed
-    action: require_checkpoint
-    checkpoint: api-review
-  - when: schema_changed
-    action: require_checkpoint
-    checkpoint: persistence-review
-  - when: pr_size_warn
-    action: warn
-  - when: pr_size_fail
-    action: require_split
 
 checkpoints:
   architecture-review:

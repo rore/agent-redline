@@ -1,0 +1,22 @@
+# Invalid: top-level "changeRules" is no longer a recognized field.
+# The v0.1 reporter hardcodes its rules; if/when a generic rule engine is
+# added, the schema will grow accordingly.
+version: 1
+
+project:
+  name: bad-extra-field
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+
+changeRules:
+  - when: red_changed
+    action: require_checkpoint
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval

@@ -14,7 +14,7 @@ Public API:
     classify(policy, diff, *, archunit_xml=None, pr_labels=(), codeowner_approvals=())
         -> Verdict
 
-CLI: python -m core.reporter --policy ... --base ... --head ... --mode ...
+CLI: python -m core.reporter --policy ... --base ... --head ... --default-mode ...
 """
 
 from .reporter import classify, Verdict  # noqa: F401

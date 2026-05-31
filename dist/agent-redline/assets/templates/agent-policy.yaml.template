@@ -13,10 +13,6 @@ project:
   name: <repo-name>
   extension: <extension-name>           # e.g. spring-archunit; or omit for zone-only
 
-defaults:
-  unclassifiedZone: gray
-  grayMode: cautious
-
 zones:
   red:
     # Architecture-test definition files MUST be red. Without this entry,
@@ -41,12 +37,9 @@ zones:
     # surfaced in PR comments even when they overlap with blue/red.
     # Populated from the extension's profile.md.
 
-# boundaryBackend names the enforcement tool. Omit for zone-only governance.
-# boundaryBackend: archunit
-
-# boundaries describe forbidden dependencies. The boundary-rule backend
-# enforces them; the reporter surfaces the configured rules and reads
-# backend output.
+# boundaries describe forbidden dependencies. The language extension's
+# boundary-rule backend (e.g. ArchUnit) enforces them; the reporter
+# surfaces the configured rules and reads backend output.
 # boundaries:
 #   - id: domain-must-not-import-adapters
 #     description: Domain layer must not depend on adapter implementations

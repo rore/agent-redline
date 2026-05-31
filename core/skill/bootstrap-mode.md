@@ -59,14 +59,12 @@ Sketch:
 ```yaml
 version: 1
 project: { name: <repo-name>, extension: <extension-name> }
-defaults: { unclassifiedZone: gray, grayMode: cautious }
 
 zones:
   red:    [...]
   blue:   [...]
   grayWatch: [...]
 
-boundaryBackend: <from extension>
 boundaries: [...]
 api: { type: ..., ... }
 persistence: { migrationPaths: [...] }

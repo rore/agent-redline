@@ -226,13 +226,8 @@ def detect_api_change(files: list[str], policy: dict[str, Any]) -> bool:
     if api_type == "none":
         return False
     spec_path = api.get("specPath")
-    if api_type == "openapi-spec-file" and spec_path:
+    if api_type in ("openapi-spec-file", "graphql", "proto") and spec_path:
         return any(matches(f, spec_path) for f in files)
-    if api_type in ("graphql", "proto") and spec_path:
-        return any(matches(f, spec_path) for f in files)
-    # openapi-from-controllers: heuristic — controllers are typically red,
-    # so an api-review will be triggered via red-zone classification when
-    # controllers change. v0.1 doesn't run a real OpenAPI diff.
     return False
 
 
@@ -388,14 +383,6 @@ def _is_satisfied(
                 satisfy_by_human.append(f"label `{sb['label']}`")
                 if sb["label"] in labels:
                     satisfied = True
-            elif "team" in sb:
-                satisfy_by_human.append(f"approval from team `{sb['team']}`")
-                # Team approval is treated as a CODEOWNER approval signal
-                # in v0.1 (we don't model teams separately yet).
-            elif "reviewerCount" in sb:
-                satisfy_by_human.append(f"≥{sb['reviewerCount']} reviewers")
-                # Reviewer count is checked via has_codeowner heuristic in v0.1;
-                # real reviewer-count satisfaction is roadmap.
     return satisfied, satisfy_by_human
 
 
@@ -666,18 +653,24 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--pr-labels", default="", help="Comma-separated PR labels")
     p.add_argument("--codeowner-approvals", default="",
                    help="Comma-separated CODEOWNER approver logins")
-    p.add_argument("--mode", default="shadow", choices=["shadow", "binding"],
-                   help="Override modes.default (advisory; the policy still wins per-check)")
+    p.add_argument("--default-mode", default="shadow", choices=["shadow", "binding"],
+                   help="Fallback for modes.default when the policy does not set it. The policy always wins if it pins modes.default; this flag only fills in a missing value.")
+    p.add_argument("--mode", dest="default_mode_legacy", default=None,
+                   choices=["shadow", "binding"],
+                   help=argparse.SUPPRESS)  # Deprecated alias for --default-mode; kept for back-compat.
     p.add_argument("--json-out", type=Path, help="Write JSON verdict to this file")
     p.add_argument("--comment-out", type=Path, help="Write markdown PR comment to this file")
     args = p.parse_args(argv)
 
     policy = load_policy(args.policy)
 
-    # Apply --mode as an override of modes.default if the policy doesn't pin it.
+    # Resolve --default-mode (canonical) vs the deprecated --mode alias.
+    default_mode = args.default_mode_legacy if args.default_mode_legacy is not None else args.default_mode
+
+    # Apply --default-mode as a fallback for modes.default if the policy doesn't pin it.
     if "modes" not in policy:
         policy["modes"] = {}
-    policy["modes"].setdefault("default", args.mode)
+    policy["modes"].setdefault("default", default_mode)
 
     if args.changed_files is None:
         sys.stderr.write("error: --changed-files required in v0.1 (git-driven mode is roadmap)\n")

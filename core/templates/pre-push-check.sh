@@ -55,4 +55,4 @@ exec $REPORTER \
   --policy "$POLICY" \
   --base "$BASE_SHA" \
   --head "$HEAD_SHA" \
-  --mode "${MODE:-shadow}"
+  --default-mode "${MODE:-shadow}"

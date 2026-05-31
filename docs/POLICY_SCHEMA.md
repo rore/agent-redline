@@ -2,25 +2,7 @@
 
 This document is the normative reference for `agent-policy.yaml`. The bootstrap skill writes a policy that conforms; the reporter reads a policy that conforms.
 
-> **Reporter v0.1 coverage.** The schema below is the v1 contract. The first reporter release (v0.1) does not yet act on every field. Fields the v0.1 reporter supports:
->
-> - `version`, `project`, `defaults`, `excludes`
-> - `zones.red`, `zones.blue`, `zones.grayWatch` (path-based classification)
-> - `boundaryBackend` (the reporter uses this to know which backend's output to read)
-> - `boundaries` metadata (the reporter surfaces configured rules and reads boundary-backend results; the boundary-rule backend is what enforces them)
-> - `persistence.migrationPaths` (path-based "schema_changed" signal)
-> - `security.paths` (path-based "security_changed" signal)
-> - `runtimeConfig.paths` (path-based "config_changed" signal)
-> - `prRules` (size limits, verbose-description detection)
-> - `checkpoints` (definitions; satisfaction is checked by reading PR labels and CODEOWNER approvals)
-> - `modes` (shadow/binding per check)
-> - `changeRules` (the action mapping for each `when:` condition)
->
-> Fields the v0.1 reporter accepts but does *not* fully implement:
->
-> - `api.type: openapi-from-controllers` — OpenAPI generation and structural diff. v0.1 supports `api.type: openapi-spec-file` (path-based diff of a committed spec) and `api.type: none`. Generation-from-controllers is on the roadmap.
->
-> Policies should be written against the full schema regardless. Unsupported fields are accepted (not rejected); the reporter just doesn't act on them yet.
+The schema describes exactly what the reporter implements. Fields are not "reserved for later" — when the reporter learns to do something new, the schema grows with it. See [`SPEC.md` §15](SPEC.md) for what's on the roadmap.
 
 ```yaml
 # agent-policy.yaml — schema v1
@@ -31,43 +13,30 @@ project:                              # required
   name: <string>                      # required
   extension: <string>                 # optional; names the language extension, e.g. "spring-archunit"
 
-defaults:                             # optional; sensible defaults applied if absent
-  unclassifiedZone: gray              # gray | red | blue   (default: gray)
-  grayMode: cautious                  # cautious | warn | allow   (default: cautious)
-
-zones:                                # required
-  red:                                # list of paths classified as red
+zones:                                # required; at least one of red or blue must be non-empty
+  red:                                # paths whose changes need human attention
     - path: <glob>                    # required
       reason: <string>                # required; surfaced in reporter output
-      checkpoint: <checkpoint-id>     # optional; defaults to "architecture-review"
-  blue:                               # list of paths classified as blue
+      checkpoint: <checkpoint-id>     # optional; the checkpoint a red-zone change must satisfy
+  blue:                               # paths where agent autonomy is fine
     - path: <glob>
       reason: <string>
   grayWatch:                          # paths to surface in PR even though gray
     - path: <glob>
       reason: <string>
-  # gray is implicit — anything not listed in red/blue is gray
+  # Files not matched by any zone are treated as gray.
 
-boundaryBackend:                      # optional; names the enforcement tool. Examples:
-                                      #   archunit         (JVM/Spring; default for spring-archunit extension)
-                                      #   dependency-cruiser  (Node)
-                                      #   import-linter    (Python)
-                                      #   semgrep          (generic, multi-language)
-                                      # If omitted, the language extension picks a default. The reporter
-                                      # uses this hint to find and read backend output.
-
-boundaries:                           # optional; deterministic dependency rules
-  - id: <kebab-case-string>           # required, unique within file
-    description: <string>             # required
-    from: <glob>                      # required
-    forbidImports:                    # required; one or more globs
+boundaries:                           # optional; deterministic dependency rules.
+  - id: <kebab-case-string>           # The reporter surfaces these alongside boundary-backend
+    description: <string>             # results; the language extension's backend (e.g. ArchUnit)
+    from: <glob>                      # actually enforces them.
+    forbidImports:
       - <glob>
     severity: error                   # error | warn   (default: error)
 
 api:                                  # optional
-  type: <api-type>                    # openapi-from-controllers | openapi-spec-file | graphql | proto | none
-  generationCommand: <string>         # optional; how to regenerate the spec
-  specPath: <path>                    # optional; where the committed spec lives
+  type: <api-type>                    # openapi-spec-file | graphql | proto | none
+  specPath: <path>                    # the committed spec; required for openapi-spec-file/graphql/proto
   diffMode: structural                # structural | full   (default: structural)
   checkpoint: api-review              # default: api-review
 
@@ -97,46 +66,19 @@ prRules:                              # optional; defaults applied if absent
   rejectVerboseGeneratedDescriptions: true
   requireVerificationSection: true
 
-changeRules:                          # optional; sensible defaults applied
-  - when: blue_only
-    action: allow
-  - when: red_changed
-    action: require_checkpoint
-  - when: gray_changed
-    action: warn
-  - when: boundary_violation
-    action: fail
-  - when: api_changed
-    action: require_checkpoint
-    checkpoint: api-review
-  - when: schema_changed
-    action: require_checkpoint
-    checkpoint: persistence-review
-  - when: security_changed
-    action: require_checkpoint
-    checkpoint: security-review
-  - when: pr_size_warn
-    action: warn
-  - when: pr_size_fail
-    action: require_split
-
-checkpoints:                          # required if any zone/rule references one
+checkpoints:                          # required if any zone references one
   <checkpoint-id>:
     description: <string>             # optional; surfaced in PR comment
     satisfiedBy:                      # required; OR-semantics across entries
-      - codeownerApproval
-      - label: <label-name>
-      - reviewerCount: <int>          # alternative: minimum number of reviewers
-      - team: <team-name>             # alternative: a specific team must approve
+      - codeownerApproval             # a CODEOWNER for any touched red-zone path approves
+      - label: <label-name>           # a named label is applied to the PR
 
 modes:                                # optional; defaults to all shadow
   default: shadow                     # shadow | binding   (default: shadow)
-  perCheck:                           # named overrides
-    archunit: binding
-    classification_comment: binding
-    api_diff: shadow
-    pr_size: shadow
+  perCheck:                           # named overrides; see "Mode semantics"
     boundary_violation: binding       # almost always binding from day one
+    pr_size: shadow
+    report: shadow                    # whether unmet required checkpoints fail the check
 
 excludes:                             # optional; paths excluded from all classification
   - <glob>                            # e.g. generated sources, vendored code
@@ -148,13 +90,12 @@ If a section is absent, these defaults apply:
 
 | Section | Default |
 |---|---|
-| `defaults.unclassifiedZone` | `gray` |
-| `defaults.grayMode` | `cautious` |
 | `prRules.maxChangedFiles` | `{ warn: 50, fail: 100 }` |
 | `prRules.maxLinesChanged` | `{ warn: 1000, fail: 2000 }` |
 | `modes.default` | `shadow` |
 | `modes.perCheck.boundary_violation` | `binding` |
-| `modes.perCheck.archunit` | `binding` |
+
+Files not matched by any zone are treated as gray.
 
 ## Validation rules
 
@@ -168,7 +109,6 @@ A policy is invalid if:
 6. A `boundaries[].id` is duplicated.
 7. The policy does not protect its own architecture-test directory (e.g., `src/test/**/architecture/**`) as a red zone.
 8. A glob is malformed.
-9. `api.type: openapi-from-controllers` is set but no `generationCommand` is provided.
 
 The bootstrap skill must produce a valid policy. The reporter must refuse to run on an invalid policy with a clear error.
 
@@ -180,35 +120,29 @@ Globs use standard shell-style patterns:
 |---|---|
 | `*` | Any single path component (no `/`) |
 | `**` | Zero or more path components |
-| `?` | A single character |
+| `?` | A single character (no `/`) |
 | `[abc]` | One of `a`, `b`, or `c` |
-| `{a,b}` | `a` or `b` |
+| `[!abc]` / `[^abc]` | Any character except `a`, `b`, `c` |
+
+Brace expansion (`{a,b}`) is not supported. Use multiple zone entries instead.
 
 Globs are matched against repo-relative paths.
 
-## `when:` conditions in changeRules
+## Mode semantics
 
-| Condition | Triggers when |
+`modes.default` (`shadow` or `binding`) is the fallback for all rule modes. `modes.perCheck` overrides it per rule name.
+
+The reporter consults the mode for these rules:
+
+| Rule name | Used to decide |
 |---|---|
-| `blue_only` | All changed files are in blue zones |
-| `red_changed` | At least one changed file is in a red zone |
-| `gray_changed` | At least one changed file is gray (and none are red) |
-| `boundary_violation` | A boundary rule fails (reported by the boundary-rule backend; ArchUnit on JVM, etc.) |
-| `api_changed` | API contract diff (per `api.type`) shows changes |
-| `schema_changed` | A path under `persistence.migrationPaths` is touched |
-| `security_changed` | A path under `security.paths` is touched |
-| `pr_size_warn` | PR exceeds `prRules.maxChangedFiles.warn` or `maxLinesChanged.warn` |
-| `pr_size_fail` | PR exceeds `prRules.maxChangedFiles.fail` or `maxLinesChanged.fail` |
+| `boundary_violation` | Whether reported boundary violations should fail the check (vs. surface as warnings) |
+| `report` | Whether unmet required checkpoints should fail the check |
+| `pr_size` | Whether exceeding `prRules.maxChangedFiles.fail` / `maxLinesChanged.fail` should fail the check |
 
-## `action:` values
+Other signals (`api_changed`, `schema_changed`, `security_changed`, `config_changed`, gray-zone changes) always surface in the PR comment regardless of mode. They influence the `MIXED` / `RED` / `GRAY` verdict but do not, on their own, set the binding-fail exit code.
 
-| Action | Effect |
-|---|---|
-| `allow` | No constraint; CI passes |
-| `warn` | Posts a warning in the PR comment; does not block |
-| `require_checkpoint` | Requires the named checkpoint to be satisfied; blocks merge if missing |
-| `require_split` | Requires the PR to be split before merging |
-| `fail` | Hard fail; CI red |
+`shadow` is the safe default while a repo is rolling out agent-redline; flip individual rules to `binding` once the team is ready to enforce them.
 
 ## `satisfiedBy` semantics
 
@@ -218,8 +152,6 @@ Globs are matched against repo-relative paths.
 |---|---|
 | `codeownerApproval` | A CODEOWNER for any of the touched red-zone paths approves the PR |
 | `label: <name>` | The named label is applied to the PR |
-| `reviewerCount: <n>` | At least `n` approvals on the PR |
-| `team: <name>` | A member of the named team approves |
 
 ## Example: minimal valid policy
 
@@ -252,4 +184,4 @@ checkpoints:
 
 ## Example: full Spring service policy
 
-See `templates/agent-policy.yaml.template` (to be added in v0.1 implementation phase) for a fully-populated example.
+See `core/templates/agent-policy.yaml.template` for a fully-populated example.

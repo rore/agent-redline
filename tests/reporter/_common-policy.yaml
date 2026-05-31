@@ -5,10 +5,6 @@ project:
   name: fixture-service
   extension: spring-archunit
 
-defaults:
-  unclassifiedZone: gray
-  grayMode: cautious
-
 zones:
   red:
     - path: src/main/java/**/domain/**
@@ -25,8 +21,6 @@ zones:
       reason: tests
     - path: src/main/java/**/adapter/**/persistence/**/dto/**
       reason: DB row DTOs
-
-boundaryBackend: archunit
 
 boundaries:
   - id: domain-must-not-import-adapters

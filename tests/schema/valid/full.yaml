@@ -1,13 +1,9 @@
-# Valid: full policy exercising every section
+# Valid: full policy exercising every implemented section
 version: 1
 
 project:
   name: full-service
   extension: spring-archunit
-
-defaults:
-  unclassifiedZone: gray
-  grayMode: cautious
 
 zones:
   red:
@@ -41,8 +37,6 @@ zones:
       reason: Spring configuration affects bean wiring
     - path: src/main/java/**/*Filter.java
       reason: filters affect request lifecycle
-
-boundaryBackend: archunit
 
 boundaries:
   - id: domain-must-not-import-adapters
@@ -89,21 +83,6 @@ prRules:
   rejectVerboseGeneratedDescriptions: true
   requireVerificationSection: true
 
-changeRules:
-  - when: blue_only
-    action: allow
-  - when: red_changed
-    action: require_checkpoint
-  - when: gray_changed
-    action: warn
-  - when: boundary_violation
-    action: fail
-  - when: api_changed
-    action: require_checkpoint
-    checkpoint: api-review
-  - when: pr_size_warn
-    action: warn
-
 checkpoints:
   architecture-review:
     description: Architecture team review
@@ -113,11 +92,9 @@ checkpoints:
   api-review:
     satisfiedBy:
       - label: api-reviewed
-      - reviewerCount: 2
   persistence-review:
     satisfiedBy:
       - codeownerApproval
-      - team: data-team
   security-review:
     satisfiedBy:
       - label: security-reviewed
@@ -129,7 +106,6 @@ modes:
   default: shadow
   perCheck:
     boundary_violation: binding
-    archunit: binding
 
 excludes:
   - src/main/generated/**

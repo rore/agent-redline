@@ -1,0 +1,21 @@
+# Invalid: api.type uses an unknown enum value
+# (openapi-from-controllers was dropped from the schema; it's not implemented
+# in the v0.1 reporter and adding it back is roadmap.)
+version: 1
+
+project:
+  name: bad-api-type
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+
+api:
+  type: not-a-real-type
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval

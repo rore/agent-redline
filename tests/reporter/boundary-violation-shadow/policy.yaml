@@ -18,8 +18,6 @@ zones:
     - path: src/test/**
       reason: tests
 
-boundaryBackend: archunit
-
 boundaries:
   - id: domain-must-not-import-adapters
     description: Domain layer must not depend on adapters

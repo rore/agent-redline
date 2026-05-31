@@ -6,7 +6,7 @@ Unit tests for the reporter's pure logic. Covers:
   - Verdict logic for every classification branch
   - Signal detection (api/schema/security/runtime)
   - ArchUnit XML parsing (single, multiple, no failures, malformed)
-  - Checkpoint satisfaction (label, codeowner, team no-op, reviewerCount no-op)
+  - Checkpoint satisfaction (label, codeownerApproval)
   - Empty diff handling
   - Excludes
   - grayWatch overlap with blue/red
@@ -168,12 +168,6 @@ class TestSignalDetection:
     def test_api_none_means_no_signal(self):
         policy = {"api": {"type": "none"}}
         assert not detect_api_change(["openapi/api.yaml"], policy)
-
-    def test_api_from_controllers_does_not_trigger_v01_signal(self):
-        # In v0.1, openapi-from-controllers doesn't run a real diff.
-        # Document the current behavior.
-        policy = {"api": {"type": "openapi-from-controllers", "generationCommand": "..."}}
-        assert not detect_api_change(["src/main/FooController.java"], policy)
 
     def test_schema_change(self):
         policy = {"persistence": {"migrationPaths": ["db/migration/**"]}}

@@ -27,15 +27,6 @@
       }
     },
 
-    "defaults": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "unclassifiedZone": { "enum": ["gray", "red", "blue"] },
-        "grayMode": { "enum": ["cautious", "warn", "allow"] }
-      }
-    },
-
     "zones": {
       "type": "object",
       "additionalProperties": false,
@@ -48,12 +39,7 @@
         { "required": ["red"] },
         { "required": ["blue"] }
       ],
-      "description": "At least one of red or blue must be present and non-empty."
-    },
-
-    "boundaryBackend": {
-      "type": "string",
-      "description": "Name of the enforcement tool: archunit, dependency-cruiser, import-linter, semgrep, etc."
+      "description": "At least one of red or blue must be present and non-empty. Files not matched by any zone are treated as gray."
     },
 
     "boundaries": {
@@ -85,19 +71,12 @@
       "additionalProperties": false,
       "properties": {
         "type": {
-          "enum": ["openapi-from-controllers", "openapi-spec-file", "graphql", "proto", "none"]
+          "enum": ["openapi-spec-file", "graphql", "proto", "none"]
         },
-        "generationCommand": { "type": "string" },
         "specPath": { "type": "string" },
         "diffMode": { "enum": ["structural", "full"] },
         "checkpoint": { "type": "string" }
-      },
-      "allOf": [
-        {
-          "if": { "properties": { "type": { "const": "openapi-from-controllers" } }, "required": ["type"] },
-          "then": { "required": ["generationCommand"] }
-        }
-      ]
+      }
     },
 
     "persistence": {
@@ -154,29 +133,6 @@
       }
     },
 
-    "changeRules": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["when", "action"],
-        "additionalProperties": false,
-        "properties": {
-          "when": {
-            "enum": [
-              "blue_only", "red_changed", "gray_changed", "boundary_violation",
-              "api_changed", "schema_changed", "security_changed",
-              "pr_size_warn", "pr_size_fail"
-            ]
-          },
-          "action": {
-            "enum": ["allow", "warn", "require_checkpoint", "require_split", "fail"]
-          },
-          "checkpoint": { "type": "string" },
-          "value": { "type": "integer" }
-        }
-      }
-    },
-
     "checkpoints": {
       "type": "object",
       "minProperties": 1,
@@ -198,18 +154,6 @@
                     "additionalProperties": false,
                     "properties": { "label": { "type": "string", "minLength": 1 } },
                     "required": ["label"]
-                  },
-                  {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": { "reviewerCount": { "type": "integer", "minimum": 1 } },
-                    "required": ["reviewerCount"]
-                  },
-                  {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": { "team": { "type": "string", "minLength": 1 } },
-                    "required": ["team"]
                   }
                 ]
               }

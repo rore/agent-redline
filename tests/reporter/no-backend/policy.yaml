@@ -16,7 +16,7 @@ zones:
     - path: src/test/**
       reason: tests
 
-# No boundaryBackend, no boundaries.
+# No boundaries section, no archunit XML.
 
 prRules:
   maxChangedFiles:

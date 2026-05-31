@@ -49,7 +49,7 @@ layers=(
   "budget|bash tests/budget/check-budget.sh|"
   "schema|python tests/schema/check-schema.py|REQUIRES_PYTHON"
   "reporter-goldens|python tests/reporter/check-reporter.py|REQUIRES_PYTHON"
-  "reporter-unit|python -m pytest tests/reporter/test_reporter_unit.py -q|REQUIRES_PYTEST"
+  "reporter-unit|python -m pytest tests/reporter/ -q|REQUIRES_PYTEST"
   "workflow-scripts|bash tests/workflow-scripts/test-diff-inputs.sh|"
   "links|python tests/links/check-links.py|REQUIRES_PYTHON"
   "gitignore|bash tests/gitignore/check-gitignore.sh|"

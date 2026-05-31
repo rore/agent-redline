@@ -149,14 +149,14 @@ agent-redline:
         --policy agent-policy.yaml
         --base $CI_MERGE_REQUEST_DIFF_BASE_SHA
         --head $CI_COMMIT_SHA
-        --mode shadow
+        --default-mode shadow
 ```
 
 ```jenkinsfile
 // Jenkins sketch
 stage('agent-redline') {
   steps {
-    sh './scripts/agent-redline-report.sh --policy agent-policy.yaml --base origin/main --head HEAD --mode shadow'
+    sh './scripts/agent-redline-report.sh --policy agent-policy.yaml --base origin/main --head HEAD --default-mode shadow'
   }
 }
 ```

@@ -113,8 +113,6 @@ zones:
 ## Default boundary rules
 
 ```yaml
-boundaryBackend: archunit
-
 boundaries:
   - id: domain-must-not-import-adapters
     description: Domain layer must not depend on adapter implementations
@@ -144,15 +142,7 @@ Add more rules during bootstrap based on what the repo has (e.g., "core must not
 
 ## API contract handling
 
-```yaml
-api:
-  type: openapi-from-controllers
-  generationCommand: ./gradlew generateOpenApi
-  diffMode: structural
-  checkpoint: api-review
-```
-
-The bootstrap CI proposal runs `generationCommand` for base and head, then diffs the specs. If no OpenAPI generation plugin exists, fall back:
+If a committed OpenAPI spec exists:
 
 ```yaml
 api:
@@ -161,6 +151,8 @@ api:
   diffMode: structural
   checkpoint: api-review
 ```
+
+The reporter detects api changes by matching the diff against `specPath`. If you don't have a committed spec, controllers are red-zone files anyway and trigger `architecture-review` via path classification.
 
 Or if no public API surface:
 

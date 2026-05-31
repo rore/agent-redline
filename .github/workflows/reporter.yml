@@ -23,4 +23,4 @@ jobs:
         run: python tests/reporter/check-reporter.py
 
       - name: Reporter unit tests
-        run: python -m pytest tests/reporter/test_reporter_unit.py -q
+        run: python -m pytest tests/reporter/ -q

@@ -279,10 +279,28 @@ if [[ $DO_PUSH -eq 1 ]]; then
           done
 
           # Create the fresh PR.
-          if gh pr create --repo "$target_slug" --base main --head "$branch" --title "$title" --body "$body" >/dev/null 2>&1; then
-            echo "    PR opened: $branch"
+          new_pr=""
+          if gh pr create --repo "$target_slug" --base main --head "$branch" --title "$title" --body "$body" 2>/dev/null; then
+            new_pr=$(gh pr list --repo "$target_slug" --head "$branch" --state open --json number --jq '.[0].number' 2>/dev/null || true)
+            echo "    PR opened: $branch (#$new_pr)"
           else
             echo "    (PR creation failed for $branch; create manually at https://github.com/$target_slug/compare/main...$branch)"
+          fi
+
+          # Apply scenario-specific labels if labels.txt exists. One label
+          # per line. Labels must already exist in the target repo (the
+          # checkpoint labels — architecture-reviewed, api-reviewed,
+          # persistence-reviewed — should be created on first setup).
+          if [[ -n "$new_pr" && -f "$scenario/labels.txt" ]]; then
+            while IFS= read -r label; do
+              label=$(echo "$label" | tr -d '[:space:]')
+              [[ -n "$label" ]] || continue
+              if gh pr edit "$new_pr" --repo "$target_slug" --add-label "$label" >/dev/null 2>&1; then
+                echo "      label applied: $label"
+              else
+                echo "      (label '$label' not applied — does it exist in the repo?)"
+              fi
+            done < "$scenario/labels.txt"
           fi
         done
       fi

@@ -2,7 +2,7 @@
 
 Agent governance as a skill.
 
-agent-redline is a skill that helps AI coding agents recognize structural risk in a codebase and routes human attention to the changes that actually shape the system.
+agent-redline is a skill for AI coding agents. It teaches the agent to look at a change *before* editing, decide whether the change is structurally consequential, and route human attention only to the changes that actually shape the system.
 
 It does not review all generated code. It does not enforce style. It does not replace tests. It identifies the small set of changes — modeling, contracts, boundaries, persistence, security — where local correctness is not enough, and it makes those changes deterministically visible to humans.
 
@@ -23,7 +23,7 @@ The skill teaches agents to do this classification themselves, before editing. D
 
 ## How it works
 
-agent-redline is distributed as a **skill**. You install it into your agent harness (Claude Code, Codex, internal harnesses, etc.) and then use it in two modes.
+agent-redline is distributed as a **skill**. You install it into your agent harness (Claude Code, Codex, Cursor, etc.) and then use it in two modes.
 
 **Bootstrap mode.** In a fresh repo:
 
@@ -33,7 +33,7 @@ The skill inspects the repo's layout, build system, conventions, and existing CI
 
 - Generates `agent-policy.yaml` — the repo's red/blue/gray zones and boundary rules
 - Generates `AGENTS.md` — agent-facing instructions for this repo
-- Scaffolds a boundary-rule backend for the ecosystem (ArchUnit on JVM, dependency-cruiser on Node, etc.) with the rules from the policy
+- Scaffolds a boundary-rule backend for the ecosystem (ArchUnit on JVM in v0.1; other ecosystems are roadmap)
 - Drops a local pre-push script that mirrors what CI will check
 - Proposes (does not commit) CI workflow changes, branch protection updates, and CODEOWNERS additions for human review
 - Adds a PR template with classification and checkpoint fields
@@ -47,9 +47,24 @@ The skill inspects the repo's layout, build system, conventions, and existing CI
 - Refuses to work around boundary rules; fixes the structure or escalates instead
 - Runs the local check before opening a PR
 
+## What v0.1 actually does
+
+Be honest about the surface so you can decide if it fits:
+
+- **Path-glob zone classification** (red / blue / gray / grayWatch) — yes
+- **Required-checkpoint computation** with `codeownerApproval` and `label:` satisfaction — yes
+- **PR-size warn / fail thresholds** — yes
+- **Shadow / binding modes**, with per-check overrides — yes
+- **Boundary-violation ingestion from Spring/ArchUnit JUnit XML** — yes
+- **Other ecosystems** (Node, Python, Go, Rust, Semgrep) — roadmap. The skill still produces zone classification, checkpoints, and PR-size checks for non-JVM repos; only the boundary-backend leg is JVM-only today.
+- **OpenAPI diff** — supported when the repo commits a spec (`api.type: openapi-spec-file`); generation-from-controllers is roadmap.
+- **`team:` / `reviewerCount:` checkpoint satisfaction** — roadmap.
+
+See [`docs/SPEC.md` §15.3](docs/SPEC.md) for the roadmap and what gates each item.
+
 ## Install
 
-Drop the packaged skill at [`dist/agent-redline/`](dist/agent-redline/) into your harness's skills directory. agent-redline follows the [Agent Skills](https://agentskills.io) standard, so it works with Claude Code, Codex, Cursor, Gemini CLI, and others.
+Drop the packaged skill at [`dist/agent-redline/`](dist/agent-redline/) into your harness's skills directory. agent-redline follows the [Agent Skills](https://agentskills.io) standard.
 
 Quick start (Claude Code, personal scope):
 
@@ -60,6 +75,22 @@ cp -r agent-redline/dist/agent-redline ~/.claude/skills/
 
 Other tools and project-scope installs: see [`INSTALL.md`](INSTALL.md).
 
+## Where to start reading
+
+| If you want to… | Read |
+|---|---|
+| Understand the *why* | [`docs/PHILOSOPHY.md`](docs/PHILOSOPHY.md) |
+| Install and try it | [`INSTALL.md`](INSTALL.md) |
+| See the bootstrap conversation in detail | [`docs/BOOTSTRAP.md`](docs/BOOTSTRAP.md) |
+| See operating-mode behavior | [`docs/OPERATING.md`](docs/OPERATING.md) |
+| Read the policy schema | [`docs/POLICY_SCHEMA.md`](docs/POLICY_SCHEMA.md) |
+| Build a language extension | [`docs/EXTENSIONS.md`](docs/EXTENSIONS.md) |
+| Wire it into CI | [`docs/CI_INTEGRATION.md`](docs/CI_INTEGRATION.md) |
+| Read the full spec | [`docs/SPEC.md`](docs/SPEC.md) |
+| See common questions | [`docs/FAQ.md`](docs/FAQ.md) |
+
 ## Status
 
-In active development; pre-v0.1. The detailed spec lives in [`docs/SPEC.md`](docs/SPEC.md). Project state, decisions, and roadmap: [`docs/DECISIONS.md`](docs/DECISIONS.md), [`docs/SPEC.md §15`](docs/SPEC.md).
+Pre-v0.1, in active development. The reference language extension (`spring-archunit`) is the only stack covered today; other ecosystems are roadmap. The paired demo repo at <https://github.com/rore/agent-redline-demo> exercises bootstrap mode and operating mode end-to-end.
+
+Decisions and their rationale: [`docs/DECISIONS.md`](docs/DECISIONS.md). Roadmap: [`docs/SPEC.md` §15.3](docs/SPEC.md).

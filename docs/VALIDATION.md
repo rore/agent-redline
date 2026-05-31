@@ -191,16 +191,6 @@ If any of these are red, v0.1 isn't done.
 - Performance under load (a single PR's reporter run is small; not a v0.1 concern)
 - Multi-language consuming repos (a Spring service is the only target stack)
 
-## Borrowing from BEAR
-
-BEAR's testing patterns that map cleanly:
-
-- **Golden test data with known outputs.** BEAR has `testdata/golden/compile/`. We have Layer 2 reporter goldens.
-- **A paired demo repo with three planned PRs** (clean → REVIEW REQUIRED → FAIL). We have Layer 5.
-- **Demo prep scripts that reset state.** BEAR has `clean-demo-branch.ps1` / `sync-bear-demo.ps1`. We have `scripts/clean-demo.sh` / `scripts/sync-demo.sh` as roadmap items.
-
-Patterns that don't map directly: BEAR is a CLI run by a human; agent-redline's primary user is an agent following a skill. Layer 4 (skill behavior) is where we have to do something BEAR didn't.
-
 ## Out of scope for this doc
 
 - How a *consuming repo* validates its own policy (that's part of normal CI for the consuming repo, see CI_INTEGRATION.md)

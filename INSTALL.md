@@ -4,6 +4,12 @@ agent-redline is packaged as an [Agent Skills](https://agentskills.io) skill. Th
 
 The packaged skill lives at [`dist/agent-redline/`](dist/agent-redline/) in this repo. Install it by copying that directory into your harness's skills directory.
 
+## Before you install
+
+agent-redline is **pre-v0.1**. The skill works end-to-end on Spring/JVM repos via the `spring-archunit` reference extension. Other ecosystems get zone classification, checkpoints, and PR-size checks but no boundary-rule enforcement (see [README.md](README.md#what-v01-actually-does) for the full surface).
+
+If you're trying it out: start with the demo repo at <https://github.com/rore/agent-redline-demo>. That gives you a working bootstrap and a working operating-mode session without committing to a real codebase.
+
 ## Claude Code
 
 ### Personal install (recommended for trying it out)
@@ -52,11 +58,11 @@ Each tool has its own skills directory but consumes the same Agent Skills format
 | Gemini CLI | See <https://geminicli.com/docs/cli/skills/> |
 | Others | See <https://agentskills.io/clients> for the full list |
 
-The package itself is harness-agnostic; the only thing that varies is where each tool looks for skills.
+The package itself is harness-agnostic; only the install path varies.
 
 ## Verifying the install
 
-Start a session in any repo. Type `/agent-redline` (or just ask "set up agent-redline for this repo"). If the harness shows the skill or starts the bootstrap conversation, the install worked.
+Start a session in any repo and ask the agent: "set up agent-redline for this repo." If the agent recognizes the skill and starts the bootstrap conversation, the install worked.
 
 For a structured smoke test, the paired demo repo at <https://github.com/rore/agent-redline-demo> has two long-lived branches:
 
@@ -77,9 +83,9 @@ cp -r dist/agent-redline ~/.claude/skills/        # or your tool's path
 
 The package is regenerated from sources by `scripts/package-skill.sh` — what you copy is always in sync with what's in the repo at that commit.
 
-## Building from source (if you don't trust the committed dist)
+## Building from source
 
-Every change to the skill regenerates `dist/agent-redline/` via `scripts/package-skill.sh`. CI verifies the committed package matches the sources. If you'd rather build it yourself:
+`dist/agent-redline/` is committed and CI verifies it matches the sources. If you'd rather build it yourself:
 
 ```bash
 git clone https://github.com/rore/agent-redline.git

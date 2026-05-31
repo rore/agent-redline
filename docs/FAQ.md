@@ -38,17 +38,19 @@ The skill should be honest about this during bootstrap rather than fabricate zon
 
 Less work. Bootstrap detects existing boundary-backend setups (ArchUnit tests on JVM, dependency-cruiser configs on Node, etc.), existing CODEOWNERS rules, existing CI checks. Where they exist, agent-redline composes with them rather than duplicating them.
 
+(In v0.1 the reporter only ingests boundary results from Spring/ArchUnit JUnit XML. For other ecosystems, the existing rules keep running as they always did; agent-redline contributes zone classification, checkpoints, and PR-size checks on top. Generic boundary-backend dispatch is roadmap.)
+
 ## What if my team has no architecture rules?
 
 agent-redline starts you with a default set based on the language extension you pick. You decide which to keep. There's no requirement to adopt rules that don't fit.
 
 ## What if my stack has no language extension?
 
-Three honest options:
+Three honest options, in order of effort:
 
-1. **Build one.** Extensions are five files, mostly markdown. See [EXTENSIONS.md](EXTENSIONS.md). For most mainstream stacks (Node, Python, Go, Rust), the recommended backend already exists in the ecosystem; an extension is wiring, not invention.
-2. **Use Semgrep as a generic backend.** Pattern-based, multi-language, less precise than language-native tools but works as a fallback. An extension built around Semgrep covers many stacks.
-3. **Use agent-redline without a backend.** Zone classification, PR discipline, and the agent-side skill discipline work without a boundary-rule backend. You lose the deterministic boundary check but keep the rest. The extension's `adapter.yaml` declares `outputFormat: none` and the reporter skips the boundary section of the verdict.
+1. **Use agent-redline without a backend.** Zone classification, PR discipline, checkpoint routing, and the agent-side skill discipline work without a boundary-rule backend. You lose the deterministic boundary check but keep the rest. The extension's `adapter.yaml` declares `outputFormat: none` and the reporter skips the boundary section of the verdict. This is the v0.1 path for any non-JVM repo.
+2. **Build an extension.** Extensions are five files, mostly markdown. See [EXTENSIONS.md](EXTENSIONS.md). For most mainstream stacks (Node, Python, Go, Rust), the recommended backend already exists in the ecosystem; an extension is wiring, not invention. Generic `boundaryBackend` dispatch in the reporter is roadmap (see SPEC §15.3) and will land alongside the second extension.
+3. **Use Semgrep as a generic backend.** Pattern-based, multi-language, less precise than language-native tools but works as a fallback. Same caveat: backend dispatch is roadmap.
 
 ## How is this different from CODEOWNERS?
 
@@ -58,7 +60,7 @@ CODEOWNERS doesn't catch boundary violations; it only routes review. agent-redli
 
 ## Will agents actually follow the operating-mode rules?
 
-Some will, some won't. The skill teaches; CI enforces. If an agent ignores the skill and produces a boundary-violating PR, the boundary-rule backend fails CI. If an agent ignores the skill and modifies a red-zone file, the reporter flags it and the checkpoint blocks merge.
+Some will, some won't. The skill teaches; CI enforces. If an agent ignores the skill and produces a boundary-violating PR, the boundary-rule backend (when one is wired up — Spring/ArchUnit in v0.1) fails CI in binding mode. If an agent ignores the skill and modifies a red-zone file, the reporter flags it; whether the missing checkpoint blocks merge depends on whether `report` is set to `binding` (shadow by default — see [CI_INTEGRATION.md](CI_INTEGRATION.md)).
 
 The skill is for cooperative cases. CI is for the rest. Neither alone is sufficient.
 

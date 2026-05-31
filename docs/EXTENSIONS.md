@@ -82,6 +82,8 @@ boundaryAdapter:
     matchTestNamePattern: <regex>
 ```
 
+> **v0.1 status.** The schema above is the contract; the v0.1 reporter does **not** read `adapter.yaml`. It hardcodes the Spring/ArchUnit case: testcases in classes containing `ArchitectureTest` with a `<failure>` element, located by the caller passing `--archunit-xml <path>`. Wiring the reporter to dispatch on `adapter.yaml` is roadmap (`SPEC.md` §15.3) and gates the second language extension. Ship the file in your extension anyway — it's the source of truth for the contract third parties will use.
+
 In v0.1, `outputFormat: junit-xml` is the only supported value. Other formats (SARIF, JSON-violations) are on the roadmap and will be added when the second or third extension genuinely needs them.
 
 If your backend doesn't natively produce JUnit XML, add a conversion step in `scaffold.md`. Most major static-analysis tools can output multiple formats or have community converters.

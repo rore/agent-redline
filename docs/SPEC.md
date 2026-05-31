@@ -1,7 +1,7 @@
 # agent-redline — Detailed Specification
 
-**Status:** Draft v0.1
-**Last updated:** 2026-05-28
+**Status:** Pre-v0.1 draft
+**Last updated:** 2026-05-31
 
 ---
 
@@ -570,6 +570,8 @@ The reporter natively reads a small set of formats (initially: JUnit XML; SARIF 
 
 This is what keeps the extension contract honest: extensions are markdown plus one small declarative config. No code execution from extensions.
 
+> **v0.1 status:** the reporter ingests Spring/ArchUnit JUnit XML by convention (testcase classes containing `ArchitectureTest`, with a `<failure>` element). The `adapter.yaml` schema above is the contract; the reporter does not yet dispatch on it. The file lives in the reference extension as the source-of-truth for that contract and so third parties have something to copy. Wiring the reporter to actually consult `adapter.yaml` is roadmap (§15.3) and gates the second language extension.
+
 ### 10.5 Building a new extension
 
 See [EXTENSIONS.md](EXTENSIONS.md) for the practical guide. The short version: copy `extensions/spring-archunit/`, rewrite the markdown for your stack, point `adapter.yaml` at your backend's output. Five files.
@@ -724,23 +726,24 @@ agent-redline v1 is successful when, in a real consuming repo:
 - Auto-installer
 - File-level "trust tiers"
 - Formal IR layer
-- Reusable GitHub Action (the standalone reporter ships first)
-- Backend output formats other than JUnit XML (SARIF and JSON-violations are roadmap)
+- Reusable GitHub Action wrapping the reporter
+- CLI for non-agent / pure-CI use cases
 
 ### 15.3 Roadmap candidates (in priority order)
 
 The schema describes what the reporter actually does today. The items below are *not* in the schema yet — they will be added when the reporter learns them, not before.
 
-1. Additional language extensions (community or in-tree: Node, Python, Go, Rust). Will introduce a generic `boundaryBackend` field and a per-extension adapter contract once we have a second backend to dispatch to. Until then there is no field, because there is no choice.
-2. Additional backend output formats supported natively by the reporter (SARIF, JSON-violations).
-3. OpenAPI generation-from-controllers: real spec generation + diff. Will introduce `api.type: openapi-from-controllers` and `api.generationCommand` once the reporter actually runs them. Today, controllers are red-zone files and trigger `architecture-review` via path classification — that is the v0.1 story.
-4. Generic rule engine (`changeRules`) — only if the v0.1 hardcoded behavior turns out not to be enough in practice. The hardcoded mapping is: red-zone change → require checkpoint; gray-zone change → warn; boundary violation → fail (when binding); api/schema/security/runtime-config change → require the corresponding checkpoint; PR-size warn → warn; PR-size fail → require split. If real users need to override these, we'll design the override surface with their cases in hand.
-5. Richer checkpoint satisfaction (`team: <name>`, `reviewerCount: <n>`). Requires querying the host (GitHub / GitLab / etc.) for team membership and approval counts; not in scope for v0.1.
-6. LLM-judge layer for soft checks (implicit-contract risk, modeling-change detection).
-7. Cross-repo API-consumer signal (when one service changes its API, surface to its consumers).
-8. GitLab CI / Jenkins / CircleCI workflow templates.
-9. Dashboard for shadow-mode tuning data.
-7. CLI for non-agent / pure-CI use cases
+1. **Additional language extensions** (community or in-tree: Node, Python, Go, Rust). Will introduce a generic `boundaryBackend` field and wire the reporter to actually dispatch on `adapter.yaml`. Until there is a second backend to dispatch to, neither field exists, because there is no choice.
+2. **Additional backend output formats** supported natively by the reporter (SARIF, JSON-violations).
+3. **OpenAPI generation-from-controllers**: real spec generation + diff. Will introduce `api.type: openapi-from-controllers` and `api.generationCommand` once the reporter actually runs them. Today, controllers are red-zone files and trigger `architecture-review` via path classification — that is the v0.1 story.
+4. **Generic rule engine** (`changeRules`) — only if the v0.1 hardcoded behavior turns out not to be enough in practice. The hardcoded mapping is: red-zone change → require checkpoint; gray-zone change → warn; boundary violation → fail (when binding); api/schema/security/runtime-config change → require the corresponding checkpoint; PR-size warn → warn; PR-size fail → require split. If real users need to override these, we'll design the override surface with their cases in hand.
+5. **Richer checkpoint satisfaction** (`team: <name>`, `reviewerCount: <n>`). Requires querying the host (GitHub / GitLab / etc.) for team membership and approval counts.
+6. **Reusable GitHub Action** wrapping the reporter (`rore/agent-redline/report@v1`). Until then, CI invokes the standalone script directly.
+7. **LLM-judge layer** for soft checks (implicit-contract risk, modeling-change detection).
+8. **Cross-repo API-consumer signal** (when one service changes its API, surface to its consumers).
+9. **GitLab CI / Jenkins / CircleCI workflow templates.**
+10. **Dashboard for shadow-mode tuning data.**
+11. **CLI for non-agent / pure-CI use cases.**
 
 ### 15.4 Validation artifacts required for v0.1
 
@@ -809,14 +812,14 @@ The core (skill, reporter, templates) and the `spring-archunit` reference extens
 
 ## 17. Open questions
 
-These are explicitly unresolved and should be answered during implementation, not now:
+These are explicitly unresolved and should be answered during pilot use, not now:
 
-1. **Reporter language.** Bash, Python, or TypeScript? Decision criteria: ecosystem fit with GitHub Actions, ease of running locally on Windows/macOS/Linux, ease of contribution. Given the reporter's small size, Bash is viable for a first cut and Python is the likely sweet spot for portability + maintainability.
-2. **OpenAPI generation strategy for Spring.** Run `./gradlew generateOpenApi` (where available) vs. parse controller annotations directly vs. require the repo to commit a generated spec. Prefer generation; fall back to commit if generation isn't available.
-3. **How to represent "weakening a boundary-rule definition" in the reporter.** Probably: any change to the boundary-backend definition files (ArchUnit test classes, dependency-cruiser config, etc.) triggers `architecture-review` automatically, regardless of the diff content.
-4. **PR-comment authoring identity.** GitHub Actions bot vs. a custom GitHub App. Bot is simpler; App allows updating-in-place reliably across forks.
-5. **How agents authenticate to apply checkpoint labels.** Org-specific; the skill describes the requirement but doesn't ship a token model.
-6. **Skill discoverability across harnesses.** Claude Code skills format vs. Codex skills format vs. raw markdown. Probably ship multiple compatibility shims.
+1. **PR-comment authoring identity.** GitHub Actions bot vs. a custom GitHub App. Bot is simpler; an App would allow updating-in-place reliably across forks. Decide once we have a real consuming repo where forks matter.
+2. **How agents authenticate to apply checkpoint labels.** Org-specific; the skill describes the requirement but doesn't ship a token model. Will harden once a pilot needs it.
+3. **Skill discoverability across harnesses.** The Agent Skills standard format covers Claude Code, Codex, Cursor, Gemini CLI, and others. If a harness lands that needs a different shape, decide whether to add a compatibility shim or wait for the standard to absorb it.
+4. **Multi-module repos.** Whether one root `agent-policy.yaml` with module-aware globs is enough, or whether a per-module overlay mechanism is worth the complexity. Defer until a real multi-module repo asks the question.
+
+For decisions that *have* been made (skill-first packaging, three-layer architecture, reporter-not-engine, ArchUnit as JVM default, hard token budgets, schema-describes-what-reporter-does, etc.), see [`DECISIONS.md`](DECISIONS.md).
 
 ---
 
@@ -828,4 +831,5 @@ See [§4](#4-vocabulary). Vocabulary is normative; implementations must use thes
 
 ## 19. Changelog
 
+- **2026-05-31:** Schema cleanup. Removed fields the v0.1 reporter accepted but did not implement (`changeRules`, `defaults.unclassifiedZone`, `defaults.grayMode`, `boundaryBackend`, `api.type: openapi-from-controllers`, `team:`/`reviewerCount:` checkpoint forms). The schema now describes only what the reporter does; reserved-for-later items are tracked in §15.3 with an implementation gate. Reporter CLI: `--default-mode` is the canonical flag; `--mode` is a hidden alias.
 - **v0.1 (2026-05-28):** Initial draft. Project kickoff.

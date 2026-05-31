@@ -126,15 +126,15 @@ The check runs and blocks merge if it fails. The comment is the same; the conseq
 
 ### Flipping checks to binding
 
-Order recommended:
+The reporter consults `modes.perCheck` for three rule names. Flip them in this order:
 
-1. **boundary** — binding for new violations from day one when using the baseline pattern; deterministic, low false-positive rate on new violations
-2. **report comment** — keep it informational; just flip to "always present"
-3. **api_diff** — flip after the OpenAPI generation pipeline is stable
-4. **boundary_violation** — flip when backend-reported violations are zero on green PRs
-5. **pr_size** — flip last; most likely to fight existing reality
+1. **`boundary_violation`** — defaults to `binding` already; that's the right setting once the boundary baseline is in place (see "Boundary-backend baseline" above). Pre-existing baseline violations don't block; new violations do.
+2. **`pr_size`** — flip when the team's normal PR shape comfortably fits the `fail` threshold. Most likely to fight existing reality, so flip last.
+3. **`report`** — controls whether *unmet required checkpoints* fail the check. Flip once checkpoint owners (CODEOWNERS, label-applying agents/humans) are reliably wired up. Until then, leave shadow so missing labels don't block legitimate merges.
 
-Flip one check at a time. After each flip, watch for a week. If false positives appear, tune the policy and re-shadow that check before re-flipping.
+Other signals (`api_changed`, `schema_changed`, `security_changed`, `config_changed`, gray-zone changes) always surface in the PR comment. They influence the verdict but do not gate merge on their own — they flow through whichever required checkpoint they trigger.
+
+Flip one rule at a time. After each flip, watch for a week. If false positives appear, tune the policy and re-shadow that rule before re-flipping.
 
 ## Other CI systems
 

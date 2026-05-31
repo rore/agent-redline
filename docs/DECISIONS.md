@@ -8,7 +8,27 @@ Each entry: short title, date, decision, alternatives, rationale, revisit-if.
 
 ---
 
-## 2026-05-30 — Skill-first packaging, not CLI-first
+## 2026-05-31 — Schema describes only what the reporter does
+
+**Decision:** The policy schema (`core/schema/agent-policy.schema.json`) contains only fields the v0.1 reporter implements. Fields previously accepted-but-ignored — `changeRules`, `defaults.unclassifiedZone`, `defaults.grayMode`, `boundaryBackend`, `api.type: openapi-from-controllers`, `team:`/`reviewerCount:` checkpoint forms — are removed. Items that might come back later are tracked in [`SPEC.md §15.3`](SPEC.md) with the implementation gate that has to clear first.
+
+**Alternatives considered:**
+- Keep the fields, mark them `RESERVED in v0.1` in schema descriptions and POLICY_SCHEMA.md (the previous state).
+- Keep the fields and silently ignore them (the state before the previous attempt).
+
+**Rationale:**
+- "Reserved" fields are traps. A user writes `satisfiedBy: [{team: platform}]` thinking it works, ships a checkpoint that can never be checked off, and only finds out when a PR is mysteriously stuck.
+- The schema is documentation. A schema that describes the v1 contract instead of the v0.1 reality teaches the reader the wrong thing.
+- Forward compat that costs nothing (e.g., a string name like `boundaryBackend: archunit`) sounds harmless, but it accumulates. Three of these and the schema is mostly aspirational decoration.
+- Schema versions are cheap. When the reporter learns a new behavior, the schema grows with it — that's a small explicit change with code to back it up. The tax is on adding capability, where it belongs, not on writing every policy.
+
+**Test guard:** `tests/reporter/test_schema_coverage.py` asserts the dropped fields stay dropped and that templates/docs don't reference phantom fields. Re-introducing one of them requires either implementing the behavior (and updating the test) or naming the test as the thing to update — both force a deliberate choice.
+
+**Revisit if:** the v0.1-hardcoded mapping in the reporter (red → require checkpoint; gray → warn; etc.) turns out to be too rigid for real users. At that point, design `changeRules` (or equivalent) with their cases in hand, not as speculative scaffolding.
+
+---
+
+
 
 **Decision:** agent-redline ships as a skill (markdown loaded into agent harnesses), not as a CLI tool with a formal IR.
 

@@ -15,12 +15,12 @@ Because this is a teaching demo, the workflow is shipped as-is in `main` so cont
 
 ## 2. Branch protection
 
-The required status checks for `main` would be:
+Branch protection on `main` requires both checks below to pass before a PR can merge:
 
-- `agent-redline / boundary tests`
-- `agent-redline / agent-redline report`
+- `archunit` — runs the ArchUnit boundary tests
+- `report` — runs the agent-redline reporter against the diff
 
-In a real-world adoption, you would not flip the second to required until you'd seen at least one shadow-mode PR produce useful output.
+These are the actual job IDs from `.github/workflows/agent-redline.yml`. In a real adoption, you would not flip the reporter to required until you'd seen at least one shadow-mode PR produce useful output — but here, the demo's purpose is to show the framework's intended end state, so both checks are required from day one.
 
 ## 3. CODEOWNERS
 

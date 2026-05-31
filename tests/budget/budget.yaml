@@ -32,7 +32,7 @@ ceilings:
     why: loaded on every operating-mode turn
   - path: core/skill/bootstrap-mode.md
     max_tokens: 2000
-    why: loaded only during bootstrap (rare)
+    why: loaded only during bootstrap (rare). The ceiling can be raised if a substantive Phase addition justifies it; the file's rarity gives it more headroom than operating-mode or agent-redline.md.
 
   # Per-checkpoint skill docs — each loaded only when its checkpoint is triggered.
   - path: core/templates/skills/*.md

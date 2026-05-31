@@ -36,6 +36,22 @@ A change to the `Order` aggregate (red zone). The PR has the `architecture-revie
 
 A change that adds a forbidden import: `OrderService` imports `PostgresOrderRepository` directly. The ArchUnit test fails on the rule `application_must_not_depend_on_persistence_adapters`. CI is red. The PR cannot merge until the structure is fixed.
 
+## Running the local check
+
+```bash
+./scripts/agent-redline-check.sh
+```
+
+This invokes the same reporter CI runs. Verdict ladder:
+
+| Exit code | Meaning |
+|---|---|
+| 0 | `BLUE` — proceed |
+| 1 | `RED` / `GRAY` / warning — review checkpoint; don't merge silently |
+| 2 | `BOUNDARY_VIOLATION` — fix the structure or escalate |
+
+> **For `demo/boundary-violation-pr`, run `./gradlew test --tests '*ArchitectureTest'` first.** The boundary-violation verdict requires the ArchUnit JUnit XML at `build/test-results/test/TEST-*ArchitectureTest.xml`. Without it, the reporter sees only the path classification (gray, since `application/*Service.java` isn't in red) and reports `GRAY` instead of `BOUNDARY_VIOLATION`. CI runs the test before the reporter, so the CI verdict is correct either way.
+
 ## CI
 
 `.github/workflows/agent-redline.yml` runs on every PR and push:

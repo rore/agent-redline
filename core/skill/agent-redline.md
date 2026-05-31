@@ -14,6 +14,7 @@ You classify changes before editing. Deterministic CI checks (a boundary-rule ba
 | **Red zone** | Changes are dangerous: contracts, modeling, architecture, security, persistence, shared behavior. |
 | **Blue zone** | Autonomous work fine: isolated, replaceable, strongly testable, low blast-radius. |
 | **Gray zone** | Unclassified. Cautious by default. |
+| **Watch** | Additive tag (not a zone): paths surfaced in the PR comment regardless of red/blue/gray classification. No checkpoint, no gate — visibility only. |
 | **Boundary rule** | Deterministic dependency rule (`X must not import Y`). Enforced by a backend (e.g., ArchUnit). |
 | **Checkpoint** | Required human attention; satisfied by a label or CODEOWNER approval. Types: `architecture-review`, `api-review`, `persistence-review`, `security-review`, `ops-review`. |
 
@@ -27,7 +28,7 @@ Read only the file for the mode that applies.
 
 ## Principles (non-negotiable)
 
-1. **Classify before editing.** Decide blue / red / gray before you touch a file.
+1. **Classify before editing.** Decide blue / red / gray before you touch a file; note any `watch` paths to surface in the PR.
 2. **Refuse boundary shortcuts.** If a change would create a forbidden dependency, fix the structure or escalate. Do not suppress, do not modify the architecture-test files, do not launder the import.
 3. **Architecture-test files are red.** Any change to the boundary-rule backend's definition files (e.g., ArchUnit test classes) requires `architecture-review`, regardless of what the policy says.
 4. **Never auto-commit CI changes.** Workflows, branch protection, CODEOWNERS — propose, don't commit.

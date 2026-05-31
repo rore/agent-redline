@@ -287,6 +287,18 @@ boundaries:
 | Run local agent-redline check | `./scripts/agent-redline-check.sh` |
 | Generate OpenAPI (if plugin present) | `./gradlew generateOpenApi` |
 
+## Default PR-size thresholds
+
+Use these unless the developer asks for tighter or looser bounds in Phase 3. They're the same numbers the reference Spring services run with, calibrated to fire on roughly the top decile of feature PRs.
+
+```yaml
+prRules:
+  maxChangedFiles: { warn: 50, fail: 100 }
+  maxLinesChanged: { warn: 1000, fail: 2000 }
+```
+
+Tighter bounds (e.g., `warn: 15 / fail: 40` for files) make sense for fixture-sized services or libraries with very small change scope. Looser bounds rarely; PRs over 2000 lines are almost always wrong-sized regardless of repo.
+
 ## Ecosystem-specific behavior
 
 - **`@RestController` on internal-only endpoints.** Ask the developer which controllers are internal-only and exclude them from `api-review` triggering (`excludes:` in the policy).

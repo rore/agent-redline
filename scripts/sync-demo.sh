@@ -92,6 +92,9 @@ copy_demo_artifacts() {
 
   mkdir -p "$dest/docs/agent" "$dest/scripts" "$dest/.github/workflows"
   cp "$DEMO_SOURCE/docs/agent/"*.md "$dest/docs/agent/"
+  if [[ -f "$DEMO_SOURCE/docs/agent-redline-ci-proposal.md" ]]; then
+    cp "$DEMO_SOURCE/docs/agent-redline-ci-proposal.md" "$dest/docs/"
+  fi
   cp "$DEMO_SOURCE/scripts/agent-redline-check.sh" "$dest/scripts/"
   chmod +x "$dest/scripts/agent-redline-check.sh"
   cp "$DEMO_SOURCE/.github/pull_request_template.md" "$dest/.github/"

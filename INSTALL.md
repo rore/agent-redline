@@ -38,14 +38,19 @@ git add .claude/skills/agent-redline
 git commit -m "Add agent-redline skill"
 ```
 
-### `--add-dir` install (transient)
+### Symlink install (no copy, edits flow through)
 
-Drop a clone anywhere and load it for the current session:
+If you want to iterate on the skill while it's installed, symlink instead of copy:
 
 ```bash
 git clone https://github.com/rore/agent-redline.git
-claude --add-dir agent-redline/dist
+mkdir -p ~/.claude/skills
+ln -s "$(pwd)/agent-redline/dist/agent-redline" ~/.claude/skills/agent-redline
 ```
+
+Restart Claude Code so the new skill is picked up. Subsequent edits to the cloned repo are reflected immediately — no re-copy needed.
+
+> **Note.** `--add-dir` only widens Claude Code's filesystem allow-list; it does **not** register skills. Skills are discovered only under `~/.claude/skills/` (personal) or `<repo>/.claude/skills/` (project). Use one of the install options above.
 
 ## Codex / Cursor / Gemini CLI / others
 

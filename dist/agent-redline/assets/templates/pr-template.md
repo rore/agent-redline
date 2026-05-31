@@ -2,6 +2,8 @@
 
 ## Change classification
 
+Pick the primary classification (one of):
+
 - [ ] Blue-only
 - [ ] Red-zone change
 - [ ] Gray-zone change
@@ -9,6 +11,10 @@
 - [ ] Persistence / schema change
 - [ ] Security-sensitive change
 - [ ] Boundary-rule change (architecture-test files)
+
+And, additively:
+
+- [ ] Watch-list paths touched (list them in *What changed*)
 
 ## What changed
 
@@ -32,3 +38,4 @@
 - [ ] Ops-review
 
 <!-- For checkpoint changes, see docs/agent/<checkpoint>.md and include the checkpoint note. -->
+<!-- Boundary-rule changes (architecture-test files) ALWAYS require Architecture-review and an explanation of why the rule should be relaxed. -->

@@ -74,10 +74,11 @@ boundaries:
     severity: error
 
 api:
-  type: openapi-spec-file
-  specPath: openapi/api.yaml
-  diffMode: structural
-  checkpoint: api-review
+  type: none
+  # Demo has no committed OpenAPI spec. Controller-touch still triggers
+  # api-review via the *Controller.java red zone. To enable structural
+  # API diffs, add an openapi/api.yaml spec and switch type to
+  # openapi-spec-file, or wire SpringDoc and switch to openapi-from-controllers.
 
 persistence:
   migrationPaths:

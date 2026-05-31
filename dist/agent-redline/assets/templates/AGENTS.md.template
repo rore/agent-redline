@@ -3,7 +3,7 @@
 This repo uses [agent-redline](https://github.com/rore/agent-redline). Before making changes:
 
 1. Read `agent-policy.yaml`.
-2. Classify your intended change as blue / red / gray (see `docs/agent/`).
+2. Classify your intended change as blue / red / gray (see `docs/agent/`), and note any `watch` paths touched — those are surfaced in the PR comment regardless of the primary classification.
 3. Refuse to work around boundary rules. Fix the structure or escalate.
 
 Per-checkpoint guidance lives in `docs/agent/`. Read the file matching the situation:

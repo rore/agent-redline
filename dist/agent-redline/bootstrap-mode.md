@@ -55,6 +55,7 @@ Don't modify anything yet. Produce a written summary; wait for developer confirm
 Load the chosen extension's `profile.md`. Adapt its defaults to the actual repo:
 - Substitute placeholder package names with the actual ones from inspection. If the repo uses `core` instead of `domain`, translate the patterns.
 - Skip zones that don't apply (no Terraform → omit the Terraform red entry).
+- **Use the extension's PR-size thresholds verbatim.** The extension's `profile.md` has a "Default PR-size thresholds" section. Copy those numbers into the draft policy as-is. Don't invent values; the developer can adjust them in Phase 3.
 - Don't fabricate.
 
 Present a draft `agent-policy.yaml` with terse one-line comments. Show it for review before writing.
@@ -136,11 +137,10 @@ The reference section is short:
 
 This repo uses agent-redline. Before making changes:
 1. Read `agent-policy.yaml`.
-2. Classify your intended change as blue / red / gray.
+2. Classify as blue / red / gray; note any `watch` paths touched (additive — surfaced in the PR comment).
 3. Refuse to work around boundary rules.
 
-See `docs/agent/` for per-checkpoint guidance.
-Framework: https://github.com/rore/agent-redline
+See `docs/agent/`. Framework: https://github.com/rore/agent-redline
 ```
 
 **Boundary-rule backend artifacts** — read the extension's `scaffold.md`. Two cases:
@@ -148,13 +148,15 @@ Framework: https://github.com/rore/agent-redline
 - **Existing arch test found in Phase 1:** do NOT generate a new test. Translate its rules into `boundaries:` entries in the policy (one per rule) and tell the developer the existing test is what enforces them. The policy's `boundaries:` section is metadata that the reporter surfaces; the existing test does the actual checking.
 - **No existing arch test:** generate the file per `scaffold.md`. Substitute the actual base package. Don't write `..domain..` if the repo uses `..core..`.
 
-**`scripts/agent-redline-check.sh`** — local pre-push runner. Make executable.
+**`scripts/agent-redline-check.sh`** — copy `assets/templates/pre-push-check.sh` verbatim, mark executable. Do NOT regenerate; a hand-rolled version will drift from CI.
 
-If an existing pre-push hook or script was found in Phase 1, do NOT replace it. Tell the developer how to chain: have the existing hook call `./scripts/agent-redline-check.sh` after its existing steps, or vice versa. Show the one-line diff they need.
+If a pre-push hook already exists, do NOT replace it. Chain: have it call `./scripts/agent-redline-check.sh`, or vice versa.
 
-**PR template** — merge with any existing `.github/pull_request_template.md`. Don't overwrite.
+**PR template** — copy `assets/templates/pr-template.md` verbatim into `.github/pull_request_template.md`. If one already exists, append the agent-redline sections under a marked heading.
 
-**Per-checkpoint docs** — copy from `references/per-checkpoint/` into `docs/agent/` only the docs whose checkpoints or branches the policy actually uses. Always copy: `blue-zone-work.md`, `red-zone-change.md`, `gray-zone-change.md`, `boundary-violation.md`, `pr-discipline.md`. Copy `api-change-checkpoint.md`, `persistence-change-checkpoint.md`, `security-change-checkpoint.md` only if the policy declares the corresponding checkpoint.
+**Per-checkpoint docs** — copy from `references/per-checkpoint/` into `docs/agent/`. Always: `blue-zone-work.md`, `red-zone-change.md`, `gray-zone-change.md`, `boundary-violation.md`, `pr-discipline.md`. Add `api-change-checkpoint.md`, `persistence-change-checkpoint.md`, `security-change-checkpoint.md` only when the policy declares that checkpoint.
+
+**Templates are copied, not regenerated.** Hand-rolling drifts from the reporter and schema. Edit the copy *after* it lands if consumer-specific values are needed.
 
 ## Phase 5 — Propose CI
 

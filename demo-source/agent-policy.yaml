@@ -102,8 +102,6 @@ prRules:
   maxLinesChanged:
     warn: 400
     fail: 1000
-  rejectVerboseGeneratedDescriptions: true
-  requireVerificationSection: true
 
 checkpoints:
   architecture-review:

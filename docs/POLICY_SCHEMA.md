@@ -66,8 +66,6 @@ prRules:                              # optional; defaults applied if absent
   maxLinesChanged:
     warn: 1000
     fail: 2000
-  rejectVerboseGeneratedDescriptions: true
-  requireVerificationSection: true
 
 checkpoints:                          # required if any zone references one
   <checkpoint-id>:

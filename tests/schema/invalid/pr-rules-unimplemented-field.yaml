@@ -1,0 +1,25 @@
+# Invalid: prRules.rejectVerboseGeneratedDescriptions is not a recognized
+# field. It existed in an earlier schema draft but the reporter never
+# implemented verbose-description detection; per the schema-honesty
+# principle (DECISIONS), it was removed in v0.1 polish. See SPEC §11.3.
+version: 1
+
+project:
+  name: bad-pr-rules-field
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+
+prRules:
+  maxChangedFiles:
+    warn: 50
+    fail: 100
+  rejectVerboseGeneratedDescriptions: true
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval

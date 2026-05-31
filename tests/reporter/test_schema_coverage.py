@@ -96,6 +96,26 @@ def test_satisfied_by_does_not_reintroduce_team_or_reviewer_count():
     )
 
 
+def test_pr_rules_does_not_reintroduce_unimplemented_fields():
+    """rejectVerboseGeneratedDescriptions and requireVerificationSection
+    were declared by the schema but never wired into the reporter. Per the
+    schema-honesty principle (DECISIONS), they were removed in v0.1 polish.
+    Re-add only when the reporter implements them — see SPEC §11.3 + §15.3.
+    """
+    schema = _schema()
+    pr_rules_props = schema["properties"]["prRules"]["properties"]
+    assert "rejectVerboseGeneratedDescriptions" not in pr_rules_props, (
+        "prRules.rejectVerboseGeneratedDescriptions was removed because the "
+        "reporter does not implement verbose-description detection. Re-add "
+        "only after the reporter actually flags slop."
+    )
+    assert "requireVerificationSection" not in pr_rules_props, (
+        "prRules.requireVerificationSection was removed because the reporter "
+        "does not check PR descriptions for a Verification heading. Re-add "
+        "only after the reporter implements it."
+    )
+
+
 # ---------------------------------------------------------------------------
 # 2. Templates and docs only reference fields that exist in the schema
 # ---------------------------------------------------------------------------

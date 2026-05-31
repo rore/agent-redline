@@ -137,9 +137,7 @@
       "additionalProperties": false,
       "properties": {
         "maxChangedFiles":  { "$ref": "#/$defs/warnFail" },
-        "maxLinesChanged":  { "$ref": "#/$defs/warnFail" },
-        "rejectVerboseGeneratedDescriptions": { "type": "boolean" },
-        "requireVerificationSection": { "type": "boolean" }
+        "maxLinesChanged":  { "$ref": "#/$defs/warnFail" }
       }
     },
 

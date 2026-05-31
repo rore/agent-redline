@@ -12,10 +12,10 @@ This is a doc about *testing the project itself*, not about how a consuming repo
 | 1 | **Schema validation** | Policies parse and conform to schema v1 | Fully mechanical |
 | 2 | **Reporter golden tests** | Reporter produces correct verdicts for known inputs | Fully mechanical |
 | 3 | **Extension scaffold dry-run** | Extension-generated artifacts compile and run | Fully mechanical |
-| 4 | **Skill behavior simulation** | The skill produces the expected agent behavior | Partially mechanical |
+| 4 | **Skill behavior simulation** | The skill produces the expected agent behavior | Operator-driven (no harness) |
 | 5 | **End-to-end demo repo** | The whole loop works against real GitHub | Manual but high-confidence |
 
-Layers 0–3 run in CI. Layer 4 runs partly in CI (golden traces), partly manually (running the skill in Claude Code / Codex against a fixture). Layer 5 runs manually against a paired demo repo.
+Layers 0–3 run in CI. Layer 4 is operator-driven — a person installs the skill into a harness and observes its behavior against a fixture. Layer 5 runs manually against a paired demo repo.
 
 ## Layer 0 — Budget compliance
 
@@ -115,34 +115,25 @@ Layers 0–3 run in CI. Layer 4 runs partly in CI (golden traces), partly manual
 
 **What it catches:** skill ambiguity, missing decision points, infinite loops, wrong questions to the developer.
 
-This is the hardest layer. Agents are non-deterministic; a single "expected trace" can't cover the space. The honest approach is two-tiered:
+This is the hardest layer. Agents are non-deterministic; a single "expected trace" can't cover the space. agent-redline does not ship a Layer 4 harness. Layer 4 is **operator-driven**: when you run a smoke check against the paired demo repo (or a throwaway clone of a real repo), you observe the skill's behavior directly and write down findings.
 
-### 4a. Smoke check (mechanical)
+### What "running Layer 4" looks like
 
-After a manual bootstrap run against a fixture repo, the harness checks:
-- A `agent-policy.yaml` was produced
-- The policy is schema-valid (Layer 1)
-- An `AGENTS.md` was produced
-- The boundary-backend artifacts were scaffolded
-- The `docs/agent-redline-ci-proposal.md` exists
-- No CI workflow was auto-committed
-- No file under `src/test/.../architecture/` was edited without an explicit checkpoint note
+Install the skill into your harness (Claude Code, Codex, Cursor, Gemini CLI). Point a fresh session at the demo's `greenfield` branch and run a bootstrap. Then point a session at `main` and exercise operating-mode classification (red / blue / boundary). Compare what the skill does to what bootstrap-mode.md and operating-mode.md say it should do.
 
-This doesn't validate that the skill *did the right thing*, only that it produced a structurally valid result. Useful as a smoke test before a manual review.
+The questions that matter:
+- Did the agent pick the right extension?
+- Did it ask sensible questions during inspection?
+- Did it produce a sensible draft policy that passes Phase 3a's red-utility test?
+- Did it refuse to auto-commit CI workflows, branch protection, CODEOWNERS?
+- Did it refuse to silently weaken arch tests in operating mode?
+- Did it refuse to launder a boundary violation when a user asked for one?
+- Did it compose with existing setup (existing `AGENTS.md`, existing arch test, existing pre-push) rather than overwriting?
+- Did it write a useful Phase 6 summary?
 
-### 4b. Manual session review (judged)
+These are observed, not asserted. Findings are written to a per-run notes file (e.g., `.local/LAYER_4_SMOKE_<date>.md`); reproducible bugs become issues. agent-redline does not ship a `tests/skill-review/` checklist or `tests/skill-smoke/` post-hoc-asserter — those would impose process overhead without catching anything the operator's eyes don't already see.
 
-The actual skill validation is humans running the skill against fixture repos in Claude Code, Codex, etc., and writing down whether the agent:
-- Picked the right extension
-- Asked sensible questions during inspection
-- Produced a sensible draft policy
-- Refused to auto-commit CI
-- Refused to silently weaken architecture tests
-- Wrote a useful summary at the end
-
-For v0.1, this is a documented checklist (`tests/skill-review/checklist.md`) and a few fixture repos under `tests/skill-review/fixtures/`. Run by hand. Results recorded as "PASS / FAIL with notes" — no grand harness.
-
-**Effort:** small (the checklist) plus ongoing (running it). **Value:** essential but bounded — this is the only way to catch design bugs in the skill itself.
+**Effort:** ~30 minutes per smoke run. **Value:** essential — the only way to catch design bugs in the skill itself. Run before each tag.
 
 ## Layer 5 — End-to-end demo repo
 
@@ -157,15 +148,16 @@ A paired GitHub repo `agent-redline-demo` with two long-lived branches and three
 - **`greenfield`** — bare Spring service, no agent-redline artifacts. Use to exercise **bootstrap mode**: drop the skill into Claude Code or Codex pointed at this branch, ask the agent to set up agent-redline, observe what it produces.
 - **`main`** — bootstrapped state: Spring service plus all agent-redline artifacts (policy, AGENTS.md, docs/agent/, vendored reporter, scripts, CI workflow, CODEOWNERS). Use to exercise **operating mode**.
 
-**Three PR-scenario branches** (all branched from `main`):
+**Four PR-scenario branches** (all branched from `main`):
 
 1. `demo/blue-only-pr` → verdict `BLUE`, CI green, no checkpoint required
-2. `demo/red-with-checkpoint-pr` → verdict `RED`, CI green when checkpoint label applied
+2. `demo/red-with-checkpoint-pr` → verdict `RED`, CI green when `architecture-reviewed` label applied
 3. `demo/boundary-violation-pr` → verdict `BOUNDARY_VIOLATION`, CI red, ArchUnit failure surfaced
+4. `demo/api-change-pr` → verdict `API_CHANGE`, CI green when `api-reviewed` label applied; structural OpenAPI diff shown in the PR comment (the workflow's `generate-specs` job builds the spec at base+head SHAs and the reporter diffs them)
 
-Each PR has a known shape and a known expected outcome (see `demo-source/pr-scenarios/`). Running the demo means: clone the demo repo, run sync-demo.sh from agent-redline, push, observe.
+Each PR has a known shape and a known expected outcome (see `demo-source/pr-scenarios/`). Running the demo means: clone the demo repo, run sync-demo.sh from agent-redline, push, observe. `sync-demo.sh --push` (with `gh` available) also recreates the four PRs and applies the canonical labels — so a sync produces the live demo state without manual GitHub clicks.
 
-**Demo sync:** `scripts/sync-demo.sh --target ../agent-redline-demo --with-pr-branches` rebuilds all five branches from agent-redline's `demo-source/` and `examples/spring-hexagonal/`. The target's branches are replaced, not merged — the demo is regenerable, not authoritative.
+**Demo sync:** `scripts/sync-demo.sh --target ../agent-redline-demo --with-pr-branches` rebuilds all six branches from agent-redline's `demo-source/` and `examples/spring-hexagonal/`. The target's branches are replaced, not merged — the demo is regenerable, not authoritative.
 
 **Effort:** medium (one-time setup, then `sync-demo.sh` for re-runs). **Value:** essential — without this, "the whole pipeline works" is a claim, not a fact.
 
@@ -177,9 +169,8 @@ All of the following hold:
 - [ ] Schema validates every policy in `examples/`, every template, every fixture
 - [ ] All Layer 2 reporter golden tests pass
 - [ ] Layer 3 dry-run for `spring-archunit` passes (test compiles, runs, fails on injected violation)
-- [ ] Layer 4a smoke check runs against the `examples/spring-hexagonal/` fixture and passes
-- [ ] Layer 4b manual checklist has been run at least once by a developer using Claude Code or Codex with the skill loaded, and findings written down
-- [ ] Layer 5 demo: greenfield bootstrap test passes; three PR-scenario branches produce their expected verdicts on real GitHub
+- [ ] Layer 4 smoke run completed against the demo's `greenfield` and `main` branches with findings written to a notes file
+- [ ] Layer 5 demo: greenfield bootstrap test passes; the four PR-scenario branches produce their expected verdicts on real GitHub
 
 If any of these are red, v0.1 isn't done.
 

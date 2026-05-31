@@ -277,13 +277,9 @@ agent-redline/
 │   │   └── invalid/                       # known-bad policies
 │   ├── reporter/                          # golden fixtures: policy + diff + backend output → expected verdict
 │   │   └── <scenario>/
-│   ├── extensions/
-│   │   └── spring-archunit/
-│   │       └── fixture-repo/              # minimal Spring service for scaffold dry-run
-│   ├── skill-smoke/                       # fixture inputs + post-bootstrap assertions
-│   └── skill-review/
-│       ├── checklist.md                   # manual review checklist
-│       └── fixtures/                      # repos to run the skill against
+│   └── extensions/
+│       └── spring-archunit/
+│           └── fixture-repo/              # minimal Spring service for scaffold dry-run
 ├── examples/
 │   └── spring-hexagonal/                  # Layer 3 fixture (Spring source-of-truth, also used by demo)
 ├── demo-source/                            # canonical content for the paired agent-redline-demo repo
@@ -294,7 +290,7 @@ agent-redline/
 │   ├── docs/agent/                        # per-checkpoint docs copied into the demo repo
 │   ├── scripts/agent-redline-check.sh
 │   ├── .github/{pull_request_template.md, workflows/agent-redline.yml}
-│   └── pr-scenarios/{blue-only, red-with-checkpoint, boundary-violation}/
+│   └── pr-scenarios/{blue-only, red-with-checkpoint, boundary-violation, api-change}/
 ├── scripts/
 │   └── sync-demo.sh                       # populate the paired demo repo's branches
 ├── docs/
@@ -672,7 +668,7 @@ Bootstrap adds (or merges into) `.github/pull_request_template.md`:
 
 ### 11.3 Verbose-description rejection
 
-The skill instructs agents not to produce verbose generated PR descriptions (history of attempts, restated requirements, redundant code summaries). The reporter optionally flags suspiciously long descriptions as a slop signal.
+The skill instructs agents not to produce verbose generated PR descriptions (history of attempts, restated requirements, redundant code summaries). This is agent-side discipline only in v0.1; the reporter does not flag slop. Adding a "verbose-description" check is a roadmap candidate (§15.3) — if real adopters report missing it, we'll wire `prRules.rejectVerboseGeneratedDescriptions` and `prRules.requireVerificationSection` into the reporter and re-add them to the schema. Until then, the schema does not accept those fields (per the schema-honesty principle in `DECISIONS.md`).
 
 ---
 
@@ -792,13 +788,12 @@ agent-redline v0.1 is not "done" until all of the following are in place. See [V
 - **Schema fixtures** (`tests/schema/valid/`, `tests/schema/invalid/`) — known-good and known-bad policies
 - **Reporter golden fixtures** (`tests/reporter/<scenario>/`) — at least the 11 scenarios listed in VALIDATION.md
 - **Extension dry-run target** (`examples/spring-hexagonal/`) — minimal Spring service used to verify the scaffold compiles and runs (Layer 3 harness lives at `tests/extensions/spring-archunit/`)
-- **Skill smoke check** (`tests/skill-smoke/`) — fixture inputs + post-bootstrap assertions
-- **Skill review checklist** (`tests/skill-review/checklist.md`) — manual checklist run by a human in Claude Code / Codex against fixture repos
-- **Paired demo repo** (`agent-redline-demo` on GitHub) with two long-lived branches (`greenfield`, `main`) and three PR-scenario branches (`demo/blue-only-pr`, `demo/red-with-checkpoint-pr`, `demo/boundary-violation-pr`). Source-of-truth at `demo-source/` in this repo.
+- **Layer 4 smoke run** — operator runs the skill in Claude Code or Codex against the demo's `greenfield` and `main` branches, observes behavior, writes findings to a per-run notes file. No tracked checklist or fixture directory; see VALIDATION.md.
+- **Paired demo repo** (`agent-redline-demo` on GitHub) with two long-lived branches (`greenfield`, `main`) and four PR-scenario branches (`demo/blue-only-pr`, `demo/red-with-checkpoint-pr`, `demo/boundary-violation-pr`, `demo/api-change-pr`). Source-of-truth at `demo-source/` in this repo.
 - **Demo sync script** (`scripts/sync-demo.sh`) — regenerates the demo repo's branches deterministically from `demo-source/` + `examples/spring-hexagonal/`
 - **Token-budget check** — every artifact under its declared budget (see §1.4.1)
 
-The CI for agent-redline itself runs Layers 1–3 mechanically. Layers 4 and 5 are gated by manual sign-off before a v0.1 release.
+The CI for agent-redline itself runs Layers 0–3 mechanically. Layer 4 (operator-driven) and Layer 5 (live demo repo) are gated by manual sign-off before each tag.
 
 ---
 
@@ -870,6 +865,8 @@ See [§4](#4-vocabulary). Vocabulary is normative; implementations must use thes
 
 ## 19. Changelog
 
+- **2026-05-31 (v0.1 polish):** Schema honesty pass — `prRules.rejectVerboseGeneratedDescriptions` and `prRules.requireVerificationSection` removed from the schema. They were declared but never wired into the reporter. Per `DECISIONS.md`, the schema describes only what the reporter does; reserved-for-later items are tracked in §15.3 with an implementation gate. Verbose-description detection becomes roadmap. Validation cleanup — Layer 4 (skill behavior simulation) reframed as operator-driven; the `tests/skill-smoke/` and `tests/skill-review/` directory promises were removed because the operator's eyes against the live demo catch the same bugs without process overhead. Findings live in per-run notes files outside the repo.
+- **2026-05-31 (openapi end-to-end):** OpenAPI structural diff demonstrated end-to-end in the live demo. `examples/spring-hexagonal/` upgraded to a real Spring Boot 3.4 service with SpringDoc generating `/v3/api-docs.yaml` from `@RestController` annotations. Demo policy switched to `api.type: openapi-from-controllers`. Demo CI workflow gained a `generate-specs` job that does the worktree-dance (build spec at base SHA, build spec at head SHA, hand both to reporter via `--api-spec-base`/`--api-spec-head`). New 4th PR scenario `demo/api-change-pr` produces a live `API_CHANGE` verdict with structural diff (e.g., `Added: /orders/{id}/cancel`) in the PR comment. Hexagonal discipline preserved: only `Application.java` (the composition root) imports Spring; application/adapter classes stay framework-free. `sync-demo.sh --push` now also recreates the four canonical PRs after force-pushing branches and applies per-scenario labels (`architecture-reviewed`, `api-reviewed`) read from `pr-scenarios/<name>/labels.txt`.
 - **2026-05-31 (rename):** `zones.grayWatch` renamed to `zones.watch`. The old name was misleading — it suggested a gray subtype, but the field is an additive tag that composes with red, blue, or gray (a file can be `red+watch`, `blue+watch`, or `gray+watch`). New SPEC §4.4 explicitly contrasts gray (residual bucket) with watch (additive tag). All schema/code/docs/templates/fixtures updated. Pre-v0.1 rename: no migration shim needed.
 - **2026-05-31 (later still):** Red-zone framing sharpened. Red means *different review behavior*, not "important code" (§4.3). Spring profile defaults rewritten to a much narrower red surface (repository/gateway interfaces, controllers, migrations, security paths, arch tests, prod runtime config) with most domain/application code moved onto the watch list. Bootstrap Phase 3 now mandates a "would this red zone fire on a typical PR?" check per entry. New `scripts/agent-redline-tune.py` computes per-zone firing rates from a batch of merged PRs (zone-calibration tool). Shadow mode reframed as two distinct decisions: zone calibration (window 1) vs. check-flip tuning (window 2).
 - **2026-05-31 (later):** OpenAPI from controllers shipped. The reporter now accepts `--api-spec-base` / `--api-spec-head`; the CI workflow generates both specs at base and head SHAs (typically via `git worktree`) and the reporter computes a structural diff (paths added/removed, methods added/removed/modified). The diff is descriptive, not classificatory — reviewers judge breaking-vs-additive. Schema re-accepts `api.type: openapi-from-controllers` and requires `generationCommand`. Bootstrap-mode now explicitly composes with existing arch tests, agent-instruction files, and pre-push hooks rather than overwriting them.

@@ -8,6 +8,36 @@ Each entry: short title, date, decision, alternatives, rationale, revisit-if.
 
 ---
 
+## 2026-05-31 (later) — A feature isn't done until the demo proves it end-to-end
+
+**Decision:** Every user-facing feature in agent-redline must be demonstrable end-to-end on the paired demo repo (`agent-redline-demo`) before we can call it shipped. "End-to-end" means a real branch, a real PR, real CI runs, and a verdict comment that reflects what the feature claims to do — not just unit tests or golden fixtures showing the reporter's *byte-equal* output for a synthetic input.
+
+If a feature can't be demonstrated on the demo, it isn't finished. Either the demo grows a new scenario, or the feature is rolled back to "documented + roadmap" until the demo can show it.
+
+**Alternatives considered:**
+- Trust unit tests and golden fixtures for "the reporter does X correctly," and treat live demos as nice-to-have polish. Rejected: the agent-redline pipeline is not a single function. It's a chain — agent classification → policy lookup → reporter → CI workflow → branch protection → PR comment → label-based checkpoint flow. Unit tests prove the *segments*; only a live demo proves the *chain*. The October 2026 smoke session caught real chain-breaks (missing `architecture-reviewed` label flow, stale check names, sync-demo not preserving labels, the openapi-from-controllers Spring Boot wiring) that no unit test would have caught.
+- Document the feature as "covered by unit tests, not yet demoed" in SPEC §15. Rejected: that's how features end up shipping with subtle integration bugs that surface only when a real adopter wires them up. We've already seen this pattern with `prRules.rejectVerboseGeneratedDescriptions` — a schema field that was never wired into the reporter. End-to-end demos make that class of bug impossible to miss.
+- Demo only the "interesting" scenarios. Rejected: every feature looks unremarkable to whoever wrote it. The point is the reviewer (or future operator) reading the demo's PR list and seeing the feature actually fire.
+
+**Rationale:**
+- A feature whose sole evidence is a unit test passes a much weaker bar than the spec promises. SPEC §14 says "an agent modifying a public API is forced through an api-review checkpoint" — that claim only holds when there is an actual PR on actual GitHub doing exactly that. Otherwise the success-criteria item is aspirational.
+- Demos are also the documentation that doesn't lie. When someone evaluates agent-redline, the four (now six) live PRs on the demo repo are the most credible artifact we ship — more than the README, more than the docs. Each live PR is a *use case*, executable.
+- The cost is bounded. Adding a new scenario is ~10 minutes of work in `demo-source/pr-scenarios/<name>/` plus a sync. The cost pays back the first time a future change accidentally breaks the chain.
+- The principle has a clear stopping rule: when SPEC §14 / SPEC §15.1 lists a capability, there must be a demo PR scenario that exercises it. No demo, no claim.
+
+**Mechanics:**
+- Each user-facing feature gets a corresponding `demo-source/pr-scenarios/<name>/` directory (`branch.txt`, `description.md`, `apply.sh`, `expected-verdict.md`, optional `labels.txt`).
+- `scripts/sync-demo.sh --push` recreates the canonical PRs on every sync. The four-now-six PRs always reflect what `main` claims to do.
+- SPEC §14 (success criteria) and §15.1 (what ships in v0.1) are the index. If a row in either list doesn't have a corresponding demo PR scenario, the entry is unfinished.
+
+**Test guard:** This is a *project guideline*, not a runtime check. The enforcement is reviewer discipline + the SPEC §14 checklist. The live demo's CI status is the failure signal: if a feature's demo PR drifts from its expected verdict, the regression is visible without anyone running a test.
+
+**Revisit if:**
+- The demo grows past the point of being readable at-a-glance (more than ~10 PR scenarios). At that point we'd want sub-grouping or a demo index, not a relaxation of the rule.
+- A feature genuinely can't be demonstrated in a single Spring/JVM repo (e.g., cross-repo signal). Then the "demo" might be two paired demo repos, but the rule still holds — there must be *something* live and runnable.
+
+---
+
 ## 2026-05-31 (rename) — `zones.grayWatch` → `zones.watch`
 
 **Decision:** Rename the additive-tag zone field from `grayWatch` to `watch`. The `Gray-watch` label in the PR comment becomes `Watch`. JSON output exposes `zones.watch` instead of `zones.grayWatch`. Schema, reporter, templates, skill files, docs, fixtures, and the tuning script all updated. No back-compat shim — pre-v0.1, no consumer policies in production.

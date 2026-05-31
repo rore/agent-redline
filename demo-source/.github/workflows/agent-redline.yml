@@ -188,6 +188,11 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             LABELS=$(echo '${{ toJSON(github.event.pull_request.labels) }}' | python -c "import sys, json; print(','.join(l['name'] for l in json.load(sys.stdin)))")
           fi
+          # Capture the reporter's exit code without failing the step yet —
+          # we want the comment to post regardless. A later step (Enforce
+          # reporter exit code) translates exit code 2 into a step failure
+          # so binding-mode breaches actually fail CI.
+          set +e
           python scripts/agent-redline-report.py \
             --policy agent-policy.yaml \
             --changed-files /tmp/agent-redline/changed-files.txt \
@@ -197,12 +202,15 @@ jobs:
             $ARCHUNIT_ARG \
             $API_ARGS \
             --json-out /tmp/agent-redline/verdict.json \
-            --comment-out /tmp/agent-redline/comment.md \
-            || echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+            --comment-out /tmp/agent-redline/comment.md
+          EXIT=$?
+          set -e
+          echo "exit_code=$EXIT" >> "$GITHUB_OUTPUT"
           echo "--- verdict.json ---"
           cat /tmp/agent-redline/verdict.json
           echo "--- comment.md ---"
           cat /tmp/agent-redline/comment.md
+          echo "reporter exit code: $EXIT"
 
       - name: Post / update PR comment
         if: github.event_name == 'pull_request'
@@ -210,3 +218,17 @@ jobs:
         with:
           header: agent-redline
           path: /tmp/agent-redline/comment.md
+
+      - name: Enforce reporter exit code
+        # Fail the report job (and thus the required check) when the reporter
+        # exited 2 — that's the binding-mode hard fail (boundary violation,
+        # unsatisfied checkpoint under binding mode, oversized PR under
+        # binding mode). Exit codes 0 and 1 leave the job green; the comment
+        # surfaces the warning without blocking merge.
+        run: |
+          EXIT="${{ steps.report.outputs.exit_code }}"
+          if [[ "$EXIT" == "2" ]]; then
+            echo "Reporter exited 2 (binding-mode hard fail). Failing the report check."
+            exit 1
+          fi
+          echo "Reporter exited $EXIT — non-blocking."

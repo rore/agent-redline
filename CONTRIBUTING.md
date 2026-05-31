@@ -21,7 +21,8 @@ Thanks for thinking about contributing. agent-redline is small enough that the b
 2. **Branch from `main`.**
 3. **Run the local test layers before pushing:** `bash tests/run-all.sh`. The CI runs the same nine layers; passing locally saves a round trip.
 4. **Keep PRs small.** One concern per PR.
-5. **Update the relevant docs** when changing behavior. `docs/SPEC.md` §19 has a changelog.
+5. **A feature is not done until the demo proves it end-to-end.** If you're adding a user-facing capability (one that would appear in SPEC §14 / §15.1), add a corresponding scenario under `demo-source/pr-scenarios/<name>/` in the same change. Unit tests verify segments of the pipeline; only the live demo on `agent-redline-demo` verifies the chain. See [`docs/DECISIONS.md`](docs/DECISIONS.md) for the full rationale.
+6. **Update the relevant docs** when changing behavior. `docs/SPEC.md` §19 has a changelog.
 
 ## What you don't need to do
 

@@ -124,3 +124,4 @@ modes:
   default: shadow
   perCheck:
     boundary_violation: binding
+    pr_size: binding

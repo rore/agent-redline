@@ -727,14 +727,17 @@ agent-redline explicitly does not:
 
 agent-redline v1 is successful when, in a real consuming repo:
 
-1. An agent attempting to import an adapter from `domain/**` is blocked deterministically with a clear message.
-2. An agent modifying a public API is forced through an `api-review` checkpoint.
-3. An agent modifying a DB migration is forced through a `persistence-review` checkpoint.
-4. An agent producing an oversized PR is told to split it.
-5. An agent working in tests / docs / isolated adapters proceeds without friction.
-6. A developer can read the PR comment and understand what attention is needed in under 30 seconds.
-7. A developer can bootstrap agent-redline in a new repo, in conversation with the agent, in under one hour.
-8. Shadow mode produces actionable false-positive data the team can use to tune the policy.
+1. An agent attempting to import an adapter from `domain/**` is blocked deterministically with a clear message. *Demo: `demo/boundary-violation-pr`.*
+2. An agent modifying a public API is forced through an `api-review` checkpoint. *Demo: `demo/api-change-pr`.*
+3. An agent modifying a DB migration is forced through a `persistence-review` checkpoint. *Demo: `demo/schema-change-pr`.*
+4. An agent producing an oversized PR is told to split it (and the PR is merge-blocked under binding mode). *Demo: `demo/oversized-pr`.*
+5. An agent working in tests / docs / isolated adapters proceeds without friction. *Demo: `demo/blue-only-pr`.*
+6. A red-zone change that has been explicitly reviewed (label or CODEOWNER) is allowed to merge. *Demo: `demo/red-with-checkpoint-pr`.*
+7. A developer can read the PR comment and understand what attention is needed in under 30 seconds.
+8. A developer can bootstrap agent-redline in a new repo, in conversation with the agent, in under one hour.
+9. Shadow mode produces actionable false-positive data the team can use to tune the policy.
+
+Items 1–6 each have a corresponding live PR scenario on `agent-redline-demo`. The end-to-end-demo guideline (see `DECISIONS.md`) makes those demo PRs a hard requirement: a success-criteria item without a live demo isn't shipped.
 
 ---
 
@@ -864,6 +867,8 @@ See [§4](#4-vocabulary). Vocabulary is normative; implementations must use thes
 ---
 
 ## 19. Changelog
+
+- **2026-05-31 (e2e-demo guideline + two new scenarios):** New project guideline: a feature is not done until the demo proves it end-to-end. Documented in `DECISIONS.md` with rationale, `AGENTS.md` (hard rule #6) and `CONTRIBUTING.md` (process step #5). Added two demo PR scenarios that close gaps in SPEC §14 success criteria: `demo/schema-change-pr` exercises the persistence-review checkpoint via a Flyway migration; `demo/oversized-pr` exercises the binding pr_size gate via 60 trivial files. Demo policy gained `modes.perCheck.pr_size: binding` so the size gate actually blocks merge. SPEC §14 now annotates each success-criteria item with the demo scenario that proves it. Total live demo PRs: six.
 
 - **2026-05-31 (v0.1 polish):** Schema honesty pass — `prRules.rejectVerboseGeneratedDescriptions` and `prRules.requireVerificationSection` removed from the schema. They were declared but never wired into the reporter. Per `DECISIONS.md`, the schema describes only what the reporter does; reserved-for-later items are tracked in §15.3 with an implementation gate. Verbose-description detection becomes roadmap. Validation cleanup — Layer 4 (skill behavior simulation) reframed as operator-driven; the `tests/skill-smoke/` and `tests/skill-review/` directory promises were removed because the operator's eyes against the live demo catch the same bugs without process overhead. Findings live in per-run notes files outside the repo.
 - **2026-05-31 (openapi end-to-end):** OpenAPI structural diff demonstrated end-to-end in the live demo. `examples/spring-hexagonal/` upgraded to a real Spring Boot 3.4 service with SpringDoc generating `/v3/api-docs.yaml` from `@RestController` annotations. Demo policy switched to `api.type: openapi-from-controllers`. Demo CI workflow gained a `generate-specs` job that does the worktree-dance (build spec at base SHA, build spec at head SHA, hand both to reporter via `--api-spec-base`/`--api-spec-head`). New 4th PR scenario `demo/api-change-pr` produces a live `API_CHANGE` verdict with structural diff (e.g., `Added: /orders/{id}/cancel`) in the PR comment. Hexagonal discipline preserved: only `Application.java` (the composition root) imports Spring; application/adapter classes stay framework-free. `sync-demo.sh --push` now also recreates the four canonical PRs after force-pushing branches and applies per-scenario labels (`architecture-reviewed`, `api-reviewed`) read from `pr-scenarios/<name>/labels.txt`.

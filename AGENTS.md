@@ -25,6 +25,7 @@ These are larger. Load only the section you need, when you need it.
 3. **Run `bash tests/run-all.sh` before pushing.** Budget compliance, schema, reporter, workflow-scripts, links, gitignore, sync-demo. Smallest version that does the job; don't expand budgets without justification. CI runs the same suite.
 4. **No marketing tone.** Developer-to-developer. If a sentence sounds like a pitch, cut it.
 5. **Decisions get recorded, not encoded silently.** Substantive decisions append to `docs/DECISIONS.md` with rationale; routine session work goes in `.local/WORK_TRACKER.md`.
+6. **A feature is not done until the demo proves it end-to-end.** Every user-facing capability listed in SPEC §14 / §15.1 must have a corresponding scenario under `demo-source/pr-scenarios/<name>/` that exercises it on real GitHub. Unit tests + golden fixtures verify segments; only the live demo verifies the chain. If you ship a feature, ship its demo PR scenario in the same change. See `docs/DECISIONS.md` for the full rationale.
 
 ## Build / test
 

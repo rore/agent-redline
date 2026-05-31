@@ -23,7 +23,7 @@ Already-bootstrapped state. Has `agent-policy.yaml` at the root, `AGENTS.md` ref
 
 Use this branch to exercise **operating mode**. The three planned PR branches below all branch from `main`.
 
-## Four planned PRs (all branched from `main`)
+## Six planned PRs (all branched from `main`)
 
 Each is a real PR you can open, observe, and use to validate the end-to-end pipeline.
 
@@ -42,6 +42,14 @@ A change that adds a forbidden import: `OrderService` imports `PostgresOrderRepo
 ### `demo/api-change-pr` → expected verdict: `API_CHANGE`
 
 Adds a new endpoint (`POST /orders/{id}/cancel`) to `OrderController`. Demonstrates `api.type: openapi-from-controllers`: the CI workflow generates an OpenAPI spec at the PR's base SHA *and* at its head SHA, the agent-redline reporter diffs the two, and the PR comment shows the structural diff (added paths / removed paths / modified operations). The PR has the `api-reviewed` label applied, satisfying the api-review checkpoint, so it can merge.
+
+### `demo/schema-change-pr` → expected verdict: `SCHEMA_CHANGE`
+
+Adds a Flyway migration (`V2__add_customer_email_to_orders.sql`) that adds a column to the `orders` table. Demonstrates the **persistence-review checkpoint**: any touch to `src/main/resources/db/migration/**` lands in the red zone with `checkpoint: persistence-review`, and the reporter's `schemaChanges.detected` flag fires. The PR has the `persistence-reviewed` label applied, satisfying the checkpoint, so it can merge.
+
+### `demo/oversized-pr` → expected verdict: `BLUE` (but blocked)
+
+Adds 60 trivial test files (all blue zone). Demonstrates the **PR-size guard**. The headline verdict is `BLUE` (every file is benign), but `prRules.maxChangedFiles.fail: 50` is breached and `modes.perCheck.pr_size: binding` makes the breach a hard fail. CI is red and branch protection blocks merge. The fix is to split the PR — there is no label that satisfies a size violation.
 
 ## Running the local check
 

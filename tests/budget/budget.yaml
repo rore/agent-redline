@@ -31,8 +31,13 @@ ceilings:
     max_tokens: 1500
     why: loaded on every operating-mode turn
   - path: core/skill/bootstrap-mode.md
-    max_tokens: 2000
-    why: loaded only during bootstrap (rare). The ceiling can be raised if a substantive Phase addition justifies it; the file's rarity gives it more headroom than operating-mode or agent-redline.md.
+    max_tokens: 2100
+    why: loaded only during bootstrap (rare). Headroom is intentional; the
+      Phase 4 templates-discipline rules are essential structural content
+      that justifies the larger ceiling. Token estimates can vary by ~30
+      between Git Bash on Windows and bash on Ubuntu (different `wc -w`
+      handling of zero-width / non-breaking chars), so the ceiling absorbs
+      that drift too.
 
   # Per-checkpoint skill docs — each loaded only when its checkpoint is triggered.
   - path: core/templates/skills/*.md

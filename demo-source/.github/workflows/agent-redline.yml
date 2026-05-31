@@ -20,8 +20,11 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v3
-      - name: Run architecture tests
-        run: gradle --no-daemon test --tests '*ArchitectureTest'
+      # Run the full test suite — both unit tests and the ArchUnit
+      # boundary tests. The reporter scans the JUnit XML for the
+      # ArchUnit class regardless of which other tests ran.
+      - name: Run tests
+        run: gradle --no-daemon test
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -29,9 +32,78 @@ jobs:
           name: archunit-results
           path: build/test-results/test/
 
+  # OpenAPI worktree dance for api.type=openapi-from-controllers.
+  #
+  # The reporter is pure: it doesn't run gradle, doesn't build anything.
+  # Spec generation is the workflow's job. We check out BASE_SHA and HEAD_SHA
+  # in separate worktrees, run the policy's generationCommand in each, and
+  # hand both YAMLs to the reporter via --api-spec-base / --api-spec-head.
+  #
+  # Only runs on pull_request events. On push to main there's no two-SHA
+  # comparison to make — `report` will fall back to path-based API detection.
+  generate-specs:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v3
+
+      - name: Resolve BASE / HEAD SHAs
+        id: shas
+        run: |
+          set -euo pipefail
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          echo "base=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          echo "head=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "BASE_SHA=$BASE_SHA"
+          echo "HEAD_SHA=$HEAD_SHA"
+
+      - name: Generate spec at BASE
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/specs
+          git worktree add /tmp/spec-base ${{ steps.shas.outputs.base }}
+          cd /tmp/spec-base
+          # If gradle generation fails at BASE (e.g. controller didn't exist
+          # yet), don't fail the whole workflow — emit an empty spec so the
+          # reporter sees the head spec as 100% additive.
+          if gradle --no-daemon generateOpenApiDocs 2>&1 | tail -20; then
+            cp build/openapi.yaml /tmp/specs/api-spec-base.yaml
+          else
+            echo "BASE spec generation failed; treating as empty spec."
+            echo "openapi: 3.0.1" > /tmp/specs/api-spec-base.yaml
+            echo "info: { title: empty, version: 0.0.0 }" >> /tmp/specs/api-spec-base.yaml
+            echo "paths: {}" >> /tmp/specs/api-spec-base.yaml
+          fi
+          ls -la /tmp/specs/
+
+      - name: Generate spec at HEAD
+        run: |
+          set -euo pipefail
+          # HEAD is the default checkout; run gradle in place.
+          gradle --no-daemon generateOpenApiDocs
+          cp build/openapi.yaml /tmp/specs/api-spec-head.yaml
+          ls -la /tmp/specs/
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-specs
+          path: /tmp/specs/
+
   report:
     runs-on: ubuntu-latest
-    needs: archunit
+    needs: [archunit, generate-specs]
+    # Run regardless of upstream — generate-specs is skipped on push events
+    # (no PR to compare against), and we still want the reporter to post for
+    # archunit failures.
     if: always()
     steps:
       - uses: actions/checkout@v4
@@ -50,6 +122,14 @@ jobs:
         with:
           name: archunit-results
           path: build/test-results/test/
+        continue-on-error: true
+
+      - name: Download API specs
+        if: github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        with:
+          name: api-specs
+          path: /tmp/specs/
         continue-on-error: true
 
       - name: Compute diff inputs
@@ -96,6 +176,14 @@ jobs:
           if compgen -G "build/test-results/test/TEST-*ArchitectureTest*.xml" > /dev/null; then
             ARCHUNIT_ARG="--archunit-xml $(ls build/test-results/test/TEST-*ArchitectureTest*.xml | head -1)"
           fi
+          API_ARGS=""
+          if [[ -f /tmp/specs/api-spec-base.yaml && -f /tmp/specs/api-spec-head.yaml ]]; then
+            API_ARGS="--api-spec-base /tmp/specs/api-spec-base.yaml --api-spec-head /tmp/specs/api-spec-head.yaml"
+            echo "OpenAPI specs available for diff:"
+            ls -la /tmp/specs/
+          else
+            echo "OpenAPI specs not available; reporter will use path-based API detection only."
+          fi
           LABELS=""
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             LABELS=$(echo '${{ toJSON(github.event.pull_request.labels) }}' | python -c "import sys, json; print(','.join(l['name'] for l in json.load(sys.stdin)))")
@@ -107,6 +195,7 @@ jobs:
             --mode shadow \
             --pr-labels "$LABELS" \
             $ARCHUNIT_ARG \
+            $API_ARGS \
             --json-out /tmp/agent-redline/verdict.json \
             --comment-out /tmp/agent-redline/comment.md \
             || echo "exit_code=$?" >> "$GITHUB_OUTPUT"

@@ -23,7 +23,7 @@ Already-bootstrapped state. Has `agent-policy.yaml` at the root, `AGENTS.md` ref
 
 Use this branch to exercise **operating mode**. The three planned PR branches below all branch from `main`.
 
-## Three planned PRs (all branched from `main`)
+## Four planned PRs (all branched from `main`)
 
 Each is a real PR you can open, observe, and use to validate the end-to-end pipeline.
 
@@ -38,6 +38,10 @@ A change to the `Order` aggregate (red zone). The PR has the `architecture-revie
 ### `demo/boundary-violation-pr` → expected verdict: `BOUNDARY_VIOLATION`
 
 A change that adds a forbidden import: `OrderService` imports `PostgresOrderRepository` directly. The ArchUnit test fails on the rule `application_must_not_depend_on_persistence_adapters`. CI is red. The PR cannot merge until the structure is fixed.
+
+### `demo/api-change-pr` → expected verdict: `API_CHANGE`
+
+Adds a new endpoint (`POST /orders/{id}/cancel`) to `OrderController`. Demonstrates `api.type: openapi-from-controllers`: the CI workflow generates an OpenAPI spec at the PR's base SHA *and* at its head SHA, the agent-redline reporter diffs the two, and the PR comment shows the structural diff (added paths / removed paths / modified operations). The PR has the `api-reviewed` label applied, satisfying the api-review checkpoint, so it can merge.
 
 ## Running the local check
 
@@ -59,9 +63,8 @@ This invokes the same reporter CI runs. Verdict ladder:
 
 `.github/workflows/agent-redline.yml` runs on every PR and push:
 
-1. Run the architecture tests.
-2. Run the agent-redline reporter against the diff.
-3. Post the verdict comment to the PR.
-4. Set the appropriate exit code.
+1. **`archunit`** — runs the architecture tests.
+2. **`generate-specs`** — checks out the PR's base SHA and head SHA in separate worktrees, runs `./gradlew generateOpenApiDocs` in each, and uploads both OpenAPI specs as an artifact. Skipped on push events.
+3. **`report`** — runs the agent-redline reporter against the diff, the ArchUnit results, and (when present) the two specs. Posts the verdict comment to the PR. Sets the appropriate exit code.
 
 For a deeper look at how this works, see [agent-redline](https://github.com/rore/agent-redline).

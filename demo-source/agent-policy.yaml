@@ -74,11 +74,21 @@ boundaries:
     severity: error
 
 api:
-  type: none
-  # Demo has no committed OpenAPI spec. Controller-touch still triggers
-  # api-review via the *Controller.java red zone. To enable structural
-  # API diffs, add an openapi/api.yaml spec and switch type to
-  # openapi-spec-file, or wire SpringDoc and switch to openapi-from-controllers.
+  # SpringDoc generates an OpenAPI spec from the controller annotations at
+  # build time. The CI workflow runs the generationCommand at the PR's base
+  # SHA and at the head SHA, then passes both specs to the reporter via
+  # --api-spec-base / --api-spec-head; the reporter computes the structural
+  # diff (added / removed / modified paths and operations) and surfaces it
+  # in the PR comment whenever the API surface changes.
+  #
+  # The reporter NEVER runs gradle — only the workflow does. Local
+  # pre-push checks deliberately skip spec generation and rely on
+  # path-based classification (controller-touch is already red via the
+  # *Controller.java zone above, so api-review still fires locally).
+  type: openapi-from-controllers
+  generationCommand: ./gradlew generateOpenApiDocs
+  diffMode: structural
+  checkpoint: api-review
 
 persistence:
   migrationPaths:

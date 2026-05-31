@@ -241,6 +241,52 @@ if [[ $DO_PUSH -eq 1 ]]; then
       [[ -n "$branch" ]] || continue
       git push -u --force origin "$branch"
     done
+
+    # ------------------------------------------------------------------
+    # PR showcase: ensure each scenario has an OPEN PR against main, with
+    # the canonical scenario description as the PR body. Force-pushing the
+    # branch closes any prior PR; we recreate it so the demo always shows
+    # three live PRs.
+    #
+    # Requires `gh` on PATH and an authenticated session for the target
+    # repo. If `gh` is missing, we skip silently and tell the user.
+    # ------------------------------------------------------------------
+    if ! command -v gh >/dev/null 2>&1; then
+      echo "    (gh not installed; skipping PR creation. Open the three demo PRs manually if you want the showcase.)"
+    else
+      target_remote=$(git config --get remote.origin.url 2>/dev/null || true)
+      target_slug=$(echo "$target_remote" | sed -E 's#.*github.com[:/]([^/]+/[^/.]+)(\.git)?$#\1#')
+      if [[ -z "$target_slug" || "$target_slug" == "$target_remote" ]]; then
+        echo "    (could not determine GitHub slug from $target_remote; skipping PR creation)"
+      else
+        for scenario in "$DEMO_SOURCE/pr-scenarios/"*/; do
+          [[ -f "$scenario/branch.txt" ]] || continue
+          [[ -f "$scenario/description.md" ]] || continue
+          branch=$(<"$scenario/branch.txt")
+          branch=$(echo "$branch" | tr -d '[:space:]')
+          [[ -n "$branch" ]] || continue
+
+          # Title = first line of description.md without the leading '# '
+          title=$(head -1 "$scenario/description.md" | sed -E 's/^#+ +//')
+          # Body = description.md sans the title line
+          body=$(tail -n +2 "$scenario/description.md")
+
+          # Close any open PR pointing at this branch (sync overwrote
+          # history; the prior PR is stale).
+          existing=$(gh pr list --repo "$target_slug" --head "$branch" --state open --json number --jq '.[].number' 2>/dev/null || true)
+          for n in $existing; do
+            gh pr close "$n" --repo "$target_slug" --comment "Closing stale PR; demo branch was rebuilt by sync-demo.sh. A fresh PR will be opened immediately." >/dev/null 2>&1 || true
+          done
+
+          # Create the fresh PR.
+          if gh pr create --repo "$target_slug" --base main --head "$branch" --title "$title" --body "$body" >/dev/null 2>&1; then
+            echo "    PR opened: $branch"
+          else
+            echo "    (PR creation failed for $branch; create manually at https://github.com/$target_slug/compare/main...$branch)"
+          fi
+        done
+      fi
+    fi
   fi
 fi
 

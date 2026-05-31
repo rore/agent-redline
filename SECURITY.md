@@ -28,7 +28,7 @@ Best-effort. This is a side project, not a vendor product. I'll acknowledge with
 
 ## Supported versions
 
-The latest tagged release on `main` is supported. Pre-1.0, older tags receive no backports.
+The latest tagged release on `main` is supported. Older tags receive no backports.
 
 ## Out of scope
 

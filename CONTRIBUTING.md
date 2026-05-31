@@ -1,6 +1,6 @@
 # Contributing to agent-redline
 
-Thanks for thinking about contributing. agent-redline is pre-1.0 and small enough that the bar is "is this useful to people other than you?" rather than a formal RFC process.
+Thanks for thinking about contributing. agent-redline is small enough that the bar is "is this useful to people other than you?" rather than a formal RFC process.
 
 ## What's most welcome
 

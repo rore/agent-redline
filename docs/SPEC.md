@@ -1,6 +1,6 @@
 # agent-redline — Detailed Specification
 
-**Status:** Pre-v0.1 draft
+**Status:** v0.1
 **Last updated:** 2026-05-31
 
 ---

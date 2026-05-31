@@ -6,7 +6,7 @@ The packaged skill lives at [`dist/agent-redline/`](dist/agent-redline/) in this
 
 ## Before you install
 
-agent-redline is **pre-v0.1**. The skill works end-to-end on Spring/JVM repos via the `spring-archunit` reference extension. Other ecosystems get zone classification, checkpoints, and PR-size checks but no boundary-rule enforcement (see [README.md](README.md#what-v01-actually-does) for the full surface).
+agent-redline is at **v0.1**. The skill works end-to-end on Spring/JVM repos via the `spring-archunit` reference extension. Other ecosystems get zone classification, checkpoints, and PR-size checks but no boundary-rule enforcement (see [README.md](README.md#what-v01-ships) for the full surface).
 
 If you're trying it out: start with the demo repo at <https://github.com/rore/agent-redline-demo>. That gives you a working bootstrap and a working operating-mode session without committing to a real codebase.
 

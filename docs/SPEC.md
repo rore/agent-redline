@@ -208,6 +208,8 @@ Bootstrap Phase 3 enforces this: every red entry in the draft policy is challeng
 
 The first 1-2 weeks of shadow mode is **zone calibration**: confirm the red entries actually fire on a minority of PRs (use `scripts/agent-redline-tune.py` against a batch of recent merged PRs). Re-tune the policy until the firing rates settle. Only after zones are stable do you start flipping rules from shadow to binding.
 
+The Spring extension defaults are themselves the product of this exercise. They were calibrated against ~150 PRs from three production Spring services; the calibration moved `**/*Controller.java` and the default `application.yml` from red to watch when the data showed they fired on most PRs without producing matching review discussion. Where a semantic signal exists (the OpenAPI structural diff for API changes, schema-detect for migrations) the policy prefers it over a path-touch trigger. See `docs/DECISIONS.md` "Default red zones were calibrated against real PR history" for the data.
+
 ### 4.4 Gray vs. watch
 
 These look similar in the PR comment but mean different things, and conflating them produces tuning mistakes.

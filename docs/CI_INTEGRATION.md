@@ -246,6 +246,8 @@ Use `scripts/agent-redline-tune.py` to compute firing rates from a batch of rece
 
 Re-tuning the policy is normal during this window. The policy is data, edited like any other repo file.
 
+**A note on path-based vs. semantic triggers.** When tuning, prefer semantic / diff-based signals over path-based ones where the signal exists. The `api: openapi-from-controllers` diff identifies actual contract changes; matching `**/*Controller.java` does not (it fires on bug-fixes and refactors too). The schema-detect signal identifies actual migrations. Use path-based red zones for cases where no semantic signal is available — security, infra-as-code, the architecture-test files themselves. The Spring extension defaults follow this rule; new extensions should too.
+
 ### Window 2 — Check-flip tuning (after zones stabilize)
 
 **Question:** which rules are ready to enforce?

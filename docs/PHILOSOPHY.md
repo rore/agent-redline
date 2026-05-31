@@ -26,6 +26,8 @@ Anything in between — not yet placed in either — is the **gray zone**. Cauti
 
 The opportunity is in the asymmetry. Protect the red zone with deterministic guardrails. Leave the blue zone alone. Don't let the gray zone stay gray forever.
 
+**Corollary: red zones must be calibrated against real PRs.** A red zone that fires on ordinary feature work isn't protecting structure — it's noise that reviewers will learn to ignore. "This file looks important" is not enough; the test is whether changes to it actually need different review behavior. The Spring extension defaults were tuned against three production services after the first round of defaults fired on ~50% of PRs. Where a semantic signal exists (OpenAPI diff for API changes, migration detection for schema), prefer it over path-touch — path-based red zones over-fire on bug-fixes and refactors.
+
 ## 4. Slop feeds slop
 
 Verbose generated comments, bloated PR descriptions, redundant code summaries — they all look harmless. The next agent reads them, fills its context with noise, and produces more of the same. Textual content in a codebase governed by agents needs to be *tight*: what is not obvious from the code, and what it does. Not how it got there.

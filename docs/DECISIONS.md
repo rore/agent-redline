@@ -8,6 +8,38 @@ Each entry: short title, date, decision, alternatives, rationale, revisit-if.
 
 ---
 
+## 2026-05-31 (latest) — Default red zones were calibrated against real PR history
+
+**Decision:** Two paths move out of the `spring-archunit` red defaults: `**/*Controller.java` and the default `application.yml`. Both go to the watch list. The api-review checkpoint is now triggered solely by the `api: openapi-from-controllers` structural-diff signal, not by controller-path-touch. The production-only profiles (`application-prod*.yml`) and every other red rule stay as they were.
+
+**Alternatives considered:**
+
+- Keep the defaults and ship calibration as a "do this before adopting" instruction. Rejected: v0.1 adopters won't calibrate before adopting; they'll inherit defaults. The defaults themselves have to be the calibrated ones, otherwise the first experience is alert fatigue.
+- Calibrate against one repo and ship. Rejected: one repo's idioms don't generalize. The data needs to come from multiple services with the same extension before defaults move.
+- Drop more rules. Rejected: every other red rule fires on a small minority of PRs (0–20%), inside the band the existing tuner script labels "PROBABLY RIGHT." Cutting more would weaken protection without removing meaningful noise.
+
+**Rationale:**
+
+The original defaults were a reasonable hypothesis: "controller files are the public API surface, so route them to api-review." Tested against ~150 PRs from three production Spring services (wallet, programs, checkout — 50 each), this rule fired on 34–42% of all PRs and only ~20% of those firings produced api/contract-shaped review discussion. That's the dominant alert-fatigue source: one rule responsible for ~80% of all RED firings, most of them not actually about API contracts. Default `application.yml` showed the same shape: 11 firings across the three services, zero useful ops-shaped review.
+
+Moving these two paths to watch dropped the RED firing-rate from 44–54% per service to 6–20% — into the band the calibration target calls healthy. No protection was lost: the OpenAPI structural diff still triggers api-review on actual contract changes, the boundary-rule backend (ArchUnit) still blocks application-imports-adapter, schema-detect still fires on migrations.
+
+The deeper principle this surfaced: prefer semantic / diff-based triggers over path-based ones when the signal is available. Path-touch on a controller fires on bug-fixes, refactors, parameter validation, and OpenAPI lint cleanup — none of which are API contract changes. The structural diff distinguishes them. Use path-based red only where no semantic signal exists (`**/security/**`, `terraform/**`, the architecture-test files themselves).
+
+**Calibration data:** Full per-PR audits, firing rates, hit-rates, and the tuned-policy A/B comparison live in `.local/calibration/REPORT.md` (not committed; raw data contains internal repo content). The methodology: for each fired rule, score "useful" only when human (non-bot) review comments contained keywords matching the checkpoint type. The hit-rate score is a conservative lower bound — reviewers using domain-specific language aren't credited.
+
+**Mechanics:**
+- `extensions/spring-archunit/profile.md` — Controller and `application.yml` moved out of red into watch; new "Calibration principle" subsection codifies the operating rules.
+- `core/skill/bootstrap-mode.md` Phase 3 — added the "prefer semantic triggers" rule to the existing zone-utility check.
+- `docs/PHILOSOPHY.md` §3 — corollary on calibration: red zones must be tested against real PRs.
+
+**Revisit if:**
+- A new extension lands (e.g., `python-fastapi`) and its defaults haven't been calibrated against multi-repo PR history. Same standard should apply.
+- An adopter reports a structural regression that the retuned defaults missed because the path moved to watch instead of red. That would suggest a specific path needs splitting (controller-A vs controller-B) rather than re-promoting the whole pattern.
+- The api-review checkpoint stops firing reliably on real contract changes — that would mean the OpenAPI diff signal is too narrow and the path-based fallback should return for the gap.
+
+---
+
 ## 2026-05-31 (later) — A feature isn't done until the demo proves it end-to-end
 
 **Decision:** Every user-facing feature in agent-redline must be demonstrable end-to-end on the paired demo repo (`agent-redline-demo`) before we can call it shipped. "End-to-end" means a real branch, a real PR, real CI runs, and a verdict comment that reflects what the feature claims to do — not just unit tests or golden fixtures showing the reporter's *byte-equal* output for a synthetic input.

@@ -34,11 +34,6 @@ zones:
       reason: architectural boundary contracts (when ports live at top level)
       checkpoint: architecture-review
 
-    # Public API surface
-    - path: src/main/java/**/*Controller.java
-      reason: public API contract surface
-      checkpoint: api-review
-
     # Persistence contract
     - path: src/main/resources/db/migration/**
       reason: persistence contract
@@ -71,16 +66,17 @@ zones:
       reason: infrastructure
       checkpoint: ops-review
 
-    # Runtime config — *only* the production-affecting profiles. Local profiles
-    # (application-local.yml etc.) belong on the watch list or in blue. Bootstrap Phase 3
-    # narrows this entry to the actual environment-config files for the repo.
-    - path: src/main/resources/application.yml
-      reason: runtime configuration (default profile)
-      checkpoint: ops-review
+    # Production runtime config — only the prod profiles. The default
+    # `application.yml` is on the watch list, not red, because it's edited often
+    # for routine changes and the calibration data showed it never produced
+    # ops-shaped review on past PRs (see docs/DECISIONS.md "Default red zones
+    # were calibrated against real PR history").
     - path: src/main/resources/application-prod*.yml
       reason: production runtime configuration
       checkpoint: ops-review
 ```
+
+**Note on the public API surface.** `**/*Controller.java` is *not* in the red defaults. Path-touch on a controller is a poor proxy for "API contract changed" — it fires on bug-fixes, refactors, and parameter validation just as readily as on real contract changes. The api-review checkpoint is triggered by the `api: openapi-from-controllers` semantic-diff signal instead, which detects added / removed / modified paths and operations. Controllers are on the watch list so the reporter still surfaces controller changes in the PR comment, but only real contract changes block on api-review. See `docs/DECISIONS.md` "Default red zones were calibrated against real PR history" for the firing-rate evidence behind this.
 
 **What's deliberately NOT red here** (compared to a maximalist default):
 
@@ -89,9 +85,21 @@ zones:
 - `domain/service/**` — orchestrators; not invariant-bearing in most Spring layouts
 - `application/**` (except ports) — most application code is glue
 - `infrastructure/**` / `adapter/**` — implementation; the boundary rules already protect what matters
-- Non-prod `application*.yml` profiles
+- `**/*Controller.java` — controller-touch is a poor proxy for API change; the OpenAPI structural diff is the precise signal (see api: section)
+- Non-prod `application*.yml` profiles, including the default `application.yml`
 
 If your repo treats some of these as genuinely structural (e.g., you have a `domain/policy/` directory carrying invariants), promote them in Phase 3. The bias is toward narrower defaults; widen on evidence, not on intuition.
+
+### Calibration principle
+
+Path-based red zones are easy to over-broaden. The defaults above were validated against real PR history from three production Spring services (~50 PRs each). Two paths that *seemed* structural — `**/*Controller.java` and the default `application.yml` — fired on 30–55% of PRs combined and only rarely produced api/ops-shaped review discussion. They moved to watch. The remaining red rules each fire on a small minority of PRs (0–20%) and correspond to genuinely narrow structural surfaces.
+
+Two operating rules from that experience:
+
+- **Red is for changes that need different review behavior, not for files that look important.** A controller is important; a controller bug-fix isn't structural. A migration is important; a `CREATE INDEX` may not be. Calibrate on what reviewers *actually* treat differently, not on what feels architectural in the abstract.
+- **Prefer semantic / diff-based triggers over path-based triggers when the signal is available.** The `api: openapi-from-controllers` diff catches actual contract changes; path-touch on `*Controller.java` doesn't distinguish them from internal refactors. The schema-detect signal catches actual migrations; an unrelated DB-tooling change doesn't trip it. Use path-based red for cases where no semantic signal exists (e.g., `**/security/**`, `terraform/**`).
+
+Bootstrap Phase 3 challenges every red entry with the test "would this fire on a typical PR?" — if yes, downgrade to watch or split. The calibration data is in `docs/DECISIONS.md`.
 
 ### Blue — agents may work autonomously
 
@@ -144,6 +152,16 @@ zones:
       reason: application use cases orchestrate flows
     - path: src/main/java/**/application/**/*Handler.java
       reason: command/query handlers
+
+    # Public API surface — controller-touch is visible but not a checkpoint;
+    # api-review fires from the OpenAPI structural diff (see api: section below).
+    - path: src/main/java/**/*Controller.java
+      reason: controller change; structural API impact surfaced via OpenAPI diff
+
+    # Default-profile runtime config — visible, not a checkpoint. Production
+    # profiles (application-prod*.yml) stay red.
+    - path: src/main/resources/application.yml
+      reason: runtime configuration (default profile); visible, not a checkpoint
 
     # Adapter surface that may carry contract semantics
     - path: src/main/java/**/adapter/**/dto/**

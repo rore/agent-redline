@@ -112,6 +112,65 @@ Bootstrap proposes additions like:
 
 The team names are best-effort guesses. The developer must replace them with the real teams.
 
+## Composing with existing review agents
+
+Many shops already run review-style agents (an architect, a security reviewer, a QA pass) over PRs. agent-redline composes with them; it doesn't replace them. The pattern:
+
+**The agent-redline checkpoint defines what needs to happen.** The review agent is one mechanism that can satisfy it. Either way, the gate is whichever the policy declares — `codeownerApproval` or a label.
+
+Two common shapes:
+
+### Shape A — review agent is a CODEOWNER
+
+The reviewer posts an approval as a CODEOWNER for the affected paths. The checkpoint lists `codeownerApproval` and the existing CODEOWNERS file routes red-zone paths to the team or bot account the agent acts as.
+
+```yaml
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+```
+
+```
+# CODEOWNERS
+/src/main/java/**/domain/**          @org/architecture-team
+/src/main/java/**/application/**     @org/architecture-team
+```
+
+The architect agent's prompt needs to know it's the satisfaction signal: when invoked on a red-zone PR, its job is to either approve as the team it represents (which CODEOWNERS routes through) or refuse with a reason. agent-redline's PR comment surfaces the unmet checkpoint; the architect agent reads the comment and does its review.
+
+### Shape B — review agent applies a label
+
+The reviewer applies a named label after passing its review. The checkpoint lists `label: <name>`.
+
+```yaml
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+      - label: architecture-reviewed
+```
+
+```
+# Architect agent's prompt addition
+After completing the review, if the change is acceptable:
+  apply the `architecture-reviewed` label to the PR.
+```
+
+The label form is OR'd with `codeownerApproval` so either path works. Some shops prefer labels because the audit trail is clearer; others prefer CODEOWNERS because the routing is already in place.
+
+### Wiring it up
+
+1. Decide which checkpoints in your policy are reviewed by which agent.
+2. For each, pick Shape A (CODEOWNER) or Shape B (label).
+3. Update CODEOWNERS or add the label-application instruction to the review agent's prompt.
+4. Run shadow mode for a few weeks. Watch for: checkpoints that never get satisfied (agent doesn't know it should approve / label), and checkpoints that get satisfied without review (CODEOWNERS routes too broadly).
+
+What agent-redline does NOT do:
+- Tell the review agent how to review. That's the review agent's job.
+- Parse the review agent's output to decide whether the checkpoint is satisfied. The PR's labels and approvals are the signal.
+- Coordinate multiple review agents. If two checkpoints overlap, the review agents can either both run or one can satisfy both — the policy says which.
+
 ## Modes: shadow vs binding
 
 ### Shadow

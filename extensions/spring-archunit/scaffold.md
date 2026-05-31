@@ -2,6 +2,14 @@
 
 What bootstrap generates and how. Each section maps to one artifact.
 
+**Before generating any of this:** check whether the repo already has an ArchUnit test (search `src/test/**` for files importing `com.tngtech.archunit`). If found:
+
+- Do NOT generate a new test class.
+- Translate its existing rules into `boundaries:` entries in the policy. The policy's `boundaries:` are metadata the reporter surfaces; the existing test does the real enforcement.
+- Skip §1 (dependency is already there) and §2 (test class exists).
+- §3, §4, §5, §6 still apply — the existing test still produces JUnit XML the reporter reads, and CI / OpenAPI handling is independent.
+- Tell the developer: existing test stays authoritative; the policy mirrors its rules so the agent and reporter understand them.
+
 ## 1. ArchUnit dependency
 
 Add the JUnit 5 module to the build if absent. Pin to a known stable version.
@@ -101,6 +109,50 @@ Run `./gradlew test --tests '*ArchitectureTest'` during Phase 1 inspection. If i
 
 ## 6. OpenAPI generation (optional)
 
-If the repo has an OpenAPI generation plugin (e.g., `org.springdoc.openapi-gradle-plugin`), the API-diff job in the CI proposal runs `./gradlew generateOpenApi` against base and head, then diffs.
+If the repo uses SpringDoc with a generation plugin (`org.springdoc.openapi-gradle-plugin`), set `api.type: openapi-from-controllers` in the policy and add an `api` job to the CI proposal that produces the spec at base SHA and head SHA, then passes both to the reporter:
 
-If no plugin is configured, the policy uses `api.type: openapi-spec-file` (committed spec, path-diffed) or `api.type: none`. Don't auto-add a plugin; recommend it in the CI proposal if it would be useful.
+```yaml
+api:
+  runs-on: ubuntu-latest
+  needs: report   # share the same checkout/setup
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '21'
+
+    # Generate spec at head.
+    - run: ./gradlew generateOpenApiDocs
+    - run: cp build/openapi.json /tmp/spec_head.yaml
+
+    # Generate spec at base via a worktree so we don't disturb the working tree.
+    - run: |
+        BASE_SHA="${{ github.event.pull_request.base.sha }}"
+        git worktree add /tmp/base "$BASE_SHA"
+        (cd /tmp/base && ./gradlew generateOpenApiDocs)
+        cp /tmp/base/build/openapi.json /tmp/spec_base.yaml
+        git worktree remove /tmp/base --force
+
+    - run: ./scripts/agent-redline-report.sh
+      env:
+        API_SPEC_BASE: /tmp/spec_base.yaml
+        API_SPEC_HEAD: /tmp/spec_head.yaml
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+```
+
+The reporter consumes the two specs via `--api-spec-base` / `--api-spec-head` and computes a structural diff (paths added / removed, methods added / removed / modified). The output is a list of changed surface points; reviewers judge severity. The reporter does NOT classify breaking-vs-additive — false certainty there would be worse than no signal.
+
+If the repo has no generation plugin, fall back to one of:
+
+- `api.type: openapi-spec-file` if a spec is committed (path-diffed when the spec file changes).
+- `api.type: none` if there's no public API surface.
+
+In both fallbacks, controllers are still red-zone files via path classification, so an `api-review` checkpoint still fires. The structural diff is just absent.
+
+Don't auto-add a generation plugin during bootstrap — it's a build change that needs human sign-off. Recommend it in the CI proposal if it would be useful.
+
+The local pre-push check does NOT run the generation command (running two builds during a pre-push is hostile). It falls back to path classification — touched controllers are red and trigger api-review via the policy. The structural diff appears in CI; locally you see "you touched a controller." That asymmetry is by design.

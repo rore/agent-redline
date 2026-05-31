@@ -35,6 +35,8 @@ from core.reporter.reporter import (  # noqa: E402
     detect_schema_change,
     detect_security_change,
     detect_runtime_config_change,
+    diff_openapi_specs,
+    openapi_diff_is_empty,
 )
 
 
@@ -387,3 +389,130 @@ class TestClassifyVerdict:
         v = classify(base_policy, diff, archunit_xml=archunit_xml)
         assert v.verdict == "BOUNDARY_VIOLATION"
         assert v.exit_code == 1  # shadow mode → warn, not fail
+
+
+# ----------------------------------------------------------------------------
+# diff_openapi_specs — structural OpenAPI diff
+# ----------------------------------------------------------------------------
+
+class TestOpenApiDiff:
+
+    def test_identical_specs_diff_is_empty(self):
+        spec = """openapi: 3.0.0
+paths:
+  /a:
+    get: { summary: a }
+"""
+        d = diff_openapi_specs(spec, spec)
+        assert d == {"pathsAdded": [], "pathsRemoved": [], "pathsModified": []}
+        assert openapi_diff_is_empty(d)
+
+    def test_added_path(self):
+        base = "openapi: 3.0.0\npaths:\n  /a:\n    get: { summary: a }\n"
+        head = ("openapi: 3.0.0\npaths:\n"
+                "  /a:\n    get: { summary: a }\n"
+                "  /b:\n    post: { summary: b }\n")
+        d = diff_openapi_specs(base, head)
+        assert d["pathsAdded"] == ["/b"]
+        assert d["pathsRemoved"] == []
+        assert d["pathsModified"] == []
+        assert not openapi_diff_is_empty(d)
+
+    def test_removed_path(self):
+        base = ("openapi: 3.0.0\npaths:\n"
+                "  /a:\n    get: { summary: a }\n"
+                "  /b:\n    post: { summary: b }\n")
+        head = "openapi: 3.0.0\npaths:\n  /a:\n    get: { summary: a }\n"
+        d = diff_openapi_specs(base, head)
+        assert d["pathsAdded"] == []
+        assert d["pathsRemoved"] == ["/b"]
+        assert d["pathsModified"] == []
+
+    def test_method_added_to_existing_path(self):
+        base = "openapi: 3.0.0\npaths:\n  /a:\n    get: { summary: a }\n"
+        head = ("openapi: 3.0.0\npaths:\n  /a:\n"
+                "    get: { summary: a }\n"
+                "    post: { summary: a-post }\n")
+        d = diff_openapi_specs(base, head)
+        assert d["pathsAdded"] == []
+        assert d["pathsRemoved"] == []
+        assert len(d["pathsModified"]) == 1
+        assert d["pathsModified"][0] == {
+            "path": "/a",
+            "methodsAdded": ["post"],
+            "methodsRemoved": [],
+            "methodsModified": [],
+        }
+
+    def test_method_modified(self):
+        base = "openapi: 3.0.0\npaths:\n  /a:\n    get: { summary: old }\n"
+        head = "openapi: 3.0.0\npaths:\n  /a:\n    get: { summary: new }\n"
+        d = diff_openapi_specs(base, head)
+        assert d["pathsModified"] == [{
+            "path": "/a",
+            "methodsAdded": [],
+            "methodsRemoved": [],
+            "methodsModified": ["get"],
+        }]
+
+    def test_only_method_modifications_count(self):
+        # Path-item-level fields like 'summary' are not tracked as method changes.
+        base = "openapi: 3.0.0\npaths:\n  /a:\n    summary: old summary\n    get: { summary: a }\n"
+        head = "openapi: 3.0.0\npaths:\n  /a:\n    summary: new summary\n    get: { summary: a }\n"
+        d = diff_openapi_specs(base, head)
+        # /a is in both specs and its method (get) is unchanged → not modified.
+        assert d["pathsModified"] == []
+
+    def test_empty_strings_treated_as_no_paths(self):
+        d = diff_openapi_specs("", "")
+        assert openapi_diff_is_empty(d)
+
+    def test_one_side_empty_means_full_addition(self):
+        head = "openapi: 3.0.0\npaths:\n  /a:\n    get: { summary: a }\n"
+        d = diff_openapi_specs("", head)
+        assert d["pathsAdded"] == ["/a"]
+        assert d["pathsRemoved"] == []
+
+    def test_malformed_yaml_is_treated_as_empty(self):
+        # Don't crash on bad input; treat as empty so downstream logic still works.
+        d = diff_openapi_specs("not: valid: yaml: at: all", "openapi: 3.0.0\npaths:\n  /a:\n    get: {}\n")
+        # Both sides parse as scalars-or-empty; head has /a as added.
+        assert "/a" in d["pathsAdded"]
+
+    def test_non_method_keys_ignored(self):
+        # 'parameters' on path item is not a method; should not be tracked.
+        base = ("openapi: 3.0.0\npaths:\n  /a:\n"
+                "    parameters: []\n"
+                "    get: { summary: a }\n")
+        head = ("openapi: 3.0.0\npaths:\n  /a:\n"
+                "    parameters: [{ in: query, name: x }]\n"
+                "    get: { summary: a }\n")
+        d = diff_openapi_specs(base, head)
+        # Only method-level changes count; parameters change is ignored.
+        assert d["pathsModified"] == []
+
+    def test_classify_with_api_spec_diff_forces_api_changed(self, ):
+        """classify(api_spec_diff=...) sets api_changed=True even with no api.specPath."""
+        policy = {
+            "version": 1,
+            "project": {"name": "x"},
+            "zones": {
+                "red": [{"path": "src/main/**/domain/**", "reason": "domain",
+                         "checkpoint": "architecture-review"}],
+                "blue": [{"path": "src/test/**", "reason": "tests"}],
+            },
+            "api": {"type": "openapi-from-controllers", "generationCommand": "echo"},
+            "checkpoints": {
+                "architecture-review": {"satisfiedBy": [{"label": "x"}]},
+                "api-review": {"satisfiedBy": [{"label": "y"}]},
+            },
+            "modes": {"default": "shadow"},
+        }
+        diff = Diff(["src/test/Foo.java"], 1, 5)
+        # Empty diff: api_changed stays False.
+        v = classify(policy, diff, api_spec_diff={"pathsAdded": [], "pathsRemoved": [], "pathsModified": []})
+        assert v.api_changes["detected"] is False
+        # Non-empty diff: api_changed=True; specDiff carried through.
+        v = classify(policy, diff, api_spec_diff={"pathsAdded": ["/x"], "pathsRemoved": [], "pathsModified": []})
+        assert v.api_changes["detected"] is True
+        assert v.api_changes["specDiff"]["pathsAdded"] == ["/x"]

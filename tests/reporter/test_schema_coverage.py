@@ -54,13 +54,28 @@ def test_schema_does_not_reintroduce_removed_top_level_field(field):
     )
 
 
-def test_api_type_enum_does_not_reintroduce_openapi_from_controllers():
+def test_api_type_enum_includes_implemented_modes_only():
+    """Every value in api.type must have reporter behavior backing it.
+
+    `openapi-from-controllers` was added back when the reporter learned to
+    diff base/head specs (the workflow generates them; the reporter diffs).
+    `none`, `openapi-spec-file`, `graphql`, `proto` are path-glob detection.
+    If we add a new enum value, the reporter must implement it before the
+    schema accepts it.
+    """
     schema = _schema()
     api_types = schema["properties"]["api"]["properties"]["type"]["enum"]
-    assert "openapi-from-controllers" not in api_types, (
-        "openapi-from-controllers was dropped because the reporter does not "
-        "generate or diff specs from controllers. Re-add only when the reporter "
-        "actually runs the generationCommand and diffs the output."
+    assert set(api_types) == {
+        "none",
+        "openapi-spec-file",
+        "openapi-from-controllers",
+        "graphql",
+        "proto",
+    }, (
+        "api.type enum drifted. Every accepted value must be implemented by "
+        "core/reporter/reporter.py:detect_api_change or the openapi-diff path. "
+        "If you're adding a value, implement it first; if you're removing one, "
+        "update this test."
     )
 
 

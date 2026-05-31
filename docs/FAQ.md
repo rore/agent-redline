@@ -93,6 +93,22 @@ You'll typically declare both. Zones tell the skill where to slow down. Boundary
 
 No. If the repo has no public API surface, set `api.type: none`. If the repo has API surface but doesn't use OpenAPI, treat the API contract files (proto, GraphQL schema, etc.) as red-zone paths and skip the diff step.
 
+If the repo uses SpringDoc (or another runtime spec generator) without committing the spec, set `api.type: openapi-from-controllers` with `generationCommand:`. The CI workflow generates the spec at base SHA and head SHA via a worktree, the reporter computes a structural diff, and the PR comment lists changed surface points. The local pre-push check does not run the generation (too slow); it relies on red-zone path classification — touched controllers fire api-review. See `extensions/spring-archunit/scaffold.md` §6 for the worktree pattern.
+
+## Does agent-redline distinguish per-tenant from global migrations?
+
+No. Anything matching `persistence.migrationPaths` triggers the `persistence-review` checkpoint. Tenant-scoped migrations (multi-tenant Flyway setups, etc.) and global schema changes look the same to agent-redline.
+
+That's intentional for v0.1: the reviewer is in a much better position to judge blast radius than a path glob is. A "minor" tenant migration that runs across thousands of tenants can be far riskier than a global one. The checkpoint says "a human looks at this"; the reviewer (or review agent) is who decides what kind of migration it is and what review it warrants.
+
+If your team wants different routing for the two cases, two paths today: (a) split into separate `migrationPaths` entries with different `checkpoint:` values per path, or (b) handle it via the review agent's prompt. A built-in distinction is not on the v0.1 roadmap.
+
+## Can my agent-policy.yaml reference internal package names, internal libraries, or company-specific paths?
+
+Yes. The "no internal terminology" discipline applies to the agent-redline framework itself — the public OSS repo, its docs, its skill files. It does **not** apply to the policy a consuming repo writes for itself.
+
+Your `agent-policy.yaml` is as repo-specific as it needs to be: internal package roots like `com.acme.billing`, paths into a vendored library, references to internal review teams, the actual names of your boundary rules. None of that leaks back into agent-redline; the framework only sees the structure of the policy, not the values in it.
+
 ## Cross-service / cross-repo?
 
 Out of scope for v1. agent-redline operates at single-repo scope.

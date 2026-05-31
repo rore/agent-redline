@@ -71,12 +71,22 @@
       "additionalProperties": false,
       "properties": {
         "type": {
-          "enum": ["openapi-spec-file", "graphql", "proto", "none"]
+          "enum": ["openapi-spec-file", "openapi-from-controllers", "graphql", "proto", "none"]
         },
         "specPath": { "type": "string" },
+        "generationCommand": {
+          "type": "string",
+          "description": "For openapi-from-controllers: command the CI workflow runs at base and head SHAs to produce the OpenAPI spec. The reporter does not run this command itself; the workflow generates spec_base.yaml and spec_head.yaml and passes them to the reporter via --api-spec-base / --api-spec-head."
+        },
         "diffMode": { "enum": ["structural", "full"] },
         "checkpoint": { "type": "string" }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "openapi-from-controllers" } }, "required": ["type"] },
+          "then": { "required": ["generationCommand"] }
+        }
+      ]
     },
 
     "persistence": {

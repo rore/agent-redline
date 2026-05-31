@@ -35,8 +35,9 @@ boundaries:                           # optional; deterministic dependency rules
     severity: error                   # error | warn   (default: error)
 
 api:                                  # optional
-  type: <api-type>                    # openapi-spec-file | graphql | proto | none
-  specPath: <path>                    # the committed spec; required for openapi-spec-file/graphql/proto
+  type: <api-type>                    # openapi-spec-file | openapi-from-controllers | graphql | proto | none
+  specPath: <path>                    # for openapi-spec-file/graphql/proto: the committed spec
+  generationCommand: <string>         # required for openapi-from-controllers: command CI runs at base+head
   diffMode: structural                # structural | full   (default: structural)
   checkpoint: api-review              # default: api-review
 
@@ -96,6 +97,20 @@ If a section is absent, these defaults apply:
 | `modes.perCheck.boundary_violation` | `binding` |
 
 Files not matched by any zone are treated as gray.
+
+## API contract modes
+
+`api.type` decides how the reporter detects API changes.
+
+| `type` | Required | Reporter behavior |
+|---|---|---|
+| `none` | — | No api signal. Use when the repo has no public API surface. |
+| `openapi-spec-file` | `specPath` | Path-glob detection. If a file matching `specPath` is in the diff, api change is flagged. The reporter does not parse the spec — the file changing is the signal. |
+| `graphql` | `specPath` | Same as `openapi-spec-file` for the schema file. |
+| `proto` | `specPath` | Same; for `.proto` files. |
+| `openapi-from-controllers` | `generationCommand` | The CI workflow runs `generationCommand` at base SHA and head SHA (typically via `git worktree`), then passes both specs to the reporter via `--api-spec-base` / `--api-spec-head`. The reporter computes a structural diff (paths added / removed, methods added / removed / modified). The local pre-push check does not run the generation; it falls back to red-zone path classification. See `extensions/spring-archunit/scaffold.md` §6 for the worktree pattern. |
+
+The structural diff is descriptive, not classificatory: it reports what surface changed, not whether the change is breaking. Reviewers (human or agent) judge severity.
 
 ## Validation rules
 

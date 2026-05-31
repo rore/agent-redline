@@ -1,0 +1,38 @@
+openapi: 3.0.0
+info:
+  title: orders
+  version: '1.0'
+paths:
+  /orders:
+    get:
+      summary: list orders (paginated)
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: ok
+    post:
+      summary: create order
+      responses:
+        '201':
+          description: created
+    delete:
+      summary: bulk delete orders
+      responses:
+        '204':
+          description: deleted
+  /orders/{id}:
+    get:
+      summary: get order
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ok

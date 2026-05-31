@@ -6,9 +6,9 @@ Active when the developer asks you to set up agent-redline for a repo. Conversat
 
 **Committed directly:**
 - `agent-policy.yaml`
-- `AGENTS.md` (and a reference from any existing `CLAUDE.md` / `GEMINI.md`)
-- Boundary-rule backend artifacts (per the chosen extension's `scaffold.md`)
-- `scripts/agent-redline-check.sh`
+- Reference section appended to the existing agent-instruction file (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `copilot-instructions.md`, or a fresh `AGENTS.md` if none exists)
+- Boundary-rule backend artifacts — *only if no existing setup is found*; otherwise the policy's `boundaries:` mirror the existing rules and the existing test stays authoritative
+- `scripts/agent-redline-check.sh` — standalone if no pre-push hook exists; otherwise instructions for the developer to chain
 - `.github/pull_request_template.md` additions
 - Per-checkpoint docs in `docs/agent/`
 
@@ -31,10 +31,12 @@ Each phase ends with a developer review or confirmation. Do not skip ahead.
 Read what's in the repo:
 - Build files (`build.gradle`, `pom.xml`, `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`)
 - Source layout
-- Existing `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`
+- Existing agent-instruction file: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `copilot-instructions.md`, or any `*-instructions.md` at repo root
 - Existing CI (`.github/workflows/`, `.gitlab-ci.yml`)
 - Existing CODEOWNERS
-- OpenAPI / GraphQL / proto files
+- Existing **boundary-rule backend setup** — for JVM/Spring, look for ArchUnit test classes (search `src/test/**` for files importing `com.tngtech.archunit`). Note the test class name, package, and existing rules. Treat these as authoritative.
+- Existing `pre-push` hook (`.git/hooks/pre-push`) or pre-push script (`scripts/pre-push*`)
+- OpenAPI / GraphQL / proto files; SpringDoc plugin in the build
 - DB migration directories
 - Security/auth code locations
 
@@ -43,7 +45,10 @@ Propose a language extension:
 - Other stacks → see [agent-redline EXTENSIONS docs](https://github.com/rore/agent-redline/blob/main/docs/EXTENSIONS.md); ask developer to pick a third-party one or proceed without one
 - No extension available → offer zone-only governance (no boundary backend)
 
-Don't modify anything yet. Produce a written summary; wait for developer confirmation.
+Don't modify anything yet. Produce a written summary; wait for developer confirmation. The summary must include:
+- Whether an existing arch test was found, and if so its rules — Phase 4 composes with it, doesn't replace it
+- Which agent-instruction file exists (if any) — Phase 4 adds a reference section there, not a fresh `AGENTS.md`
+- Whether an existing pre-push hook exists — Phase 4 chains, doesn't replace
 
 ## Phase 2 — Extension-driven proposal
 
@@ -105,12 +110,14 @@ If the developer disagrees with extension defaults, the developer wins. Note ove
 
 Once signed off, write the committed artifacts.
 
-**`agent-policy.yaml`** — must put the boundary-backend definition files (e.g., `src/test/java/**/architecture/**`) in red zone. Verify it parses against `assets/schema/agent-policy.schema.json`.
+**`agent-policy.yaml`** — must classify the boundary-backend definition files as red (e.g., `src/test/java/**/architecture/**`, or wherever the existing arch test lives in this repo). Verify it parses against `assets/schema/agent-policy.schema.json`.
 
-**`AGENTS.md`** — short. Read on every session start. Sketch:
+**Agent-instruction file** — if `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `copilot-instructions.md`, or a similar file already exists at the repo root, append a clearly-marked agent-redline reference section to it. Do NOT create a new `AGENTS.md` alongside an existing instruction file. Only create `AGENTS.md` from scratch if none of those files exist.
+
+The reference section is short:
 
 ```markdown
-# AGENTS.md
+## agent-redline
 
 This repo uses agent-redline. Before making changes:
 1. Read `agent-policy.yaml`.
@@ -118,14 +125,17 @@ This repo uses agent-redline. Before making changes:
 3. Refuse to work around boundary rules.
 
 See `docs/agent/` for per-checkpoint guidance.
-For framework details: https://github.com/rore/agent-redline
+Framework: https://github.com/rore/agent-redline
 ```
 
-If `CLAUDE.md` / `GEMINI.md` exist, add a short reference section to them. Don't overwrite.
+**Boundary-rule backend artifacts** — read the extension's `scaffold.md`. Two cases:
 
-**Boundary-rule backend artifacts** — read the extension's `scaffold.md`. Generate definition files (e.g., `DependencyArchitectureTest.java` with one `@ArchTest` per `boundaries[]` entry). Substitute the actual base package. Don't write `..domain..` if the repo uses `..core..`.
+- **Existing arch test found in Phase 1:** do NOT generate a new test. Translate its rules into `boundaries:` entries in the policy (one per rule) and tell the developer the existing test is what enforces them. The policy's `boundaries:` section is metadata that the reporter surfaces; the existing test does the actual checking.
+- **No existing arch test:** generate the file per `scaffold.md`. Substitute the actual base package. Don't write `..domain..` if the repo uses `..core..`.
 
 **`scripts/agent-redline-check.sh`** — local pre-push runner. Make executable.
+
+If an existing pre-push hook or script was found in Phase 1, do NOT replace it. Tell the developer how to chain: have the existing hook call `./scripts/agent-redline-check.sh` after its existing steps, or vice versa. Show the one-line diff they need.
 
 **PR template** — merge with any existing `.github/pull_request_template.md`. Don't overwrite.
 
@@ -163,6 +173,9 @@ Be honest about anything you couldn't classify cleanly.
 
 - Never auto-commit CI workflow files, branch-protection changes, or CODEOWNERS additions.
 - Never overwrite an existing `agent-policy.yaml` without confirmation.
+- Never overwrite an existing arch test (or other boundary-backend definition). Compose via `boundaries:` instead.
+- Never overwrite an existing agent-instruction file. Append a reference section.
+- Never overwrite an existing pre-push hook. Tell the developer how to chain.
 - The generated policy must classify the boundary-backend definition files as red.
 - Write artifacts only after the developer signs off on the policy in Phase 3.
 

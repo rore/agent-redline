@@ -1,0 +1,22 @@
+# Invalid: api.type=openapi-from-controllers without generationCommand.
+# The reporter cannot diff specs without the workflow producing them, and
+# the workflow can't run without a command.
+version: 1
+
+project:
+  name: bad-api-from-controllers
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+
+api:
+  type: openapi-from-controllers
+  diffMode: structural
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval

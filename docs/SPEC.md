@@ -377,7 +377,7 @@ The agent classifies changes during operating mode, before editing. The reporter
 - A diff (base..head)
 - The repo's `agent-policy.yaml`
 - (Optional) Boundary-rule backend results (e.g., ArchUnit test report for JVM) — the reporter reads them, doesn't compute boundary violations itself
-- (Optional) An OpenAPI spec diff — if `api.type: openapi-spec-file`, the reporter compares the committed spec at base vs head
+- (Optional) Two OpenAPI spec files — `--api-spec-base` and `--api-spec-head`. Used when the policy declares `api.type: openapi-from-controllers`. The CI workflow generates both specs (typically via `git worktree`) and the reporter computes a structural diff. Falls through to the file-glob path-detection when `api.type: openapi-spec-file` and no specs are passed.
 
 ### 8.2 Output (machine-readable)
 
@@ -458,7 +458,7 @@ The reporter is a small script (single language, chosen for ecosystem fit with t
 - For each touched file, look up its zone (red / blue / gray / grayWatch) by matching the policy's globs
 - Detect API/schema/security/runtime-config changes by matching the configured paths
 - Read boundary-rule backend results (e.g., the ArchUnit test report on JVM) and surface boundary violations
-- If configured, run OpenAPI spec diff and surface API changes
+- If two OpenAPI specs are supplied (api.type=openapi-from-controllers; CI workflow generates them at base and head SHAs), compute a structural diff and surface paths added / removed / methods modified. The reporter does not classify breaking-vs-additive — that's reviewer territory.
 - Compute required checkpoints and check whether they're satisfied (PR labels, CODEOWNER approvals)
 - Render the JSON verdict + the markdown PR comment
 - Return the right exit code based on policy mode (shadow / binding) and severity
@@ -735,15 +735,14 @@ The schema describes what the reporter actually does today. The items below are 
 
 1. **Additional language extensions** (community or in-tree: Node, Python, Go, Rust). Will introduce a generic `boundaryBackend` field and wire the reporter to actually dispatch on `adapter.yaml`. Until there is a second backend to dispatch to, neither field exists, because there is no choice.
 2. **Additional backend output formats** supported natively by the reporter (SARIF, JSON-violations).
-3. **OpenAPI generation-from-controllers**: real spec generation + diff. Will introduce `api.type: openapi-from-controllers` and `api.generationCommand` once the reporter actually runs them. Today, controllers are red-zone files and trigger `architecture-review` via path classification — that is the v0.1 story.
-4. **Generic rule engine** (`changeRules`) — only if the v0.1 hardcoded behavior turns out not to be enough in practice. The hardcoded mapping is: red-zone change → require checkpoint; gray-zone change → warn; boundary violation → fail (when binding); api/schema/security/runtime-config change → require the corresponding checkpoint; PR-size warn → warn; PR-size fail → require split. If real users need to override these, we'll design the override surface with their cases in hand.
-5. **Richer checkpoint satisfaction** (`team: <name>`, `reviewerCount: <n>`). Requires querying the host (GitHub / GitLab / etc.) for team membership and approval counts.
-6. **Reusable GitHub Action** wrapping the reporter (`rore/agent-redline/report@v1`). Until then, CI invokes the standalone script directly.
-7. **LLM-judge layer** for soft checks (implicit-contract risk, modeling-change detection).
-8. **Cross-repo API-consumer signal** (when one service changes its API, surface to its consumers).
-9. **GitLab CI / Jenkins / CircleCI workflow templates.**
-10. **Dashboard for shadow-mode tuning data.**
-11. **CLI for non-agent / pure-CI use cases.**
+3. **Generic rule engine** (`changeRules`) — only if the v0.1 hardcoded behavior turns out not to be enough in practice. The hardcoded mapping is: red-zone change → require checkpoint; gray-zone change → warn; boundary violation → fail (when binding); api/schema/security/runtime-config change → require the corresponding checkpoint; PR-size warn → warn; PR-size fail → require split. If real users need to override these, we'll design the override surface with their cases in hand.
+4. **Richer checkpoint satisfaction** (`team: <name>`, `reviewerCount: <n>`). Requires querying the host (GitHub / GitLab / etc.) for team membership and approval counts.
+5. **Reusable GitHub Action** wrapping the reporter (`rore/agent-redline/report@v1`). Until then, CI invokes the standalone script directly.
+6. **LLM-judge layer** for soft checks (implicit-contract risk, modeling-change detection).
+7. **Cross-repo API-consumer signal** (when one service changes its API, surface to its consumers).
+8. **GitLab CI / Jenkins / CircleCI workflow templates.**
+9. **Dashboard for shadow-mode tuning data.**
+10. **CLI for non-agent / pure-CI use cases.**
 
 ### 15.4 Validation artifacts required for v0.1
 
@@ -831,5 +830,6 @@ See [§4](#4-vocabulary). Vocabulary is normative; implementations must use thes
 
 ## 19. Changelog
 
+- **2026-05-31 (later):** OpenAPI from controllers shipped. The reporter now accepts `--api-spec-base` / `--api-spec-head`; the CI workflow generates both specs at base and head SHAs (typically via `git worktree`) and the reporter computes a structural diff (paths added/removed, methods added/removed/modified). The diff is descriptive, not classificatory — reviewers judge breaking-vs-additive. Schema re-accepts `api.type: openapi-from-controllers` and requires `generationCommand`. Bootstrap-mode now explicitly composes with existing arch tests, agent-instruction files, and pre-push hooks rather than overwriting them.
 - **2026-05-31:** Schema cleanup. Removed fields the v0.1 reporter accepted but did not implement (`changeRules`, `defaults.unclassifiedZone`, `defaults.grayMode`, `boundaryBackend`, `api.type: openapi-from-controllers`, `team:`/`reviewerCount:` checkpoint forms). The schema now describes only what the reporter does; reserved-for-later items are tracked in §15.3 with an implementation gate. Reporter CLI: `--default-mode` is the canonical flag; `--mode` is a hidden alias.
 - **v0.1 (2026-05-28):** Initial draft. Project kickoff.

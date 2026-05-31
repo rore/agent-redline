@@ -228,7 +228,106 @@ def detect_api_change(files: list[str], policy: dict[str, Any]) -> bool:
     spec_path = api.get("specPath")
     if api_type in ("openapi-spec-file", "graphql", "proto") and spec_path:
         return any(matches(f, spec_path) for f in files)
+    # openapi-from-controllers: file-level detection is not meaningful (the
+    # spec is generated). The CI workflow runs the policy's generationCommand
+    # at base and head and passes both specs to the reporter via
+    # --api-spec-base / --api-spec-head; diff_openapi_specs() does the real
+    # work. If neither spec was supplied (e.g. local pre-push), we fall back
+    # to "no api signal" and rely on path classification (controllers in the
+    # red zone) to trigger api-review.
     return False
+
+
+# --------------------------------------------------------------------------
+# OpenAPI structural diff
+# --------------------------------------------------------------------------
+
+# Methods we treat as path operations. OpenAPI's "parameters" and "summary"
+# at the path level are intentionally excluded — operation changes are what
+# move the contract, and parameters at the path level are uncommon enough
+# that they'd produce more noise than signal.
+_OPENAPI_METHODS = ("get", "put", "post", "delete", "patch", "head", "options", "trace")
+
+
+def _openapi_paths(spec: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Return the paths object as a dict, or {} if missing/malformed."""
+    if not isinstance(spec, dict):
+        return {}
+    paths = spec.get("paths")
+    if not isinstance(paths, dict):
+        return {}
+    # Only keep entries that are themselves mappings; OpenAPI allows $ref
+    # at the path level, which we treat as opaque (modified if it changes).
+    return {k: v for k, v in paths.items() if isinstance(v, dict)}
+
+
+def _openapi_methods(path_item: dict[str, Any]) -> dict[str, Any]:
+    """Return the operation entries on a path item (get/post/...), preserving order."""
+    return {m: path_item[m] for m in _OPENAPI_METHODS if m in path_item}
+
+
+def diff_openapi_specs(base_yaml: str, head_yaml: str) -> dict[str, Any]:
+    """
+    Structural diff between two OpenAPI YAML strings.
+
+    Returns:
+        {
+            "pathsAdded":     [str, ...],
+            "pathsRemoved":   [str, ...],
+            "pathsModified":  [{"path": str,
+                                "methodsAdded":    [str, ...],
+                                "methodsRemoved":  [str, ...],
+                                "methodsModified": [str, ...]}, ...],
+        }
+
+    "Modified" means the operation object differs by structural equality.
+    We do not classify breaking vs additive — the goal is "the surface
+    changed in these places," which is enough signal to drive a checkpoint.
+    Reviewers (human or agent) judge severity.
+    """
+    try:
+        base = yaml.safe_load(base_yaml) if base_yaml.strip() else {}
+    except yaml.YAMLError:
+        base = {}
+    try:
+        head = yaml.safe_load(head_yaml) if head_yaml.strip() else {}
+    except yaml.YAMLError:
+        head = {}
+
+    base_paths = _openapi_paths(base)
+    head_paths = _openapi_paths(head)
+
+    added = sorted(set(head_paths) - set(base_paths))
+    removed = sorted(set(base_paths) - set(head_paths))
+
+    modified: list[dict[str, Any]] = []
+    for path in sorted(set(base_paths) & set(head_paths)):
+        b_methods = _openapi_methods(base_paths[path])
+        h_methods = _openapi_methods(head_paths[path])
+        m_added = sorted(set(h_methods) - set(b_methods))
+        m_removed = sorted(set(b_methods) - set(h_methods))
+        m_modified = sorted(
+            m for m in set(b_methods) & set(h_methods)
+            if b_methods[m] != h_methods[m]
+        )
+        if m_added or m_removed or m_modified:
+            modified.append({
+                "path": path,
+                "methodsAdded": m_added,
+                "methodsRemoved": m_removed,
+                "methodsModified": m_modified,
+            })
+
+    return {
+        "pathsAdded": added,
+        "pathsRemoved": removed,
+        "pathsModified": modified,
+    }
+
+
+def openapi_diff_is_empty(diff: dict[str, Any]) -> bool:
+    """True if the OpenAPI diff has no surface change."""
+    return not (diff.get("pathsAdded") or diff.get("pathsRemoved") or diff.get("pathsModified"))
 
 
 def detect_schema_change(files: list[str], policy: dict[str, Any]) -> bool:
@@ -316,6 +415,14 @@ def _summarize_violation(text: str, max_len: int = 400) -> str:
 # --------------------------------------------------------------------------
 # Checkpoint satisfaction
 # --------------------------------------------------------------------------
+
+def _build_api_changes(detected: bool, spec_diff: dict[str, Any] | None) -> dict[str, Any]:
+    """Compose the apiChanges field. Carries the structural diff when present."""
+    out: dict[str, Any] = {"detected": detected}
+    if spec_diff is not None:
+        out["specDiff"] = spec_diff
+    return out
+
 
 def _required_checkpoints(
     classification: dict[str, list[str]],
@@ -438,16 +545,25 @@ def classify(
     diff: Diff,
     *,
     archunit_xml: str | None = None,
+    api_spec_diff: dict[str, Any] | None = None,
     pr_labels: Iterable[str] = (),
     codeowner_approvals: Iterable[str] = (),
 ) -> Verdict:
-    """The single entry point. Pure function."""
+    """The single entry point. Pure function.
+
+    api_spec_diff (when supplied) is the result of diff_openapi_specs() against
+    base and head specs the caller produced. When non-empty, it forces
+    api_changed=True regardless of what file globs say. When None, api change
+    is decided by detect_api_change() (path-glob detection on specPath).
+    """
     files = diff.changed_files
     classification = classify_files(files, policy)
 
     arch_test_modified = any(_is_architecture_test_file(f) for f in files)
 
     api_changed = detect_api_change(files, policy)
+    if api_spec_diff is not None and not openapi_diff_is_empty(api_spec_diff):
+        api_changed = True
     schema_changed = detect_schema_change(files, policy)
     security_changed = detect_security_change(files, policy)
     runtime_changed = detect_runtime_config_change(files, policy)
@@ -544,7 +660,7 @@ def classify(
         },
         checkpoints=checkpoint_statuses,
         boundary_violations=boundary_violations,
-        api_changes={"detected": api_changed},
+        api_changes=_build_api_changes(api_changed, api_spec_diff),
         schema_changes={"detected": schema_changed},
         security_changes={"detected": security_changed},
         pr_size=pr_size,
@@ -556,6 +672,37 @@ def classify(
 # --------------------------------------------------------------------------
 # Markdown PR comment
 # --------------------------------------------------------------------------
+
+def _render_api_spec_diff(spec_diff: dict[str, Any]) -> list[str]:
+    """Render the OpenAPI structural-diff block. Caller has already decided to render."""
+    added = spec_diff.get("pathsAdded") or []
+    removed = spec_diff.get("pathsRemoved") or []
+    modified = spec_diff.get("pathsModified") or []
+    out: list[str] = ["**API check:** structural changes detected"]
+    if added:
+        out.append("")
+        out.append("Added:")
+        out.extend(f"- `{p}`" for p in added)
+    if removed:
+        out.append("")
+        out.append("Removed:")
+        out.extend(f"- `{p}`" for p in removed)
+    if modified:
+        out.append("")
+        out.append("Modified:")
+        for entry in modified:
+            parts: list[str] = []
+            if entry.get("methodsAdded"):
+                parts.append("+" + ",".join(entry["methodsAdded"]).upper())
+            if entry.get("methodsRemoved"):
+                parts.append("-" + ",".join(entry["methodsRemoved"]).upper())
+            if entry.get("methodsModified"):
+                parts.append("~" + ",".join(entry["methodsModified"]).upper())
+            suffix = f" ({' '.join(parts)})" if parts else ""
+            out.append(f"- `{entry['path']}`{suffix}")
+    out.append("")  # trailing blank to separate from the next section
+    return out
+
 
 def render_markdown(verdict: Verdict) -> str:
     lines: list[str] = []
@@ -599,7 +746,11 @@ def render_markdown(verdict: Verdict) -> str:
 
     # Other signals
     if verdict.api_changes.get("detected"):
-        lines.append("**API check:** changes detected")
+        spec_diff = verdict.api_changes.get("specDiff")
+        if spec_diff:
+            lines.extend(_render_api_spec_diff(spec_diff))
+        else:
+            lines.append("**API check:** changes detected")
     else:
         lines.append("**API check:** no changes")
     if verdict.schema_changes.get("detected"):
@@ -637,6 +788,21 @@ def load_archunit_xml(path: Path | None) -> str | None:
     return path.read_text(encoding="utf-8")
 
 
+def _load_api_spec_diff(base: Path | None, head: Path | None) -> dict[str, Any] | None:
+    """
+    Load both OpenAPI specs and compute the structural diff.
+
+    Returns None when neither path is provided (api_spec_diff has no signal).
+    Returns the diff dict when both are provided. If only one is provided,
+    treat the other as empty (an added or removed contract).
+    """
+    if base is None and head is None:
+        return None
+    base_text = base.read_text(encoding="utf-8") if base and base.exists() else ""
+    head_text = head.read_text(encoding="utf-8") if head and head.exists() else ""
+    return diff_openapi_specs(base_text, head_text)
+
+
 # --------------------------------------------------------------------------
 # CLI
 # --------------------------------------------------------------------------
@@ -650,6 +816,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="Total lines changed (for PR-size check)")
     p.add_argument("--archunit-xml", type=Path,
                    help="Path to an ArchUnit JUnit XML report")
+    p.add_argument("--api-spec-base", type=Path,
+                   help="Path to the OpenAPI spec generated at the base SHA "
+                        "(for api.type=openapi-from-controllers; the workflow generates this)")
+    p.add_argument("--api-spec-head", type=Path,
+                   help="Path to the OpenAPI spec generated at the head SHA")
     p.add_argument("--pr-labels", default="", help="Comma-separated PR labels")
     p.add_argument("--codeowner-approvals", default="",
                    help="Comma-separated CODEOWNER approver logins")
@@ -678,6 +849,7 @@ def main(argv: list[str] | None = None) -> int:
 
     diff = load_diff_from_files(args.changed_files, args.lines_changed)
     archunit_xml = load_archunit_xml(args.archunit_xml)
+    api_spec_diff = _load_api_spec_diff(args.api_spec_base, args.api_spec_head)
 
     pr_labels = [s.strip() for s in args.pr_labels.split(",") if s.strip()]
     codeowner_approvals = [s.strip() for s in args.codeowner_approvals.split(",") if s.strip()]
@@ -685,6 +857,7 @@ def main(argv: list[str] | None = None) -> int:
     verdict = classify(
         policy, diff,
         archunit_xml=archunit_xml,
+        api_spec_diff=api_spec_diff,
         pr_labels=pr_labels,
         codeowner_approvals=codeowner_approvals,
     )

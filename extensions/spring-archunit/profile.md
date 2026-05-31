@@ -142,7 +142,21 @@ Add more rules during bootstrap based on what the repo has (e.g., "core must not
 
 ## API contract handling
 
-If a committed OpenAPI spec exists:
+Pick one based on what the repo has:
+
+**SpringDoc with a generation plugin** (best signal): `org.springdoc.openapi-gradle-plugin` or equivalent installed. The CI workflow generates the spec at base and head SHAs and the reporter computes a structural diff (paths added/removed, methods added/removed/modified).
+
+```yaml
+api:
+  type: openapi-from-controllers
+  generationCommand: ./gradlew generateOpenApiDocs
+  diffMode: structural
+  checkpoint: api-review
+```
+
+See `scaffold.md` §6 for the CI worktree pattern. The local pre-push check does NOT run the generation (two builds is too slow); it relies on red-zone path classification — touched controllers fire api-review.
+
+**Committed OpenAPI spec:**
 
 ```yaml
 api:
@@ -152,14 +166,16 @@ api:
   checkpoint: api-review
 ```
 
-The reporter detects api changes by matching the diff against `specPath`. If you don't have a committed spec, controllers are red-zone files anyway and trigger `architecture-review` via path classification.
+The reporter detects api changes by matching the diff against `specPath`.
 
-Or if no public API surface:
+**No public API surface:**
 
 ```yaml
 api:
   type: none
 ```
+
+Controllers are red-zone files via path classification regardless of `api.type`, so an api-review checkpoint still fires when controllers change. The diff modes above add structural detail to the verdict; without them, you still know "the surface was touched."
 
 ## Ecosystem options
 

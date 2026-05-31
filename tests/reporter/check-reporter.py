@@ -9,6 +9,8 @@ Each fixture directory contains:
   changed-files.txt           # newline-separated paths
   lines-changed.txt           # optional; integer
   archunit.xml                # optional
+  api-spec-base.yaml          # optional; OpenAPI spec at base SHA
+  api-spec-head.yaml          # optional; OpenAPI spec at head SHA
   pr-labels.txt               # optional; one label per line
   codeowners.txt              # optional; one approver per line
   expected-verdict.json       # required
@@ -34,7 +36,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from core.reporter.reporter import (  # noqa: E402
-    classify, load_policy, load_diff_from_files, load_archunit_xml, render_markdown,
+    classify, load_policy, load_diff_from_files, load_archunit_xml,
+    diff_openapi_specs, render_markdown,
 )
 
 
@@ -72,9 +75,18 @@ def run_fixture(fixture: Path) -> tuple[dict, str]:
     pr_labels = read_lines(fixture / "pr-labels.txt")
     approvals = read_lines(fixture / "codeowners.txt")
 
+    api_spec_diff = None
+    base_spec = fixture / "api-spec-base.yaml"
+    head_spec = fixture / "api-spec-head.yaml"
+    if base_spec.exists() or head_spec.exists():
+        base_text = base_spec.read_text(encoding="utf-8") if base_spec.exists() else ""
+        head_text = head_spec.read_text(encoding="utf-8") if head_spec.exists() else ""
+        api_spec_diff = diff_openapi_specs(base_text, head_text)
+
     verdict = classify(
         policy, diff,
         archunit_xml=archunit,
+        api_spec_diff=api_spec_diff,
         pr_labels=pr_labels,
         codeowner_approvals=approvals,
     )

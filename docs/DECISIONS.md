@@ -8,7 +8,43 @@ Each entry: short title, date, decision, alternatives, rationale, revisit-if.
 
 ---
 
-## 2026-05-31 — Schema describes only what the reporter does
+## 2026-05-31 (later) — OpenAPI diff: reporter is pure, caller produces both specs
+
+**Decision:** When `api.type: openapi-from-controllers`, the reporter accepts two pre-generated spec files (`--api-spec-base`, `--api-spec-head`) and computes a structural diff. It does NOT run `generationCommand` itself. The CI workflow is responsible for producing both specs (typically `git worktree add` at the base SHA, run the policy's `generationCommand` in each tree, capture the output). The local pre-push check skips the generation entirely and falls back to red-zone path classification — touched controllers fire api-review without the structural detail.
+
+**Alternatives considered:**
+- Reporter runs `generationCommand` itself for both base and head, performing the worktree dance internally. Rejected: the reporter is a pure path-globs-and-output-readers script. Adding "checkout an old SHA, invoke a build tool, capture artifacts" turns it into an orchestrator. Different CI systems checkout differently; different build tools have different output paths; failure modes multiply.
+- Local pre-push runs the generation. Rejected: two builds during a pre-push is hostile to developer flow. Devs would disable the hook within a week.
+- Don't implement openapi-from-controllers at all; tell users to commit a spec. Rejected: SpringDoc-style runtime generation is the dominant Spring pattern. Saying "commit a spec or don't use this" excludes most modern Spring services.
+
+**Rationale:**
+- The CI workflow already has the SHAs, the build tools, and the time budget for two builds. The reporter has the diff logic. Each does what it's good at.
+- The asymmetry between CI (full diff) and local (path classification only) is real and worth being honest about. The PR comment shows the structural diff because CI saw both specs; locally you see "you touched a controller." That's not a bug — it's where the two contexts have different costs.
+- The structural diff is intentionally descriptive, not classificatory. "Breaking vs additive" sounds useful but is a tarpit: response-shape changes, deprecation semantics, parameter-validation tightening — categorizing them mechanically produces false certainty. "These paths and methods changed" is enough signal to drive the api-review checkpoint; reviewers (human or agent) judge severity.
+
+**Test guard:** `tests/reporter/api-changed-controllers/` golden fixture exercises the spec-diff path. `tests/reporter/test_reporter_unit.py` `TestOpenApiDiff` covers the diff function directly.
+
+**Revisit if:** a real consumer asks for breaking-vs-additive classification with concrete cases that can't be expressed as policy-level checkpoint thresholds. At that point the right surface is probably an LLM-judge layer reading the structural diff, not heuristics in the reporter.
+
+---
+
+## 2026-05-31 — Bootstrap composes with existing setup, doesn't overwrite
+
+**Decision:** Bootstrap-mode explicitly checks for and composes with three things the consuming repo may already have: (a) an existing boundary-rule backend setup (an ArchUnit test for JVM), (b) an existing agent-instruction file (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `copilot-instructions.md`, `*-instructions.md`), (c) an existing pre-push hook or script. In each case bootstrap appends or chains rather than replacing.
+
+**Alternatives considered:**
+- Always generate fresh artifacts; tell developers to merge manually. Rejected: that's a guaranteed adoption killer in any repo with a year of history. The first thing the dev sees is "agent-redline overwrote my arch test" and they won't trust the next thing it does.
+- Detect but ask the developer interactively for each case. Considered, but the conversation is already long. Detect, propose, and write the composition in one shot; developer reviews the diff in their IDE the same way they'd review any other PR.
+
+**Rationale:**
+- A real Spring service in any mature shop already has an arch test, an agent guide, and a pre-push hook. agent-redline's value is in the *policy* and *checkpoint routing*, not in generating files that already exist.
+- Composing is a small skill change (instructions in `bootstrap-mode.md`) but a large adoption change. Without it, bootstrap fails on most real repos.
+
+**Revisit if:** a real bootstrap pass surfaces a repo where the existing setup is so divergent from agent-redline's model that composition produces a worse result than fresh generation would. At that point document the case and let the developer choose explicitly.
+
+---
+
+
 
 **Decision:** The policy schema (`core/schema/agent-policy.schema.json`) contains only fields the v0.1 reporter implements. Fields previously accepted-but-ignored — `changeRules`, `defaults.unclassifiedZone`, `defaults.grayMode`, `boundaryBackend`, `api.type: openapi-from-controllers`, `team:`/`reviewerCount:` checkpoint forms — are removed. Items that might come back later are tracked in [`SPEC.md §15.3`](SPEC.md) with the implementation gate that has to clear first.
 

@@ -87,11 +87,11 @@ After CI runs, the reporter posts a single sticky comment summarizing the verdic
 
 A boundary violation looks the same shape but with the `Boundary check` line listing the violated rule and the failing class — and CI exits non-zero so the PR cannot merge.
 
-See the live demo PRs for the three canonical states:
+See the live demo PRs for the three canonical states. Each sync rotates the PR numbers; the latest open PR for each branch is what to look at:
 
-- [BLUE](https://github.com/rore/agent-redline-demo/pull/16) — green CI, no checkpoint
-- [RED](https://github.com/rore/agent-redline-demo/pull/18) — green CI, architecture-review checkpoint required
-- [BOUNDARY_VIOLATION](https://github.com/rore/agent-redline-demo/pull/17) — red CI, cannot merge
+- [`demo/blue-only-pr`](https://github.com/rore/agent-redline-demo/pulls?q=is%3Apr+head%3Ademo%2Fblue-only-pr) — BLUE, green CI, no checkpoint
+- [`demo/red-with-checkpoint-pr`](https://github.com/rore/agent-redline-demo/pulls?q=is%3Apr+head%3Ademo%2Fred-with-checkpoint-pr) — RED, green CI, `architecture-reviewed` label applied → checkpoint satisfied
+- [`demo/boundary-violation-pr`](https://github.com/rore/agent-redline-demo/pulls?q=is%3Apr+head%3Ademo%2Fboundary-violation-pr) — BOUNDARY_VIOLATION, red CI, cannot merge
 
 ## What v0.1 ships
 

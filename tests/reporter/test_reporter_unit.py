@@ -9,7 +9,7 @@ Unit tests for the reporter's pure logic. Covers:
   - Checkpoint satisfaction (label, codeownerApproval)
   - Empty diff handling
   - Excludes
-  - grayWatch overlap with blue/red
+  - watch overlap with blue/red
 
 These tests don't require fixtures on disk; they construct policy dicts
 and Diff objects in-memory and assert against the Verdict.
@@ -103,12 +103,12 @@ class TestGlobMatching:
 class TestClassifyFiles:
 
     @staticmethod
-    def policy_with_zones(red=None, blue=None, gray_watch=None, excludes=None):
+    def policy_with_zones(red=None, blue=None, watch=None, excludes=None):
         return {
             "zones": {
                 "red": [{"path": p, "reason": "x"} for p in (red or [])],
                 "blue": [{"path": p, "reason": "x"} for p in (blue or [])],
-                "grayWatch": [{"path": p, "reason": "x"} for p in (gray_watch or [])],
+                "watch": [{"path": p, "reason": "x"} for p in (watch or [])],
             },
             "excludes": list(excludes or []),
         }
@@ -145,15 +145,16 @@ class TestClassifyFiles:
         assert c["red"] == []
         assert c["blue"] == []
 
-    def test_gray_watch_is_additive_with_blue(self):
-        # A file can be both blue (or gray) and grayWatch — grayWatch is a tag.
+    def test_watch_is_additive_with_blue(self):
+        # A file can be both blue (or gray or red) and on the watch list —
+        # watch is a tag, not an exclusive bucket.
         policy = self.policy_with_zones(
             blue=["src/main/**/*Service.java"],
-            gray_watch=["src/main/**/*Service.java"],
+            watch=["src/main/**/*Service.java"],
         )
         c = classify_files(["src/main/app/OrderService.java"], policy)
         assert c["blue"] == ["src/main/app/OrderService.java"]
-        assert c["grayWatch"] == ["src/main/app/OrderService.java"]
+        assert c["watch"] == ["src/main/app/OrderService.java"]
 
 
 # --------------------------------------------------------------------------

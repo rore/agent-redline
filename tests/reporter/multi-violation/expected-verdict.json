@@ -37,7 +37,7 @@
     "gray": [
       "src/main/java/com/example/orders/application/OrderService.java"
     ],
-    "grayWatch": [],
-    "red": []
+    "red": [],
+    "watch": []
   }
 }

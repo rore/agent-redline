@@ -31,15 +31,15 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "red":       { "$ref": "#/$defs/zoneList" },
-        "blue":      { "$ref": "#/$defs/zoneList" },
-        "grayWatch": { "$ref": "#/$defs/zoneList" }
+        "red":   { "$ref": "#/$defs/zoneList" },
+        "blue":  { "$ref": "#/$defs/zoneList" },
+        "watch": { "$ref": "#/$defs/zoneList" }
       },
       "anyOf": [
         { "required": ["red"] },
         { "required": ["blue"] }
       ],
-      "description": "At least one of red or blue must be present and non-empty. Files not matched by any zone are treated as gray."
+      "description": "Red and blue are exclusive zone classifications; at least one must be non-empty. Watch is an additive tag — paths listed under watch are surfaced in the PR comment regardless of how they're otherwise classified (red, blue, or implicit gray). Files not matched by any zone are treated as gray (the residual bucket)."
     },
 
     "boundaries": {

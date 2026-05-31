@@ -32,9 +32,9 @@
   "zones": {
     "blue": [],
     "gray": [],
-    "grayWatch": [],
     "red": [
       "src/test/java/com/example/orders/architecture/DependencyArchitectureTest.java"
-    ]
+    ],
+    "watch": []
   }
 }

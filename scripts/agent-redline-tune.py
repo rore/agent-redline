@@ -23,7 +23,7 @@ Input formats (pick one):
         separated by tabs. (Produced by some custom CI exports.)
         Format: <pr-id>\t<file>\t<file>\t...
 
-Output: a markdown report ranking each red/grayWatch entry by firing rate,
+Output: a markdown report ranking each red/watch entry by firing rate,
 plus an overall verdict-distribution summary.
 
 Usage:
@@ -96,23 +96,23 @@ def firing_rates(
     policy: dict[str, Any],
 ) -> dict[str, dict[tuple[str, str], int]]:
     """
-    For each zone (red/blue/gray/grayWatch) return a count of how many PRs
-    touched at least one file matching each policy entry.
+    For each zone in the policy (red / blue / watch) return a count of how
+    many PRs touched at least one file matching each policy entry.
 
     Returned shape:
       {
-        "red":       {(path, reason): count, ...},
-        "grayWatch": {(path, reason): count, ...},
-        ...
+        "red":   {(path, reason): count, ...},
+        "blue":  {(path, reason): count, ...},
+        "watch": {(path, reason): count, ...},
       }
     """
     counts: dict[str, dict[tuple[str, str], int]] = {
         "red": defaultdict(int),
         "blue": defaultdict(int),
-        "grayWatch": defaultdict(int),
+        "watch": defaultdict(int),
     }
     zones = policy.get("zones", {}) or {}
-    for zone in ("red", "blue", "grayWatch"):
+    for zone in ("red", "blue", "watch"):
         entries = zones.get(zone, []) or []
         for pr_files in prs.values():
             for entry in entries:
@@ -136,7 +136,7 @@ def verdict_distribution(prs: dict[str, list[str]], policy: dict[str, Any]) -> d
 def classify_rate(rate: float) -> str:
     """Recommendation tier for a firing rate."""
     if rate >= 0.80:
-        return "TOO BROAD — most PRs touch this. Downgrade to grayWatch or split."
+        return "TOO BROAD — most PRs touch this. Downgrade to watch or split."
     if rate >= 0.50:
         return "PROBABLY TOO BROAD — fires on a majority. Try to split the path."
     if rate >= 0.30:
@@ -154,7 +154,7 @@ def render_markdown(
     lines: list[str] = []
     lines.append(f"# agent-redline tuning report — {n_prs} PR(s)")
     lines.append("")
-    lines.append("Firing rate per zone entry. Red entries that fire on most PRs are alert-fatigue traps and should move to grayWatch or split.")
+    lines.append("Firing rate per zone entry. Red entries that fire on most PRs are alert-fatigue traps and should move to the `watch` list or split.")
     lines.append("")
 
     # Verdict distribution
@@ -168,7 +168,7 @@ def render_markdown(
     lines.append("")
 
     # Per-zone tables
-    for zone_label, zone_key in (("Red", "red"), ("Gray-watch", "grayWatch"), ("Blue", "blue")):
+    for zone_label, zone_key in (("Red", "red"), ("Watch", "watch"), ("Blue", "blue")):
         entries = counts.get(zone_key, {})
         if not entries:
             continue

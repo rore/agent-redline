@@ -68,7 +68,7 @@ project: { name: <repo-name>, extension: <extension-name> }
 zones:
   red:    [...]
   blue:   [...]
-  grayWatch: [...]
+  watch: [...]
 
 boundaries: [...]
 api: { type: ..., ... }
@@ -101,7 +101,7 @@ For each red entry in the draft policy, walk through:
 
 1. **Does this path change in ordinary feature PRs?** Pick three recent feature PRs and ask the developer.
 2. **If yes — are most of those changes truly architectural decisions?** Adding a field to an entity isn't. Renaming a domain class is. New endpoint methods are. Refactoring private methods isn't.
-3. **If most are routine — downgrade.** Move the path to `grayWatch` (still surfaced, no checkpoint) or to `blue` (autonomous). Do not leave it as red because "the code is important." Important + routine = grayWatch.
+3. **If most are routine — downgrade.** Move the path to `watch` (still surfaced, no checkpoint) or to `blue` (autonomous). Do not leave it as red because "the code is important." Important + routine = `watch`.
 4. **If the path mixes routine and structural** — try to split it. `domain/repository/*.java` (interfaces, structural) vs `domain/repository/impl/**` (often routine). The Spring profile defaults already do this where viable; do it again for repo-specific paths.
 
 This is a **starting hypothesis**. The first 2-4 weeks of shadow mode is where the team confirms or corrects it (Phase 5 / CI proposal).

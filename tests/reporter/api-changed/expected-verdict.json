@@ -35,7 +35,7 @@
     "gray": [
       "openapi/api.yaml"
     ],
-    "grayWatch": [],
-    "red": []
+    "red": [],
+    "watch": []
   }
 }

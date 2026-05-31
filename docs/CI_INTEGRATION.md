@@ -238,7 +238,7 @@ Shadow mode answers two separate questions, and treating them as one is a common
 
 The bootstrap policy is a *starting hypothesis*: this is what we think the structural surface looks like. Shadow data immediately tells you whether the hypothesis is right. The signal is **firing rate per red entry**:
 
-- Red entry firing on 80%+ of PRs → too broad. The path covers routine work, not architectural change. Downgrade to `grayWatch` (still surfaced) or `blue` (autonomous).
+- Red entry firing on 80%+ of PRs → too broad. The path covers routine work, not architectural change. Downgrade to the `watch` list (still surfaced) or `blue` (autonomous).
 - Red entry firing on 30-50% of PRs → ambiguous. Try to split it (interfaces vs implementations, prod config vs all config). If it can't be split, leave it and re-evaluate after Window 2.
 - Red entry firing on <15% of PRs → probably right. This is the kind of red that's actually doing work.
 

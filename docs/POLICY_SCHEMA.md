@@ -21,10 +21,12 @@ zones:                                # required; at least one of red or blue mu
   blue:                               # paths where agent autonomy is fine
     - path: <glob>
       reason: <string>
-  grayWatch:                          # paths to surface in PR even though gray
-    - path: <glob>
-      reason: <string>
-  # Files not matched by any zone are treated as gray.
+  watch:                              # additive tag — paths surfaced in the PR comment
+    - path: <glob>                    # regardless of red/blue/gray classification.
+      reason: <string>                # No checkpoint, no merge gate, just visibility.
+  # Files not matched by red/blue/watch are gray (the residual bucket).
+  # Red and blue are exclusive zone classifications.
+  # Watch composes additively with all three.
 
 boundaries:                           # optional; deterministic dependency rules.
   - id: <kebab-case-string>           # The reporter surfaces these alongside boundary-backend

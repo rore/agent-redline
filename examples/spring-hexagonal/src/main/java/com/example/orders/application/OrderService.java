@@ -10,7 +10,7 @@ import java.util.UUID;
  * Application service. Orchestrates use cases over the domain.
  *
  * Depends on the port (OrderRepository), never on a concrete adapter.
- * Treat as gray-watch: most feature work happens here; changes are common
+ * Treat as watch: most feature work happens here; changes are common
  * but should be visible. The boundary rule "application must not import
  * concrete adapters" is the deterministic guard.
  */

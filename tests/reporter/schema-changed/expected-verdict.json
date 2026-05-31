@@ -35,7 +35,7 @@
     "gray": [
       "src/main/resources/db/migration/V2__add_orders_index.sql"
     ],
-    "grayWatch": [],
-    "red": []
+    "red": [],
+    "watch": []
   }
 }

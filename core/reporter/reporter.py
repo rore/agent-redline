@@ -173,23 +173,25 @@ def classify_files(
     policy: dict[str, Any],
 ) -> dict[str, list[str]]:
     """
-    Classify each file as red / blue / gray / grayWatch / excluded.
+    Classify each file as red / blue / gray / watch / excluded.
 
-    Priority: excludes wins; then red; then blue; then grayWatch as a tag
-    (a file can be both blue+grayWatch or gray+grayWatch — the tag is
-    additive). Anything not red, blue, or excluded is gray.
+    Priority: excludes wins; then red; then blue; the rest fall through to
+    gray. `watch` is *additive*: a file can be red+watch, blue+watch, or
+    gray+watch. Watch never affects the verdict on its own — it only
+    surfaces the path in the PR comment regardless of how the file is
+    otherwise classified.
     """
     zones = policy.get("zones", {}) or {}
     red = _zone_paths(zones.get("red"))
     blue = _zone_paths(zones.get("blue"))
-    gray_watch = _zone_paths(zones.get("grayWatch"))
+    watch = _zone_paths(zones.get("watch"))
     excludes = policy.get("excludes", []) or []
 
     classified: dict[str, list[str]] = {
         "red": [],
         "blue": [],
         "gray": [],
-        "grayWatch": [],
+        "watch": [],
         "excluded": [],
     }
 
@@ -203,8 +205,8 @@ def classify_files(
             classified["blue"].append(path)
         else:
             classified["gray"].append(path)
-        if matches_any(path, gray_watch):
-            classified["grayWatch"].append(path)
+        if matches_any(path, watch):
+            classified["watch"].append(path)
 
     return classified
 
@@ -645,7 +647,7 @@ def classify(
         # Issues exist but checks are in shadow.
         exit_code = 1
         recommended = "review-shadow-warnings"
-    elif classification["gray"] or classification["grayWatch"] or pr_size_warn:
+    elif classification["gray"] or classification["watch"] or pr_size_warn:
         exit_code = 1
         recommended = "review-warnings"
 
@@ -656,7 +658,7 @@ def classify(
             "red": classification["red"],
             "blue": classification["blue"],
             "gray": classification["gray"],
-            "grayWatch": classification["grayWatch"],
+            "watch": classification["watch"],
         },
         checkpoints=checkpoint_statuses,
         boundary_violations=boundary_violations,
@@ -713,7 +715,7 @@ def render_markdown(verdict: Verdict) -> str:
 
     # Zones table — only show non-empty rows.
     rows = []
-    for label, key in (("Red", "red"), ("Blue", "blue"), ("Gray", "gray"), ("Gray-watch", "grayWatch")):
+    for label, key in (("Red", "red"), ("Blue", "blue"), ("Gray", "gray"), ("Watch", "watch")):
         files = verdict.zones.get(key, [])
         if files:
             shown = ", ".join(f"`{p}`" for p in files[:5])

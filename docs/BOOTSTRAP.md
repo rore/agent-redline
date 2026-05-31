@@ -55,7 +55,7 @@ The agent does **not** modify anything yet. It produces a written summary of wha
 
 The agent loads the matching language extension's `profile.md` and proposes:
 
-- A starting set of red zones, blue zones, gray zones
+- A starting set of red zones, blue zones, and watch-list entries (gray is the residual bucket — paths no other entry matches)
 - A starting set of boundary rules
 - API contract location
 - Persistence path

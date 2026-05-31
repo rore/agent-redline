@@ -32,9 +32,10 @@ zones:
     - path: docs/**
       reason: documentation
 
-  grayWatch:
-    # Paths that look like one zone but might behave like another;
-    # surfaced in PR comments even when they overlap with blue/red.
+  watch:
+    # Additive tag: paths surfaced in PR comments regardless of how they're
+    # otherwise classified (red, blue, or implicit gray). Use for paths a
+    # reviewer wants to *see* changing without making it a checkpoint.
     # Populated from the extension's profile.md.
 
 # boundaries describe forbidden dependencies. The language extension's

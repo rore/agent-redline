@@ -16,7 +16,7 @@ Active when `agent-policy.yaml` exists in the repo root.
 ## Step 1 — Read the policy
 
 Form a working model of:
-- Red / blue / gray / grayWatch path globs
+- Red / blue / gray / watch path globs
 - Boundary rules
 - API / persistence / security / runtime-config paths
 - Checkpoints (label names, CODEOWNER teams)

@@ -8,9 +8,29 @@ Each entry: short title, date, decision, alternatives, rationale, revisit-if.
 
 ---
 
-## 2026-05-31 (later still) — Red means different review behavior, not important code
+## 2026-05-31 (rename) — `zones.grayWatch` → `zones.watch`
 
-**Decision:** The red-zone definition in SPEC §4 is sharpened: *red means a change wants different review behavior, not that the code is important*. The Spring profile defaults are rewritten to a narrower red surface (repository/gateway interfaces, controllers, migrations, security paths, arch tests, prod runtime config); most domain and application code is `grayWatch` by default. Bootstrap Phase 3 mandates a "would this red zone fire on a typical PR?" check for every entry. A new `scripts/agent-redline-tune.py` computes per-zone firing rates from a batch of merged PRs so teams can validate their starting policy with data, not intuition. Shadow mode is reframed as two distinct decisions — zone calibration (windows 1) and check-flip tuning (window 2).
+**Decision:** Rename the additive-tag zone field from `grayWatch` to `watch`. The `Gray-watch` label in the PR comment becomes `Watch`. JSON output exposes `zones.watch` instead of `zones.grayWatch`. Schema, reporter, templates, skill files, docs, fixtures, and the tuning script all updated. No back-compat shim — pre-v0.1, no consumer policies in production.
+
+**Alternatives considered:**
+- Keep `grayWatch`; explain it more clearly in docs. Rejected: a name is itself documentation. Misleading names tax every new reader forever; docs that explain misleading names are a sign the name is wrong.
+- Rename to `surface`, `highlight`, `notable`. Rejected: `watch` is shorter, more familiar (the "watch list" mental model is universally understood), and reads naturally in YAML (`zones.watch:`).
+- Drop the additive concept entirely; force users to choose one zone per file. Rejected: the additive case is real (a domain entity that's also a Spring `*Configuration.java`, a controller that's also a security path). The semantics are right; only the name was wrong.
+
+**Rationale:**
+- The old name implied `grayWatch` was a kind of gray. It isn't — a file can be `red+watch`, `blue+watch`, or `gray+watch`. The "gray" half of the name was a lie in two of three composition cases.
+- `watch` is what the field functionally is: a watch list. Reviewer wants to see this path when it changes, regardless of how it's classified otherwise.
+- The rename surfaced a missing doc: SPEC §4.4 now explicitly contrasts gray (residual bucket; "no zone matched") with watch (additive tag; "explicitly tagged"), with a side-by-side table. This was implicit in the code but never written down.
+
+**Test guard:** `tests/reporter/test_reporter_unit.py::TestClassifyFiles::test_watch_is_additive_with_blue` asserts the additive composition. The schema rejects unknown top-level zone keys (via `additionalProperties: false`), so a stray `grayWatch:` in a future policy fails validation immediately.
+
+**Revisit if:** never. The right time to rename was before users had policies in production; that time is now. The tax of keeping the misleading name compounds with every new user.
+
+---
+
+
+
+**Decision:** The red-zone definition in SPEC §4 is sharpened: *red means a change wants different review behavior, not that the code is important*. The Spring profile defaults are rewritten to a narrower red surface (repository/gateway interfaces, controllers, migrations, security paths, arch tests, prod runtime config); most domain and application code goes on the `watch` list by default. Bootstrap Phase 3 mandates a "would this red zone fire on a typical PR?" check for every entry. A new `scripts/agent-redline-tune.py` computes per-zone firing rates from a batch of merged PRs so teams can validate their starting policy with data, not intuition. Shadow mode is reframed as two distinct decisions — zone calibration (windows 1) and check-flip tuning (window 2).
 
 **Alternatives considered:**
 - Keep the maximalist defaults ("anything in `domain/**` is red") and rely on per-team customization. Rejected: tested empirically against 30 recent merged PRs in a real Spring service. The maximalist defaults produced 67% RED PRs with `Controller.java` alone firing on 53% of PRs. That's the alert-fatigue scenario where every PR says "architecture review required" and the team learns to ignore it.
@@ -20,14 +40,14 @@ Each entry: short title, date, decision, alternatives, rationale, revisit-if.
 **Rationale:**
 - Verified empirically. Same 30 wallet PRs, two policies:
   - Old defaults (broad `domain/**` red): **67% RED, 30% GRAY, 3% BLUE.** Highest red entry firing on 53% of PRs.
-  - New defaults (narrow red, generous grayWatch): **30% RED, 67% GRAY, 3% BLUE.** Highest red entry firing on 17% of PRs.
-- The new defaults route attention to the ~30% of PRs that genuinely warrant a checkpoint, while still surfacing the routine domain/application changes in the PR comment as grayWatch. That's the asymmetry the framework was supposed to deliver and the broad defaults broke.
+  - New defaults (narrow red, generous `watch` list): **30% RED, 67% GRAY, 3% BLUE.** Highest red entry firing on 17% of PRs.
+- The new defaults route attention to the ~30% of PRs that genuinely warrant a checkpoint, while still surfacing the routine domain/application changes in the PR comment via the `watch` list. That's the asymmetry the framework was supposed to deliver and the broad defaults broke.
 - The tuning script is deliberately scoped to "manual run on demand against a batch of PRs." Not a CI scheduled job, not a history file, not auto-policy-edits. The point is to give the team a number; the team interprets it. v0.1 stays small.
 
 **Test guard:** the wallet experiment lives at `.local/wallet-tune/` (gitignored) and can be re-run any time the defaults change.
 
 **Revisit if:**
-- A real bootstrap pass produces a policy where the new narrow defaults *under-fire* — a team in shadow finds genuine structural risks falling into grayWatch and not flagged. At that point, profile-level fixes for that pattern.
+- A real bootstrap pass produces a policy where the new narrow defaults *under-fire* — a team in shadow finds genuine structural risks falling onto the `watch` list and not flagged. At that point, profile-level fixes for that pattern.
 - The manual tuning script's "stare at a markdown report once" UX proves insufficient — for example, teams want to run it weekly and notice trends. Then the automated history-tracking version moves up the roadmap.
 
 ---

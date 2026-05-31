@@ -30,7 +30,7 @@ Four markdown files plus one small YAML file. No manifest, no version metadata, 
 
 ## What an extension does NOT own
 
-- The vocabulary (red/blue/gray, zones, boundary rules, checkpoints, modes) — fixed in the core.
+- The vocabulary (red/blue/gray zones, the `watch` additive tag, boundary rules, checkpoints, modes) — fixed in the core.
 - The policy schema — fixed in the core. Extensions fill in stack-specific values; they don't add new top-level fields.
 - The verdict format (PR comment, exit codes, JSON output) — fixed in the core.
 - The bootstrap and operating loops — fixed in the core. Extensions can add stack-specific notes the agent reads, but they don't change the loop structure.
@@ -40,7 +40,7 @@ Four markdown files plus one small YAML file. No manifest, no version metadata, 
 
 1. **Copy `extensions/spring-archunit/` to `extensions/<your-stack>/`.** That's your starting point.
 2. **Rewrite `README.md`** — what stack this is for, when to pick it.
-3. **Rewrite `profile.md`** — zones (red/blue/gray) for your stack, recommended boundary rules, API contract location, persistence paths, security conventions, gotchas. Keep the same structure; replace Spring-specific paths with yours.
+3. **Rewrite `profile.md`** — zones (red/blue) and watch-list entries for your stack, recommended boundary rules, API contract location, persistence paths, security conventions, gotchas. Keep the same structure; replace Spring-specific paths with yours.
 4. **Rewrite `scaffold.md`** — how the agent installs the boundary-rule backend (`pip install`, `npm install`, `cargo add`, etc.), generates the config/test files, and adds the CI step.
 5. **Update `adapter.yaml`** — the path where your backend writes its output and the format. Use `junit-xml` if your backend produces JUnit XML; otherwise add a conversion step in `scaffold.md` to produce JUnit XML. (SARIF and JSON-violations are roadmap formats; for v0.1, JUnit XML is the only natively-supported format.)
 6. **Optional: `operating.md`** — only add this if there are stack-specific operating-mode rules the agent needs beyond the core ones. Most extensions don't need it.

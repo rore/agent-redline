@@ -51,7 +51,7 @@ The skill inspects the repo's layout, build system, conventions, and existing CI
 
 Be honest about the surface so you can decide if it fits:
 
-- **Path-glob zone classification** (red / blue / gray / grayWatch) — yes
+- **Path-glob zone classification** (red / blue / gray, plus the additive `watch` tag) — yes
 - **Required-checkpoint computation** with `codeownerApproval` and `label:` satisfaction — yes
 - **PR-size warn / fail thresholds** — yes
 - **Shadow / binding modes**, with per-check overrides — yes

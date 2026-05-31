@@ -32,9 +32,9 @@
   "zones": {
     "blue": [],
     "gray": [],
-    "grayWatch": [],
     "red": [
       "src/main/java/com/example/orders/domain/Order.java"
-    ]
+    ],
+    "watch": []
   }
 }

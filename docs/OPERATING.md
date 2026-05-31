@@ -23,7 +23,7 @@ Every step matters. Skipping classification before editing is the most common fa
 
 The agent reads `agent-policy.yaml` and forms a working model of:
 
-- Which paths are red, blue, gray, grayWatch
+- Which paths are red, blue, watch (and which fall through to gray)
 - Which boundary rules apply
 - Where the API surface lives
 - Where persistence lives
@@ -45,12 +45,14 @@ The classification is one of:
 |---|---|
 | `BLUE` | All touched files are blue. Proceed with normal autonomy. |
 | `RED` | At least one touched file is red. Stop. Plan a checkpoint. |
-| `GRAY` | At least one touched file is gray. Proceed cautiously; surface in PR. |
+| `GRAY` | At least one touched file is gray (no zone matched). Proceed cautiously; surface in PR; suggest the path be classified. |
 | `BOUNDARY_RISK` | The intended change would create a forbidden dependency. Do not proceed. |
 | `API_CHANGE` | Touched API contract surface. Requires `api-review`. |
 | `SCHEMA_CHANGE` | Touched migration or persistence model. Requires `persistence-review`. |
 | `SECURITY_CHANGE` | Touched security/auth code. Requires `security-review`. |
 | `MIXED` | Combination of the above. Resolve to the most-restrictive applicable. |
+
+The `watch` list is a separate, additive concern — independent of the classification above. A file can be `red+watch`, `blue+watch`, or `gray+watch`. Watch on its own never produces a verdict, but each watched-and-changed file gets a row in the PR comment so the reviewer sees it. Mention any `watch` files in your PR description briefly: "Touched `*Configuration.java`; affects bean wiring globally; verified beans still resolve."
 
 ## Step 3 — Branch by classification
 

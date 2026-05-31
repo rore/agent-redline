@@ -4,9 +4,9 @@ Default zones, boundary rules, and ecosystem-specific options. Package names are
 
 ## Framing — what red means here
 
-Red means **changes that need different review behavior**, not "important code." A domain entity is important; adding a field to it is routine. A migration is important; adding an index *might* be routine, dropping a column is not. The defaults below try to keep red small enough that it fires on a minority of feature PRs. Bootstrap Phase 3 challenges every red entry with the test "would this fire on a typical PR?" — if yes, it's mis-classified and should move to `grayWatch` or `blue`.
+Red means **changes that need different review behavior**, not "important code." A domain entity is important; adding a field to it is routine. A migration is important; adding an index *might* be routine, dropping a column is not. The defaults below try to keep red small enough that it fires on a minority of feature PRs. Bootstrap Phase 3 challenges every red entry with the test "would this fire on a typical PR?" — if yes, it's mis-classified and should move to `watch` or `blue`.
 
-Most domain code, application code, and adapter code is **`grayWatch`** by default — the reporter surfaces it in the PR comment without making it a checkpoint. That's the right home for "we want a second look at this" without the alert-fatigue cost of red.
+Most domain code, application code, and adapter code is on the **`watch`** list by default — the reporter surfaces it in the PR comment without making it a checkpoint. That's the right home for "we want a second look at this" without the alert-fatigue cost of red. (`watch` is an additive tag, not a zone — see SPEC §4.4 for the gray-vs-watch distinction.)
 
 ## Default zones
 
@@ -69,7 +69,7 @@ zones:
       checkpoint: ops-review
 
     # Runtime config — *only* the production-affecting profiles. Local profiles
-    # (application-local.yml etc.) belong in grayWatch or blue. Bootstrap Phase 3
+    # (application-local.yml etc.) belong on the watch list or in blue. Bootstrap Phase 3
     # narrows this entry to the actual environment-config files for the repo.
     - path: src/main/resources/application.yml
       reason: runtime configuration (default profile)
@@ -117,15 +117,15 @@ zones:
       reason: DB row / persistence-internal DTOs (not API surface)
 ```
 
-Adapter DTOs in general (other than persistence-internal ones) are gray-watch, not blue. Promote a specific subpath to blue only when the developer confirms it's internal-only.
+Adapter DTOs in general (other than persistence-internal ones) are on the watch list, not blue. Promote a specific subpath to blue only when the developer confirms it's internal-only.
 
-### Gray watch — surfaced in the PR comment, not a checkpoint
+### Watch — surfaced in the PR comment, not a checkpoint
 
-`grayWatch` is the default home for "an agent could plausibly do this autonomously, and most of the time the result is fine, but a reviewer should at least see that it happened." No checkpoint, no merge gate — just visibility.
+The `watch` list is the default home for "an agent could plausibly do this autonomously, and most of the time the result is fine, but a reviewer should at least see that it happened." No checkpoint, no merge gate — just visibility. Watch is an additive tag (not a zone), so a path on the watch list still has whatever zone classification its other matches give it; the watch entry only adds the visibility flag.
 
 ```yaml
 zones:
-  grayWatch:
+  watch:
     # Domain code that's important but not architectural
     - path: src/main/java/**/domain/entity/**
       reason: entities; adding fields affects persistence + DTOs

@@ -51,10 +51,10 @@
       "src/test/java/com/example/orders/ui/controller/OrderControllerTest.java"
     ],
     "gray": [],
-    "grayWatch": [],
     "red": [
       "src/main/java/com/example/orders/ui/controller/OrderController.java",
       "src/main/java/com/example/orders/ui/controller/RefundController.java"
-    ]
+    ],
+    "watch": []
   }
 }

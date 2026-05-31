@@ -24,7 +24,7 @@
     "gray": [
       "src/main/java/com/example/orders/util/DateNormalizer.java"
     ],
-    "grayWatch": [],
-    "red": []
+    "red": [],
+    "watch": []
   }
 }

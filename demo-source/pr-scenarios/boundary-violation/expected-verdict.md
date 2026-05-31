@@ -8,7 +8,7 @@
 | Zone | Files |
 |---|---|
 | Gray | `src/main/java/com/example/orders/application/OrderService.java` |
-| Gray-watch | `src/main/java/com/example/orders/application/OrderService.java` |
+| Watch | `src/main/java/com/example/orders/application/OrderService.java` |
 
 **Boundary violations:**
 - `application_must_not_depend_on_persistence_adapters` (error): Architecture Violation: Rule '...' was violated (1 times): Class <com.example.orders.application.OrderService> depends on <com.example.orders.adapter.persistence.PostgresOrderRepository>

@@ -23,7 +23,7 @@ src/main/java/com/example/orders/
 ├── application/
 │   ├── port/                    ← red zone (port interfaces)
 │   │   └── OrderRepository.java
-│   └── OrderService.java        ← gray-watch (orchestration)
+│   └── OrderService.java        ← watch (orchestration)
 ├── adapter/persistence/         ← blue zone (impl)
 │   ├── PostgresOrderRepository.java
 │   └── dto/

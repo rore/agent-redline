@@ -11,7 +11,7 @@
 # — the entire domain layer IS the structural surface. Real services with
 # many entities should use the narrower spring-archunit defaults
 # (domain/repository/*.java, domain/gateway/*.java) and put entities in
-# grayWatch. See extensions/spring-archunit/profile.md and SPEC §4.3.
+# the `watch` list. See extensions/spring-archunit/profile.md and SPEC §4.3.
 
 version: 1
 
@@ -47,7 +47,7 @@ zones:
     - path: src/main/java/**/adapter/**/persistence/**
       reason: persistence adapter implementation; boundary rules ensure callers go through the port
 
-  grayWatch:
+  watch:
     - path: src/main/java/**/application/**/*Service.java
       reason: application services orchestrate flows; changes are common but should be visible
 

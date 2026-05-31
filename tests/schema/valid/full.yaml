@@ -32,7 +32,7 @@ zones:
       reason: documentation
     - path: src/main/java/**/adapter/**/persistence/**/dto/**
       reason: DB row DTOs
-  grayWatch:
+  watch:
     - path: src/main/java/**/*Configuration.java
       reason: Spring configuration affects bean wiring
     - path: src/main/java/**/*Filter.java

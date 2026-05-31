@@ -166,8 +166,9 @@ agent-redline introduces a small, stable vocabulary. Consuming repos use these t
 |---|---|
 | **Red zone** | Code where a change needs **different review behavior** — separate signoff, slower cadence, or specific expertise. Red is *not* "important code." A domain entity is important; adding a field to it is routine. The test for redness is "would this fire on a typical feature PR?" If yes, it's mis-classified. See §4.3. |
 | **Blue zone** | Code where agents may work with high autonomy. Isolated, replaceable, strongly testable, or low blast-radius. |
-| **Gray zone** | Unclassified code. Not automatically dangerous, not explicitly safe. Cautious by default. The reporter surfaces gray-zone changes in the PR comment but does not gate merge on them. |
-| **Zone** | A path-glob classification of code by architectural consequence. Stable across PRs. |
+| **Gray zone** | The residual bucket — files no `red`, `blue`, or `watch` entry matched. Surfaced in the PR comment without gating merge. A persistent gray hit on a busy path is *tuning data*: the policy is incomplete and the path should be classified. See §4.4. |
+| **Watch (additive tag)** | An explicit `zones.watch:` entry that surfaces the path in the PR comment regardless of how it's otherwise classified. Composes with red, blue, or gray. Never drives the verdict on its own. Use for paths that are most-of-the-time-fine but a reviewer should still see when they change. See §4.4. |
+| **Zone** | A path-glob classification of code by architectural consequence. Red, blue, and gray are exclusive zones; watch is an additive tag. |
 | **Boundary rule** | A deterministic dependency rule (`X must not import Y`). |
 | **Boundary-rule backend** | The tool that enforces boundary rules for a given ecosystem (e.g., ArchUnit for JVM, dependency-cruiser for Node, import-linter for Python, Semgrep for generic patterns). The backend is a per-extension choice; agent-redline does not bundle one. |
 | **Language extension** | A folder of markdown plus one small config file that binds the core to a stack. Carries the stack's typical zones, recommended boundary rules, backend choice, and the adapter config telling the reporter how to read backend output. agent-redline ships one reference extension (`spring-archunit`); others are community-built. |
@@ -198,14 +199,38 @@ A red zone earns its place only if it fires on a **minority** of normal feature 
 
 The mental model:
 
-- **"Important code"** is not a zone — important + routine = `grayWatch`.
+- **"Important code"** is not a zone — important + routine = on the `watch` list.
 - **Red** = "this change wants different review behavior." Different *who*, different *when*, or different *what's being verified*.
-- **GrayWatch** = "an agent could plausibly do this autonomously, and most of the time the result is fine, but a reviewer should at least see that it happened." Surfaced in the PR comment, no checkpoint.
+- **Watch** (additive tag, see §4.4) = "an agent could plausibly do this autonomously, and most of the time the result is fine, but a reviewer should at least see that it happened." Surfaced in the PR comment, no checkpoint.
 - **Blue** = autonomous; tests + normal review are sufficient.
 
 Bootstrap Phase 3 enforces this: every red entry in the draft policy is challenged with "would this fire on three recent feature PRs?" If yes, it's mis-classified. See `core/skill/bootstrap-mode.md` Phase 3a.
 
 The first 1-2 weeks of shadow mode is **zone calibration**: confirm the red entries actually fire on a minority of PRs (use `scripts/agent-redline-tune.py` against a batch of recent merged PRs). Re-tune the policy until the firing rates settle. Only after zones are stable do you start flipping rules from shadow to binding.
+
+### 4.4 Gray vs. watch
+
+These look similar in the PR comment but mean different things, and conflating them produces tuning mistakes.
+
+| | gray | watch |
+|---|---|---|
+| How it's set | implicit — no zone matched | explicit `zones.watch:` entry |
+| Composability | exclusive bucket | additive tag; coexists with red, blue, or gray |
+| Verdict effect | a gray hit (no red/api/etc.) produces a `GRAY` verdict | never produces a verdict on its own; only adds a comment row + exit-code warning |
+| Intent | "we haven't classified this yet" | "we've decided: surface this when it changes" |
+| Right reaction | "should this path be classified?" | "noted, looking at the diff" |
+| Lifetime | should shrink as zones get classified | stable; lives as long as the path matters |
+
+Gray is the **residual bucket**. The reporter sweeps a file into gray only when no `red`, `blue`, or `watch` entry matches it. A persistent gray hit on a busy path is *tuning data* — it means the policy is incomplete and that path should be classified.
+
+Watch is an **additive tag**. A file can be `red + watch`, `blue + watch`, or `gray + watch`. Watch never overrides the file's other classification; it only adds the visibility flag. Use it for paths that are most-of-the-time-fine but the reviewer wants to see when they change anyway (Spring `*Configuration.java`, domain entities, adapter DTOs that *might* be contract surface).
+
+Both surface in the PR comment without gating merge. They behave slightly differently for the verdict label:
+
+- A diff with gray-zone hits (and no red/api/schema/security signals) gets verdict `GRAY`.
+- A diff with only `blue + watch` files keeps verdict `BLUE` — the watch tag adds a row to the comment and bumps exit code to 1 (warning), but doesn't change the headline classification. Watch never *causes* a verdict on its own.
+
+The PR comment distinguishes them in the zones table — one row labeled "Gray", a separate row labeled "Watch".
 
 ---
 
@@ -404,7 +429,7 @@ The agent classifies changes during operating mode, before editing. The reporter
     "red": ["src/main/java/.../OrderService.java"],
     "blue": ["src/test/.../OrderServiceTest.java"],
     "gray": [],
-    "grayWatch": ["src/main/java/.../OrderDto.java"]
+    "watch": ["src/main/java/.../OrderDto.java"]
   },
   "checkpoints": [
     {
@@ -470,7 +495,7 @@ The reporter is a small script (single language, chosen for ecosystem fit with t
 
 - Parse `agent-policy.yaml`
 - Walk the diff (`git diff --name-only base...head` plus line counts)
-- For each touched file, look up its zone (red / blue / gray / grayWatch) by matching the policy's globs
+- For each touched file, look up its zone (red / blue / gray) by matching the policy's globs, and additionally tag it as `watch` if it matches any `zones.watch` entry
 - Detect API/schema/security/runtime-config changes by matching the configured paths
 - Read boundary-rule backend results (e.g., the ArchUnit test report on JVM) and surface boundary violations
 - If two OpenAPI specs are supplied (api.type=openapi-from-controllers; CI workflow generates them at base and head SHAs), compute a structural diff and surface paths added / removed / methods modified. The reporter does not classify breaking-vs-additive — that's reviewer territory.
@@ -561,7 +586,7 @@ That is the entire contract. No manifest, no version pins, no plugin metadata. I
 - **`README.md`** — one-paragraph summary of which stack this extension targets and when to pick it. Human-readable.
 - **`profile.md`** — typical package structure for this stack, default red/blue/gray zones (with paths), recommended boundary rules, API contract location (controllers, OpenAPI files, proto, GraphQL), persistence conventions, security/auth conventions, runtime config, ecosystem gotchas. The agent reads this during bootstrap to build a draft `agent-policy.yaml` for the developer to review.
 - **`scaffold.md`** — how the agent generates the boundary-backend setup (e.g., the ArchUnit test class), the build wiring (e.g., adding the ArchUnit dependency), and the CI snippet for the boundary check. The agent reads this when writing the directly-committed artifacts.
-- **`operating.md`** — optional. Stack-specific notes the agent reads during operating mode (e.g., "in this stack, treat X as gray-watch even if the policy says blue"). Most extensions won't need this.
+- **`operating.md`** — optional. Stack-specific notes the agent reads during operating mode (e.g., "in this stack, treat X as `watch` even if the policy says blue"). Most extensions won't need this.
 - **`adapter.yaml`** — the only structured (non-markdown) file. Tells the reporter where the backend wrote its output and what format it's in. See §10.4.
 
 ### 10.3 Reference extension
@@ -845,7 +870,8 @@ See [§4](#4-vocabulary). Vocabulary is normative; implementations must use thes
 
 ## 19. Changelog
 
-- **2026-05-31 (later still):** Red-zone framing sharpened. Red means *different review behavior*, not "important code" (§4.3). Spring profile defaults rewritten to a much narrower red surface (repository/gateway interfaces, controllers, migrations, security paths, arch tests, prod runtime config) with most domain/application code moved to `grayWatch`. Bootstrap Phase 3 now mandates a "would this red zone fire on a typical PR?" check per entry. New `scripts/agent-redline-tune.py` computes per-zone firing rates from a batch of merged PRs (zone-calibration tool). Shadow mode reframed as two distinct decisions: zone calibration (window 1) vs. check-flip tuning (window 2).
+- **2026-05-31 (rename):** `zones.grayWatch` renamed to `zones.watch`. The old name was misleading — it suggested a gray subtype, but the field is an additive tag that composes with red, blue, or gray (a file can be `red+watch`, `blue+watch`, or `gray+watch`). New SPEC §4.4 explicitly contrasts gray (residual bucket) with watch (additive tag). All schema/code/docs/templates/fixtures updated. Pre-v0.1 rename: no migration shim needed.
+- **2026-05-31 (later still):** Red-zone framing sharpened. Red means *different review behavior*, not "important code" (§4.3). Spring profile defaults rewritten to a much narrower red surface (repository/gateway interfaces, controllers, migrations, security paths, arch tests, prod runtime config) with most domain/application code moved onto the watch list. Bootstrap Phase 3 now mandates a "would this red zone fire on a typical PR?" check per entry. New `scripts/agent-redline-tune.py` computes per-zone firing rates from a batch of merged PRs (zone-calibration tool). Shadow mode reframed as two distinct decisions: zone calibration (window 1) vs. check-flip tuning (window 2).
 - **2026-05-31 (later):** OpenAPI from controllers shipped. The reporter now accepts `--api-spec-base` / `--api-spec-head`; the CI workflow generates both specs at base and head SHAs (typically via `git worktree`) and the reporter computes a structural diff (paths added/removed, methods added/removed/modified). The diff is descriptive, not classificatory — reviewers judge breaking-vs-additive. Schema re-accepts `api.type: openapi-from-controllers` and requires `generationCommand`. Bootstrap-mode now explicitly composes with existing arch tests, agent-instruction files, and pre-push hooks rather than overwriting them.
 - **2026-05-31:** Schema cleanup. Removed fields the v0.1 reporter accepted but did not implement (`changeRules`, `defaults.unclassifiedZone`, `defaults.grayMode`, `boundaryBackend`, `api.type: openapi-from-controllers`, `team:`/`reviewerCount:` checkpoint forms). The schema now describes only what the reporter does; reserved-for-later items are tracked in §15.3 with an implementation gate. Reporter CLI: `--default-mode` is the canonical flag; `--mode` is a hidden alias.
 - **v0.1 (2026-05-28):** Initial draft. Project kickoff.

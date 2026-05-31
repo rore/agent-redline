@@ -2,17 +2,30 @@
 
 Default zones, boundary rules, and ecosystem-specific options. Package names are placeholders — bootstrap derives the actual ones from the repo. When zones overlap (e.g., a path matches both red and blue), red wins.
 
+## Framing — what red means here
+
+Red means **changes that need different review behavior**, not "important code." A domain entity is important; adding a field to it is routine. A migration is important; adding an index *might* be routine, dropping a column is not. The defaults below try to keep red small enough that it fires on a minority of feature PRs. Bootstrap Phase 3 challenges every red entry with the test "would this fire on a typical PR?" — if yes, it's mis-classified and should move to `grayWatch` or `blue`.
+
+Most domain code, application code, and adapter code is **`grayWatch`** by default — the reporter surfaces it in the PR comment without making it a checkpoint. That's the right home for "we want a second look at this" without the alert-fatigue cost of red.
+
 ## Default zones
 
-### Red
+### Red — genuinely structural surface
 
 ```yaml
 zones:
   red:
-    - path: src/main/java/**/domain/**
-      reason: domain model and invariants
+    # Repository contracts — signature changes ripple to every caller
+    - path: src/main/java/**/domain/repository/*.java
+      reason: domain repository interfaces; signature changes affect call sites
       checkpoint: architecture-review
 
+    # Outbound port contracts (gateways to external systems)
+    - path: src/main/java/**/domain/gateway/*.java
+      reason: outbound gateway contracts; signature changes affect external integrations
+      checkpoint: architecture-review
+
+    # Application port interfaces (when ports live there)
     - path: src/main/java/**/application/**/port/**
       reason: architectural boundary contracts (port interfaces)
       checkpoint: architecture-review
@@ -21,46 +34,63 @@ zones:
       reason: architectural boundary contracts (when ports live at top level)
       checkpoint: architecture-review
 
+    # Public API surface
     - path: src/main/java/**/*Controller.java
-      reason: public API contract surface (OpenAPI generated from these)
+      reason: public API contract surface
       checkpoint: api-review
 
-    - path: src/main/java/**/security/**
-      reason: auth/security-sensitive code
-      checkpoint: security-review
-
-    - path: src/main/java/**/auth/**
-      reason: auth/security-sensitive code
-      checkpoint: security-review
-
-    - path: src/main/java/**/jwt/**
-      reason: token handling
-      checkpoint: security-review
-
+    # Persistence contract
     - path: src/main/resources/db/migration/**
       reason: persistence contract
       checkpoint: persistence-review
 
-    - path: src/main/resources/application*.yml
-      reason: runtime configuration
-      checkpoint: ops-review
+    # Security
+    - path: src/main/java/**/security/**
+      reason: auth/security-sensitive code
+      checkpoint: security-review
+    - path: src/main/java/**/auth/**
+      reason: auth/security-sensitive code
+      checkpoint: security-review
+    - path: src/main/java/**/jwt/**
+      reason: token handling
+      checkpoint: security-review
 
-    - path: src/main/resources/application*.properties
-      reason: runtime configuration
-      checkpoint: ops-review
-
+    # Self-protection — the rules that enforce the rules
     - path: src/test/java/**/architecture/**
       reason: dependency-rule definitions; weakening these requires explicit checkpoint
       checkpoint: architecture-review
+    - path: src/test/java/**/*ArchitectureTest.java
+      reason: dependency-rule definitions when not under architecture/
+      checkpoint: architecture-review
 
+    # Infra-as-code
     - path: terraform/**
       reason: infrastructure
       checkpoint: ops-review
+
+    # Runtime config — *only* the production-affecting profiles. Local profiles
+    # (application-local.yml etc.) belong in grayWatch or blue. Bootstrap Phase 3
+    # narrows this entry to the actual environment-config files for the repo.
+    - path: src/main/resources/application.yml
+      reason: runtime configuration (default profile)
+      checkpoint: ops-review
+    - path: src/main/resources/application-prod*.yml
+      reason: production runtime configuration
+      checkpoint: ops-review
 ```
 
-By default only `application/**/port/**` is red, not all of `application/**`. Repos that prefer stricter discipline can promote `application/**` to red explicitly during Phase 3.
+**What's deliberately NOT red here** (compared to a maximalist default):
 
-### Blue
+- `domain/entity/**` — adding fields is routine; not architectural
+- `domain/model/**` — value objects; same
+- `domain/service/**` — orchestrators; not invariant-bearing in most Spring layouts
+- `application/**` (except ports) — most application code is glue
+- `infrastructure/**` / `adapter/**` — implementation; the boundary rules already protect what matters
+- Non-prod `application*.yml` profiles
+
+If your repo treats some of these as genuinely structural (e.g., you have a `domain/policy/` directory carrying invariants), promote them in Phase 3. The bias is toward narrower defaults; widen on evidence, not on intuition.
+
+### Blue — agents may work autonomously
 
 ```yaml
 zones:
@@ -89,15 +119,30 @@ zones:
 
 Adapter DTOs in general (other than persistence-internal ones) are gray-watch, not blue. Promote a specific subpath to blue only when the developer confirms it's internal-only.
 
-### Gray watch
+### Gray watch — surfaced in the PR comment, not a checkpoint
+
+`grayWatch` is the default home for "an agent could plausibly do this autonomously, and most of the time the result is fine, but a reviewer should at least see that it happened." No checkpoint, no merge gate — just visibility.
 
 ```yaml
 zones:
   grayWatch:
+    # Domain code that's important but not architectural
+    - path: src/main/java/**/domain/entity/**
+      reason: entities; adding fields affects persistence + DTOs
+    - path: src/main/java/**/domain/model/**
+      reason: domain value objects
+    - path: src/main/java/**/domain/service/**
+      reason: domain services orchestrate flows
+
+    # Application layer
     - path: src/main/java/**/application/**/*Service.java
       reason: application services orchestrate flows
     - path: src/main/java/**/application/**/*UseCase.java
       reason: application use cases orchestrate flows
+    - path: src/main/java/**/application/**/*Handler.java
+      reason: command/query handlers
+
+    # Adapter surface that may carry contract semantics
     - path: src/main/java/**/adapter/**/dto/**
       reason: adapter DTOs may be vendor contract surface
     - path: src/main/java/**/*Dto.java

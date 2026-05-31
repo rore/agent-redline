@@ -164,9 +164,9 @@ agent-redline introduces a small, stable vocabulary. Consuming repos use these t
 
 | Term | Meaning |
 |---|---|
-| **Red zone** | Code where autonomous agent changes are dangerous. Touches contracts, modeling, architecture, security, persistence, or shared behavior. |
+| **Red zone** | Code where a change needs **different review behavior** — separate signoff, slower cadence, or specific expertise. Red is *not* "important code." A domain entity is important; adding a field to it is routine. The test for redness is "would this fire on a typical feature PR?" If yes, it's mis-classified. See §4.3. |
 | **Blue zone** | Code where agents may work with high autonomy. Isolated, replaceable, strongly testable, or low blast-radius. |
-| **Gray zone** | Unclassified code. Not automatically dangerous, not explicitly safe. Cautious by default. |
+| **Gray zone** | Unclassified code. Not automatically dangerous, not explicitly safe. Cautious by default. The reporter surfaces gray-zone changes in the PR comment but does not gate merge on them. |
 | **Zone** | A path-glob classification of code by architectural consequence. Stable across PRs. |
 | **Boundary rule** | A deterministic dependency rule (`X must not import Y`). |
 | **Boundary-rule backend** | The tool that enforces boundary rules for a given ecosystem (e.g., ArchUnit for JVM, dependency-cruiser for Node, import-linter for Python, Semgrep for generic patterns). The backend is a per-extension choice; agent-redline does not bundle one. |
@@ -191,6 +191,21 @@ A repo will typically declare both. A change can be in a blue zone but still vio
 ### 4.2 Zones vs. review state
 
 agent-redline classifies *architectural consequence*, not *review state*. Whether a change has been reviewed is PR metadata (labels, approvals, CI status), not a property of the file. Consuming repos must not encode review state in zone definitions.
+
+### 4.3 The red-utility test
+
+A red zone earns its place only if it fires on a **minority** of normal feature PRs. A red zone that fires on most PRs is alert fatigue: the team learns the warning is meaningless and approves on autopilot, which is worse than not having the tool at all.
+
+The mental model:
+
+- **"Important code"** is not a zone — important + routine = `grayWatch`.
+- **Red** = "this change wants different review behavior." Different *who*, different *when*, or different *what's being verified*.
+- **GrayWatch** = "an agent could plausibly do this autonomously, and most of the time the result is fine, but a reviewer should at least see that it happened." Surfaced in the PR comment, no checkpoint.
+- **Blue** = autonomous; tests + normal review are sufficient.
+
+Bootstrap Phase 3 enforces this: every red entry in the draft policy is challenged with "would this fire on three recent feature PRs?" If yes, it's mis-classified. See `core/skill/bootstrap-mode.md` Phase 3a.
+
+The first 1-2 weeks of shadow mode is **zone calibration**: confirm the red entries actually fire on a minority of PRs (use `scripts/agent-redline-tune.py` against a batch of recent merged PRs). Re-tune the policy until the firing rates settle. Only after zones are stable do you start flipping rules from shadow to binding.
 
 ---
 
@@ -830,6 +845,7 @@ See [§4](#4-vocabulary). Vocabulary is normative; implementations must use thes
 
 ## 19. Changelog
 
+- **2026-05-31 (later still):** Red-zone framing sharpened. Red means *different review behavior*, not "important code" (§4.3). Spring profile defaults rewritten to a much narrower red surface (repository/gateway interfaces, controllers, migrations, security paths, arch tests, prod runtime config) with most domain/application code moved to `grayWatch`. Bootstrap Phase 3 now mandates a "would this red zone fire on a typical PR?" check per entry. New `scripts/agent-redline-tune.py` computes per-zone firing rates from a batch of merged PRs (zone-calibration tool). Shadow mode reframed as two distinct decisions: zone calibration (window 1) vs. check-flip tuning (window 2).
 - **2026-05-31 (later):** OpenAPI from controllers shipped. The reporter now accepts `--api-spec-base` / `--api-spec-head`; the CI workflow generates both specs at base and head SHAs (typically via `git worktree`) and the reporter computes a structural diff (paths added/removed, methods added/removed/modified). The diff is descriptive, not classificatory — reviewers judge breaking-vs-additive. Schema re-accepts `api.type: openapi-from-controllers` and requires `generationCommand`. Bootstrap-mode now explicitly composes with existing arch tests, agent-instruction files, and pre-push hooks rather than overwriting them.
 - **2026-05-31:** Schema cleanup. Removed fields the v0.1 reporter accepted but did not implement (`changeRules`, `defaults.unclassifiedZone`, `defaults.grayMode`, `boundaryBackend`, `api.type: openapi-from-controllers`, `team:`/`reviewerCount:` checkpoint forms). The schema now describes only what the reporter does; reserved-for-later items are tracked in §15.3 with an implementation gate. Reporter CLI: `--default-mode` is the canonical flag; `--mode` is a hidden alias.
 - **v0.1 (2026-05-28):** Initial draft. Project kickoff.

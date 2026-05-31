@@ -5,6 +5,13 @@
 #
 # Source of truth: agent-redline:demo-source/agent-policy.yaml.
 # Regenerate via agent-redline:scripts/sync-demo.sh.
+#
+# Note on red zones in this demo: the demo has exactly one domain class
+# (Order.java), so "src/main/java/**/domain/**" as red is reasonable here
+# — the entire domain layer IS the structural surface. Real services with
+# many entities should use the narrower spring-archunit defaults
+# (domain/repository/*.java, domain/gateway/*.java) and put entities in
+# grayWatch. See extensions/spring-archunit/profile.md and SPEC §4.3.
 
 version: 1
 

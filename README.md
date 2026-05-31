@@ -56,8 +56,10 @@ Be honest about the surface so you can decide if it fits:
 - **PR-size warn / fail thresholds** — yes
 - **Shadow / binding modes**, with per-check overrides — yes
 - **Boundary-violation ingestion from Spring/ArchUnit JUnit XML** — yes
+- **OpenAPI structural diff** for SpringDoc-style services (`api.type: openapi-from-controllers`; CI generates specs at base+head SHAs, reporter diffs) and for committed specs (`openapi-spec-file`) — yes
+- **Bootstrap composition** with existing arch tests, agent-instruction files, and pre-push hooks — yes (no overwriting)
+- **Zone-calibration tuning script** (`scripts/agent-redline-tune.py`) — yes (run against a batch of merged PRs to validate the policy's firing rates before flipping to binding)
 - **Other ecosystems** (Node, Python, Go, Rust, Semgrep) — roadmap. The skill still produces zone classification, checkpoints, and PR-size checks for non-JVM repos; only the boundary-backend leg is JVM-only today.
-- **OpenAPI diff** — supported when the repo commits a spec (`api.type: openapi-spec-file`); generation-from-controllers is roadmap.
 - **`team:` / `reviewerCount:` checkpoint satisfaction** — roadmap.
 
 See [`docs/SPEC.md` §15.3](docs/SPEC.md) for the roadmap and what gates each item.

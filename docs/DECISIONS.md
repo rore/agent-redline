@@ -8,7 +8,31 @@ Each entry: short title, date, decision, alternatives, rationale, revisit-if.
 
 ---
 
-## 2026-05-31 (later) — OpenAPI diff: reporter is pure, caller produces both specs
+## 2026-05-31 (later still) — Red means different review behavior, not important code
+
+**Decision:** The red-zone definition in SPEC §4 is sharpened: *red means a change wants different review behavior, not that the code is important*. The Spring profile defaults are rewritten to a narrower red surface (repository/gateway interfaces, controllers, migrations, security paths, arch tests, prod runtime config); most domain and application code is `grayWatch` by default. Bootstrap Phase 3 mandates a "would this red zone fire on a typical PR?" check for every entry. A new `scripts/agent-redline-tune.py` computes per-zone firing rates from a batch of merged PRs so teams can validate their starting policy with data, not intuition. Shadow mode is reframed as two distinct decisions — zone calibration (windows 1) and check-flip tuning (window 2).
+
+**Alternatives considered:**
+- Keep the maximalist defaults ("anything in `domain/**` is red") and rely on per-team customization. Rejected: tested empirically against 30 recent merged PRs in a real Spring service. The maximalist defaults produced 67% RED PRs with `Controller.java` alone firing on 53% of PRs. That's the alert-fatigue scenario where every PR says "architecture review required" and the team learns to ignore it.
+- Frequency-aware automated tuning inside the reporter (history file, rolling window, auto-recommendations). Useful but later; v0.1 ships the manual version (the tuning script) so users can run it on demand.
+- Make the bootstrap conversation softer ("are these zones right?"). Tried; not enough. Developers confirm what the tool proposes. The check has to be active — "name three recent PRs and tell me which red entries would have fired."
+
+**Rationale:**
+- Verified empirically. Same 30 wallet PRs, two policies:
+  - Old defaults (broad `domain/**` red): **67% RED, 30% GRAY, 3% BLUE.** Highest red entry firing on 53% of PRs.
+  - New defaults (narrow red, generous grayWatch): **30% RED, 67% GRAY, 3% BLUE.** Highest red entry firing on 17% of PRs.
+- The new defaults route attention to the ~30% of PRs that genuinely warrant a checkpoint, while still surfacing the routine domain/application changes in the PR comment as grayWatch. That's the asymmetry the framework was supposed to deliver and the broad defaults broke.
+- The tuning script is deliberately scoped to "manual run on demand against a batch of PRs." Not a CI scheduled job, not a history file, not auto-policy-edits. The point is to give the team a number; the team interprets it. v0.1 stays small.
+
+**Test guard:** the wallet experiment lives at `.local/wallet-tune/` (gitignored) and can be re-run any time the defaults change.
+
+**Revisit if:**
+- A real bootstrap pass produces a policy where the new narrow defaults *under-fire* — a team in shadow finds genuine structural risks falling into grayWatch and not flagged. At that point, profile-level fixes for that pattern.
+- The manual tuning script's "stare at a markdown report once" UX proves insufficient — for example, teams want to run it weekly and notice trends. Then the automated history-tracking version moves up the roadmap.
+
+---
+
+
 
 **Decision:** When `api.type: openapi-from-controllers`, the reporter accepts two pre-generated spec files (`--api-spec-base`, `--api-spec-head`) and computes a structural diff. It does NOT run `generationCommand` itself. The CI workflow is responsible for producing both specs (typically `git worktree add` at the base SHA, run the policy's `generationCommand` in each tree, capture the output). The local pre-push check skips the generation entirely and falls back to red-zone path classification — touched controllers fire api-review without the structural detail.
 

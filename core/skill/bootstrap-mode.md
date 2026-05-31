@@ -93,7 +93,22 @@ Comments terse.
 
 ## Phase 3 — Adapt
 
-Ask targeted questions:
+### 3a. Zone-utility check (mandatory)
+
+Red means **different review behavior**, not "important code" (SPEC §4). A red zone that fires on a typical feature PR is alert fatigue — the team will learn to ignore it, and you've made the project worse, not better.
+
+For each red entry in the draft policy, walk through:
+
+1. **Does this path change in ordinary feature PRs?** Pick three recent feature PRs and ask the developer.
+2. **If yes — are most of those changes truly architectural decisions?** Adding a field to an entity isn't. Renaming a domain class is. New endpoint methods are. Refactoring private methods isn't.
+3. **If most are routine — downgrade.** Move the path to `grayWatch` (still surfaced, no checkpoint) or to `blue` (autonomous). Do not leave it as red because "the code is important." Important + routine = grayWatch.
+4. **If the path mixes routine and structural** — try to split it. `domain/repository/*.java` (interfaces, structural) vs `domain/repository/impl/**` (often routine). The Spring profile defaults already do this where viable; do it again for repo-specific paths.
+
+This is a **starting hypothesis**. The first 2-4 weeks of shadow mode is where the team confirms or corrects it (Phase 5 / CI proposal).
+
+### 3b. Repo-specific questions
+
+Ask:
 - Third-party adapter contracts that should be red?
 - Customer-specific code that must not leak into shared core?
 - Multi-tenant persistence with rollout-plan implications?

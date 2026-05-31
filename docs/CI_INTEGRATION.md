@@ -183,17 +183,7 @@ This is the correct starting mode. It produces real data without disrupting the 
 
 The check runs and blocks merge if it fails. The comment is the same; the consequence is different.
 
-### Flipping checks to binding
-
-The reporter consults `modes.perCheck` for three rule names. Flip them in this order:
-
-1. **`boundary_violation`** — defaults to `binding` already; that's the right setting once the boundary baseline is in place (see "Boundary-backend baseline" above). Pre-existing baseline violations don't block; new violations do.
-2. **`pr_size`** — flip when the team's normal PR shape comfortably fits the `fail` threshold. Most likely to fight existing reality, so flip last.
-3. **`report`** — controls whether *unmet required checkpoints* fail the check. Flip once checkpoint owners (CODEOWNERS, label-applying agents/humans) are reliably wired up. Until then, leave shadow so missing labels don't block legitimate merges.
-
-Other signals (`api_changed`, `schema_changed`, `security_changed`, `config_changed`, gray-zone changes) always surface in the PR comment. They influence the verdict but do not gate merge on their own — they flow through whichever required checkpoint they trigger.
-
-Flip one rule at a time. After each flip, watch for a week. If false positives appear, tune the policy and re-shadow that rule before re-flipping.
+See "Tuning during shadow — two distinct decisions" below for when and how to flip.
 
 ## Other CI systems
 
@@ -238,16 +228,41 @@ Developers can also run it manually:
 ./scripts/agent-redline-check.sh --base develop    # against another base
 ```
 
-## Tuning during shadow
+## Tuning during shadow — two distinct decisions
 
-Watch for:
+Shadow mode answers two separate questions, and treating them as one is a common mistake.
 
-- **High gray-zone hit rate.** If most PRs are gray, your zones are under-specified. Promote frequently-touched paths to red or blue.
-- **False-positive boundary rules.** If a rule fires on legitimate changes, the rule is wrong. Adjust the boundary, don't suppress the violation.
-- **PR-size pressure.** If the team's normal PR exceeds your `fail` threshold, raise the threshold. Don't make the team fight the tool.
-- **Skipped checkpoints.** If checkpoint labels aren't being applied, check whether the agent or human responsible for satisfying the checkpoint (e.g., an architect-style review agent or a designated reviewer) is aware of agent-redline.
+### Window 1 — Zone calibration (the first 1-2 weeks)
 
-The tuning data is the point of shadow mode. If it's not producing data, shadow mode isn't running long enough.
+**Question:** does the policy match the team's reality?
+
+The bootstrap policy is a *starting hypothesis*: this is what we think the structural surface looks like. Shadow data immediately tells you whether the hypothesis is right. The signal is **firing rate per red entry**:
+
+- Red entry firing on 80%+ of PRs → too broad. The path covers routine work, not architectural change. Downgrade to `grayWatch` (still surfaced) or `blue` (autonomous).
+- Red entry firing on 30-50% of PRs → ambiguous. Try to split it (interfaces vs implementations, prod config vs all config). If it can't be split, leave it and re-evaluate after Window 2.
+- Red entry firing on <15% of PRs → probably right. This is the kind of red that's actually doing work.
+
+Use `scripts/agent-redline-tune.py` to compute firing rates from a batch of recent PRs without waiting for live PR traffic. Point it at the last N merged PRs and it prints the per-zone-entry hit rate against the current policy. Run it after bootstrap to validate the starting hypothesis; run it again 2 weeks into shadow to confirm.
+
+Re-tuning the policy is normal during this window. The policy is data, edited like any other repo file.
+
+### Window 2 — Check-flip tuning (after zones stabilize)
+
+**Question:** which rules are ready to enforce?
+
+Once the zones are settled, decide which `modes.perCheck` rules should flip from `shadow` to `binding`. The reporter consults three rule names:
+
+1. **`boundary_violation`** — defaults to `binding` already; that's the right setting once the boundary baseline is in place (see "Boundary-backend baseline" above). Pre-existing baseline violations don't block; new violations do.
+2. **`pr_size`** — flip when the team's normal PR shape comfortably fits the `fail` threshold. Most likely to fight existing reality, so flip last.
+3. **`report`** — controls whether *unmet required checkpoints* fail the check. Flip once checkpoint owners (CODEOWNERS, label-applying agents/humans) are reliably wired up. Until then, leave shadow so missing labels don't block legitimate merges.
+
+Other signals (`api_changed`, `schema_changed`, `security_changed`, `config_changed`, gray-zone changes) always surface in the PR comment. They influence the verdict but do not gate merge on their own — they flow through whichever required checkpoint they trigger.
+
+Flip one rule at a time. After each flip, watch for a week. If false positives appear, tune the policy and re-shadow that rule before re-flipping.
+
+### Why the order matters
+
+Flipping rules to binding before zones are calibrated produces guaranteed alert fatigue: the team gets blocked merges on changes the policy mis-classified, and they correctly conclude the tool is broken. Zone calibration first; check-flip second.
 
 ## When to skip CI integration entirely
 

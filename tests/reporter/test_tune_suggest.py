@@ -1,4 +1,4 @@
-"""Tests for agent-redline-tune.py extensions: --repo fetch."""
+"""Tests for agent-redline-tune.py extensions: --repo fetch and --suggest."""
 from __future__ import annotations
 
 import importlib.util
@@ -109,3 +109,74 @@ def test_fetch_prs_excludes_pr_with_no_files():
     with patch.object(tune.subprocess, "run", side_effect=fake_run):
         prs = tune.fetch_prs("owner/repo", limit=2)
     assert prs == {"pr-101": ["src/x.java"]}
+
+
+def test_suggest_tuning_demotes_high_firing_rules():
+    """Rules firing on >30% of PRs are returned as 'demote' candidates."""
+    counts = {
+        "red": {
+            ("src/main/java/**/*Controller.java", "public API contract surface"): 21,
+            ("src/main/java/**/domain/repository/*.java", "domain repository interfaces"): 5,
+            ("src/main/java/**/security/**", "auth/security-sensitive code"): 1,
+        },
+        "watch": {},
+        "blue": {},
+    }
+    n_prs = 50
+
+    suggestions = tune.suggest_tuning(counts, n_prs, threshold_demote=0.30)
+
+    # Controller fires on 42% — demote.
+    assert any(
+        s["path"] == "src/main/java/**/*Controller.java"
+        and s["action"] == "demote"
+        for s in suggestions
+    )
+    # Repository fires on 10% — keep.
+    assert not any(
+        s["path"] == "src/main/java/**/domain/repository/*.java"
+        for s in suggestions
+    )
+    # Security fires on 2% — keep.
+    assert not any(
+        s["path"] == "src/main/java/**/security/**"
+        for s in suggestions
+    )
+
+
+def test_suggest_tuning_includes_firing_rate_in_each_suggestion():
+    """Each suggestion has the rule path, current zone, action, and rate."""
+    counts = {
+        "red": {
+            ("src/main/java/**/*Controller.java", "reason text"): 21,
+        },
+        "watch": {},
+        "blue": {},
+    }
+    suggestions = tune.suggest_tuning(counts, 50, threshold_demote=0.30)
+    s = suggestions[0]
+    assert s["path"] == "src/main/java/**/*Controller.java"
+    assert s["current_zone"] == "red"
+    assert s["action"] == "demote"
+    assert s["rate"] == 0.42
+    assert s["fired"] == 21
+    assert s["n_prs"] == 50
+
+
+def test_suggest_tuning_threshold_is_inclusive():
+    """A rule firing at exactly threshold_demote is demoted (boundary is inclusive)."""
+    counts = {
+        "red": {("src/at-threshold", "reason"): 15},  # 15/50 = 0.30 exactly
+        "watch": {},
+        "blue": {},
+    }
+    suggestions = tune.suggest_tuning(counts, 50, threshold_demote=0.30)
+    assert len(suggestions) == 1
+    assert suggestions[0]["path"] == "src/at-threshold"
+
+
+def test_suggest_tuning_returns_empty_when_n_prs_is_zero():
+    """The n_prs<=0 guard returns an empty list (no division-by-zero)."""
+    counts = {"red": {("any/path", "any reason"): 5}, "watch": {}, "blue": {}}
+    assert tune.suggest_tuning(counts, 0) == []
+    assert tune.suggest_tuning(counts, -1) == []

@@ -190,6 +190,53 @@ def classify_rate(rate: float) -> str:
     return "RARE — confirm this is the structural surface you wanted to flag, not dead code."
 
 
+def suggest_tuning(
+    counts: dict[str, dict[tuple[str, str], int]],
+    n_prs: int,
+    threshold_demote: float = 0.30,
+) -> list[dict[str, Any]]:
+    """
+    Inspect firing rates and return concrete tuning suggestions.
+
+    Returned shape (one dict per suggestion):
+        {
+          "path": "<glob>",
+          "reason": "<from policy>",
+          "current_zone": "red" | "watch" | "blue",
+          "action": "demote" | "split" | "keep",
+          "rate": 0.42,
+          "fired": 21,
+          "n_prs": 50,
+          "note": "<one-line human-readable rationale>",
+        }
+
+    Currently emits one rule: red entries firing at or above `threshold_demote`
+    of PRs are marked `demote` (move to watch or blue). The bootstrap skill
+    presents these to the developer for confirmation; this function never
+    edits the policy itself.
+    """
+    if n_prs <= 0:
+        return []
+    suggestions: list[dict[str, Any]] = []
+    for (path, reason), fired in counts.get("red", {}).items():
+        rate = fired / n_prs
+        if rate >= threshold_demote:
+            suggestions.append({
+                "path": path,
+                "reason": reason,
+                "current_zone": "red",
+                "action": "demote",
+                "rate": round(rate, 2),
+                "fired": fired,
+                "n_prs": n_prs,
+                "note": (
+                    f"red rule fires on {round(rate*100)}% of PRs — "
+                    f"alert-fatigue territory, consider moving to watch"
+                ),
+            })
+    return suggestions
+
+
 def render_markdown(
     counts: dict[str, dict[tuple[str, str], int]],
     dist: dict[str, int],
@@ -249,6 +296,12 @@ def main(argv: list[str] | None = None) -> int:
         help="When --repo is set: number of merged PRs to fetch (default 30).",
     )
     p.add_argument("--out", type=Path, help="Write report to this file (default: stdout)")
+    p.add_argument(
+        "--suggest",
+        action="store_true",
+        help="Emit JSON tuning suggestions (rules to demote) instead of the markdown report. "
+             "Used by bootstrap mode to drive a developer confirmation flow.",
+    )
     args = p.parse_args(argv)
 
     policy = load_policy(args.policy)
@@ -266,13 +319,23 @@ def main(argv: list[str] | None = None) -> int:
 
     counts = firing_rates(prs, policy)
     dist = verdict_distribution(prs, policy)
-    report = render_markdown(counts, dist, len(prs))
+
+    if args.suggest:
+        suggestions = suggest_tuning(counts, len(prs))
+        payload = {
+            "n_prs": len(prs),
+            "verdict_distribution": dist,
+            "suggestions": suggestions,
+        }
+        text = json.dumps(payload, indent=2)
+    else:
+        text = render_markdown(counts, dist, len(prs))
 
     if args.out:
-        args.out.write_text(report, encoding="utf-8")
+        args.out.write_text(text, encoding="utf-8")
         print(f"wrote {args.out}")
     else:
-        print(report)
+        print(text)
     return 0
 
 

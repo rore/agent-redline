@@ -41,6 +41,8 @@ firing-rate tracking inside the reporter is roadmap.
 from __future__ import annotations
 
 import argparse
+import json
+import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -88,6 +90,48 @@ def load_prs_from_list(pr_list: Path) -> dict[str, list[str]]:
         if len(parts) < 2:
             continue
         out[parts[0]] = [p for p in parts[1:] if p]
+    return out
+
+
+def fetch_prs(repo: str, limit: int = 30) -> dict[str, list[str]]:
+    """
+    Fetch the most-recent merged PRs from `repo` via `gh`, return
+    {pr_id: [changed_file_paths]}. Same shape as load_prs_from_dir.
+
+    `repo` accepts either "owner/name" (default host) or "host/owner/name";
+    `gh --repo` parses the host out of the argument natively. Read-only —
+    no clones, no writes to the target repo. Requires `gh` on PATH.
+
+    Raises SystemExit on `gh pr list` failure so bootstrap can stop cleanly.
+    Per-PR fetch failures are skipped so a partial sample is still useful.
+    """
+    list_cmd = [
+        "gh", "pr", "list", "--repo", repo, "--state", "merged",
+        "--limit", str(limit), "--json", "number",
+    ]
+    p = subprocess.run(
+        list_cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    if p.returncode != 0:
+        raise SystemExit(f"error: gh pr list failed: {p.stderr}")
+    pr_list = json.loads(p.stdout)
+
+    out: dict[str, list[str]] = {}
+    for pr in pr_list:
+        n = pr["number"]
+        view_cmd = [
+            "gh", "pr", "view", str(n), "--repo", repo, "--json", "files",
+        ]
+        v = subprocess.run(
+            view_cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+        )
+        if v.returncode != 0:
+            # Skip a PR we can't read; the rest of the sample is still useful.
+            continue
+        meta = json.loads(v.stdout)
+        files = [f["path"] for f in meta.get("files", []) if f.get("path")]
+        if files:
+            out[f"pr-{n}"] = files
     return out
 
 
@@ -192,6 +236,18 @@ def main(argv: list[str] | None = None) -> int:
     src = p.add_mutually_exclusive_group(required=True)
     src.add_argument("--pr-dir", type=Path, help="Directory of *.txt files, one per PR")
     src.add_argument("--pr-list", type=Path, help="Single file with <pr-id>\\t<file>... per line")
+    src.add_argument(
+        "--repo",
+        type=str,
+        help="Fetch from `gh pr list --repo <repo>` directly. "
+             "Format: owner/name (default host) or host/owner/name (e.g., github.example.com/owner/repo).",
+    )
+    p.add_argument(
+        "--limit",
+        type=int,
+        default=30,
+        help="When --repo is set: number of merged PRs to fetch (default 30).",
+    )
     p.add_argument("--out", type=Path, help="Write report to this file (default: stdout)")
     args = p.parse_args(argv)
 
@@ -199,8 +255,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.pr_dir:
         prs = load_prs_from_dir(args.pr_dir)
-    else:
+    elif args.pr_list:
         prs = load_prs_from_list(args.pr_list)
+    else:
+        prs = fetch_prs(args.repo, limit=args.limit)
 
     if not prs:
         sys.stderr.write("error: no PRs found in input\n")

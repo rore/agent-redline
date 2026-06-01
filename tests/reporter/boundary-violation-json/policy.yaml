@@ -1,0 +1,41 @@
+# Python-shaped layered policy with boundaryAdapter declaring json-violations.
+version: 1
+
+project:
+  name: fixture-python-service
+  extension: python
+
+zones:
+  red:
+    - path: src/orders/domain/**
+      reason: domain layer
+      checkpoint: architecture-review
+    - path: pyproject.toml
+      reason: dependency-rule configuration
+      checkpoint: architecture-review
+  blue:
+    - path: tests/**
+      reason: tests
+
+prRules:
+  maxChangedFiles:
+    warn: 10
+    fail: 20
+  maxLinesChanged:
+    warn: 200
+    fail: 500
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+      - label: architecture-reviewed
+
+modes:
+  default: shadow
+  perCheck:
+    boundary_violation: binding
+
+boundaryAdapter:
+  outputFormat: json-violations
+  outputPath: build/import-linter-report.json

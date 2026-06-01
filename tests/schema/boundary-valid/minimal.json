@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "violations": [
+    {"rule": "single", "detail": "x -> y"}
+  ]
+}

@@ -395,6 +395,58 @@ def _first_line(text: str, max_len: int = 200) -> str:
     return line[:max_len]
 
 
+def parse_json_violations(text: str) -> list[BoundaryViolation]:
+    """
+    Parse a json-violations document (per core/schema/boundary-violations.schema.json).
+
+    Lenient: any deviation from the schema causes the document to be ignored
+    (returns []) with a clear stderr message. The reporter never crashes on
+    malformed boundary-report input.
+
+    The 'source' field on each BoundaryViolation comes from the document's
+    top-level "source" (default: "backend").
+    """
+    violations: list[BoundaryViolation] = []
+    if not text:
+        return violations
+    try:
+        doc = json.loads(text)
+    except json.JSONDecodeError as e:
+        sys.stderr.write(f"warning: boundary report is not valid JSON: {e}\n")
+        return violations
+    if not isinstance(doc, dict):
+        sys.stderr.write("warning: boundary report root must be an object\n")
+        return violations
+    raw_violations = doc.get("violations")
+    if not isinstance(raw_violations, list):
+        sys.stderr.write("warning: boundary report 'violations' must be an array\n")
+        return violations
+    source = doc.get("source") or "backend"
+    if not isinstance(source, str):
+        source = "backend"
+    for entry in raw_violations:
+        if not isinstance(entry, dict):
+            continue
+        rule = entry.get("rule")
+        detail = entry.get("detail")
+        if not isinstance(rule, str) or not rule:
+            continue
+        if not isinstance(detail, str) or not detail:
+            continue
+        severity = entry.get("severity", "error")
+        if severity not in ("error", "warning"):
+            severity = "error"
+        violations.append(
+            BoundaryViolation(
+                rule=rule,
+                detail=_summarize_violation(detail),
+                severity=severity,
+                source=source,
+            )
+        )
+    return violations
+
+
 def _summarize_violation(text: str, max_len: int = 400) -> str:
     """
     Summarize an ArchUnit failure message into a single readable line.
@@ -547,11 +599,23 @@ def classify(
     diff: Diff,
     *,
     archunit_xml: str | None = None,
+    boundary_report: str | None = None,
+    boundary_format: str | None = None,
     api_spec_diff: dict[str, Any] | None = None,
     pr_labels: Iterable[str] = (),
     codeowner_approvals: Iterable[str] = (),
 ) -> Verdict:
     """The single entry point. Pure function.
+
+    Boundary-rule input is delivered in one of three ways:
+
+    - boundary_report + boundary_format (canonical, since v0.2): the caller
+      passes the raw report text and its format ('junit-xml' or
+      'json-violations'). The reporter dispatches on format.
+    - archunit_xml (deprecated alias): kept working for back-compat with v0.1
+      callers; equivalent to boundary_report with boundary_format='junit-xml'.
+    - neither: the policy may carry a `boundaryAdapter:` block with
+      outputFormat='none', in which case no boundary parsing happens.
 
     api_spec_diff (when supplied) is the result of diff_openapi_specs() against
     base and head specs the caller produced. When non-empty, it forces
@@ -571,7 +635,19 @@ def classify(
     runtime_changed = detect_runtime_config_change(files, policy)
 
     boundary_violations: list[BoundaryViolation] = []
-    if archunit_xml:
+    # Resolve which boundary report to parse, and in which format.
+    # Precedence: explicit boundary_report > legacy archunit_xml > nothing.
+    if boundary_report is not None:
+        fmt = boundary_format or "junit-xml"
+        if fmt == "junit-xml":
+            boundary_violations = parse_archunit_junit_xml(boundary_report)
+        elif fmt == "json-violations":
+            boundary_violations = parse_json_violations(boundary_report)
+        elif fmt == "none":
+            boundary_violations = []
+        else:
+            sys.stderr.write(f"warning: unknown boundary format '{fmt}'; ignoring report\n")
+    elif archunit_xml:
         boundary_violations = parse_archunit_junit_xml(archunit_xml)
 
     required = _required_checkpoints(
@@ -790,6 +866,48 @@ def load_archunit_xml(path: Path | None) -> str | None:
     return path.read_text(encoding="utf-8")
 
 
+def load_boundary_report(path: Path | None) -> str | None:
+    """Load a boundary report file. Format-agnostic — caller decides how to parse."""
+    if path is None or not path.exists():
+        return None
+    return path.read_text(encoding="utf-8")
+
+
+def resolve_boundary_input(
+    explicit_path: Path | None,
+    explicit_format: str | None,
+    legacy_archunit_path: Path | None,
+    policy: dict[str, Any],
+) -> tuple[str | None, str | None]:
+    """
+    Resolve which boundary report and format to use, given CLI flags + policy.
+
+    Precedence:
+      1. --boundary-report + --boundary-format on the CLI (canonical).
+      2. --archunit-xml on the CLI (deprecated alias for junit-xml).
+      3. policy.boundaryAdapter (when present and outputFormat != 'none').
+      4. Nothing — boundary parsing is skipped.
+
+    Returns (report_text, format) or (None, None).
+    """
+    if explicit_path is not None:
+        text = load_boundary_report(explicit_path)
+        return text, (explicit_format or "junit-xml")
+    if legacy_archunit_path is not None:
+        text = load_archunit_xml(legacy_archunit_path)
+        if text is not None:
+            return text, "junit-xml"
+    adapter = (policy.get("boundaryAdapter") or {}) if isinstance(policy, dict) else {}
+    fmt = adapter.get("outputFormat")
+    out_path = adapter.get("outputPath")
+    if fmt and fmt != "none" and out_path:
+        # Resolve glob first match (mirrors Spring's TEST-*ArchitectureTest.xml pattern).
+        matches = sorted(Path(".").glob(out_path))
+        if matches:
+            return matches[0].read_text(encoding="utf-8"), fmt
+    return None, None
+
+
 def _load_api_spec_diff(base: Path | None, head: Path | None) -> dict[str, Any] | None:
     """
     Load both OpenAPI specs and compute the structural diff.
@@ -817,7 +935,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--lines-changed", type=int, default=0,
                    help="Total lines changed (for PR-size check)")
     p.add_argument("--archunit-xml", type=Path,
-                   help="Path to an ArchUnit JUnit XML report")
+                   help="(Deprecated) Path to an ArchUnit JUnit XML report. Use "
+                        "--boundary-report with --boundary-format=junit-xml instead.")
+    p.add_argument("--boundary-report", type=Path,
+                   help="Path to the boundary-rule backend's report file. Format "
+                        "is given by --boundary-format (or inferred from "
+                        "policy.boundaryAdapter when this flag is omitted).")
+    p.add_argument("--boundary-format",
+                   choices=["junit-xml", "json-violations", "none"],
+                   help="Format of the file passed to --boundary-report. Defaults to "
+                        "policy.boundaryAdapter.outputFormat, then to junit-xml.")
     p.add_argument("--api-spec-base", type=Path,
                    help="Path to the OpenAPI spec generated at the base SHA "
                         "(for api.type=openapi-from-controllers; the workflow generates this)")
@@ -850,7 +977,17 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     diff = load_diff_from_files(args.changed_files, args.lines_changed)
-    archunit_xml = load_archunit_xml(args.archunit_xml)
+
+    if args.archunit_xml is not None:
+        sys.stderr.write(
+            "warning: --archunit-xml is deprecated; use --boundary-report "
+            "with --boundary-format=junit-xml instead\n"
+        )
+
+    boundary_text, boundary_format = resolve_boundary_input(
+        args.boundary_report, args.boundary_format,
+        args.archunit_xml, policy,
+    )
     api_spec_diff = _load_api_spec_diff(args.api_spec_base, args.api_spec_head)
 
     pr_labels = [s.strip() for s in args.pr_labels.split(",") if s.strip()]
@@ -858,7 +995,8 @@ def main(argv: list[str] | None = None) -> int:
 
     verdict = classify(
         policy, diff,
-        archunit_xml=archunit_xml,
+        boundary_report=boundary_text,
+        boundary_format=boundary_format,
         api_spec_diff=api_spec_diff,
         pr_labels=pr_labels,
         codeowner_approvals=codeowner_approvals,

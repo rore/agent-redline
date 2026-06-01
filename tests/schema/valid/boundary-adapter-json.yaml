@@ -1,0 +1,22 @@
+# Valid: policy with a boundaryAdapter block (json-violations format)
+version: 1
+
+project:
+  name: layered-python-service
+  extension: python
+
+zones:
+  red:
+    - path: src/orders/domain/repositories/**
+      reason: domain repository interfaces
+      checkpoint: architecture-review
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+      - label: architecture-reviewed
+
+boundaryAdapter:
+  outputFormat: json-violations
+  outputPath: build/import-linter-report.json

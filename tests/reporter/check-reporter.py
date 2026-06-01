@@ -75,6 +75,20 @@ def run_fixture(fixture: Path) -> tuple[dict, str]:
     pr_labels = read_lines(fixture / "pr-labels.txt")
     approvals = read_lines(fixture / "codeowners.txt")
 
+    # New (v0.2): a fixture may carry a boundary-violations.json file to exercise
+    # the json-violations format end-to-end. Mutually exclusive with archunit.xml.
+    boundary_report = None
+    boundary_format = None
+    bv_path = fixture / "boundary-violations.json"
+    if bv_path.exists():
+        if archunit is not None:
+            raise ValueError(
+                f"{fixture.name}: fixture has both archunit.xml and boundary-violations.json; "
+                "pick one"
+            )
+        boundary_report = bv_path.read_text(encoding="utf-8")
+        boundary_format = "json-violations"
+
     api_spec_diff = None
     base_spec = fixture / "api-spec-base.yaml"
     head_spec = fixture / "api-spec-head.yaml"
@@ -86,6 +100,8 @@ def run_fixture(fixture: Path) -> tuple[dict, str]:
     verdict = classify(
         policy, diff,
         archunit_xml=archunit,
+        boundary_report=boundary_report,
+        boundary_format=boundary_format,
         api_spec_diff=api_spec_diff,
         pr_labels=pr_labels,
         codeowner_approvals=approvals,

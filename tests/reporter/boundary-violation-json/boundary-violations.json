@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "source": "import-linter",
+  "violations": [
+    {
+      "rule": "Layered architecture",
+      "detail": "src.orders.domain.order -> src.orders.infrastructure.db.session (forbidden by 'layers' contract)",
+      "severity": "error"
+    }
+  ]
+}

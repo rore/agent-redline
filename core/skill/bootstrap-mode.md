@@ -78,9 +78,9 @@ Load the chosen extension's `profile.md`. Adapt its defaults to the actual repo:
 
 Present a draft `agent-policy.yaml` with terse one-line comments. Show it for review before writing.
 
-Sketch:
+Sketch (`...` and `[...]` are placeholders for shape, not real values):
 
-```yaml
+```yaml-sketch
 version: 1
 project: { name: <repo-name>, extension: <extension-name> }
 

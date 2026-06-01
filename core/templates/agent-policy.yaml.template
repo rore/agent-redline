@@ -32,11 +32,13 @@ zones:
     - path: docs/**
       reason: documentation
 
-  watch:
-    # Additive tag: paths surfaced in PR comments regardless of how they're
-    # otherwise classified (red, blue, or implicit gray). Use for paths a
-    # reviewer wants to *see* changing without making it a checkpoint.
-    # Populated from the extension's profile.md.
+  # `watch` is optional — a list of additive tags that surface in PR
+  # comments regardless of zone classification, no checkpoint. Bootstrap
+  # populates this from the extension's profile.md when relevant. When
+  # populated, every entry needs both `path` and `reason`. Example:
+  # watch:
+  #   - path: src/main/java/**/*Controller.java
+  #     reason: controller change; structural API impact surfaced via OpenAPI diff
 
 # boundaries describe forbidden dependencies. The language extension's
 # boundary-rule backend (e.g. ArchUnit) enforces them; the reporter
@@ -61,8 +63,6 @@ prRules:
   maxLinesChanged:
     warn: 1000
     fail: 2000
-  rejectVerboseGeneratedDescriptions: true
-  requireVerificationSection: true
 
 checkpoints:
   architecture-review:

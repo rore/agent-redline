@@ -266,6 +266,7 @@ zones:
 
 boundaries:
   - id: domain-must-not-import-vendor-types
+    description: Domain stays free of vendor-specific adapter types
     from: src/main/java/**/domain/**
     forbidImports:
       - src/main/java/**/adapter/<vendor>/**
@@ -282,6 +283,7 @@ zones:
 
 boundaries:
   - id: core-must-not-import-customer-customization
+    description: Shared core stays clean of customer-specific code
     from: src/main/java/**/core/**
     forbidImports:
       - src/main/java/**/customer/**

@@ -70,6 +70,9 @@ def main() -> int:
     # Additional in-repo policies that should always be valid.
     real_policies = [
         REPO_ROOT / "demo-source" / "agent-policy.yaml",
+        REPO_ROOT / "demo-source-python" / "agent-policy.yaml",
+        REPO_ROOT / "core" / "templates" / "agent-policy.yaml.template",
+        REPO_ROOT / "dist" / "agent-redline" / "assets" / "templates" / "agent-policy.yaml.template",
     ]
 
     # Valid fixtures: must validate.

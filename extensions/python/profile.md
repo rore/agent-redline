@@ -67,21 +67,35 @@ zones:
   watch:
     # API entry points — visible, but api-review fires from api: config.
     - path: "**/<pkg>/**/api/**"
+      reason: API entry points
     - path: "**/<pkg>/**/routers/**"
+      reason: API entry points
     - path: "**/<pkg>/**/views/**"
+      reason: API entry points
     - path: "**/<pkg>/**/controllers/**"
+      reason: API entry points
     # Domain / adapters / infrastructure / application
     - path: "**/<pkg>/**/domain/**"
+      reason: domain code
     - path: "**/<pkg>/**/adapters/**"
+      reason: adapter implementations
     - path: "**/<pkg>/**/infrastructure/**"
+      reason: infrastructure adapters
     - path: "**/<pkg>/**/application/**"
+      reason: application orchestration
     - path: "**/<pkg>/**/services/**"
+      reason: application services
     - path: "**/<pkg>/**/usecases/**"
+      reason: application use cases
     # Deps / locks
     - path: "requirements*.txt"
+      reason: pinned dependencies
     - path: "Pipfile*"
+      reason: pipenv dependencies
     - path: "poetry.lock"
+      reason: poetry resolved dependencies
     - path: "uv.lock"
+      reason: uv resolved dependencies
 
   blue:
     - path: "**/tests/**"
@@ -98,11 +112,16 @@ zones:
       reason: local tooling
 ```
 
-**Deliberately NOT red** (tracked via watch instead): API entry files (path-touch is a poor proxy for contract change — use the `api:` openapi diff signal); domain modules other than `repositories/` and `ports/`; adapter/infrastructure implementations (boundary contracts cover the structural part); non-Django `models.py`. Promote in Phase 3 if the repo treats one as genuinely structural; widen on evidence, not intuition.
+**Deliberately NOT red** (on watch instead): API entry files (path-touch is a poor proxy — use `api:` openapi diff); non-`repositories/`/`ports/` domain modules; adapter/infrastructure implementations (boundary contracts cover the structural part); non-Django `models.py`. Promote in Phase 3 if the repo treats one as structural; widen on evidence, not intuition.
 
 ### Default boundary contracts
 
-import-linter contracts written into `[tool.importlinter]` in `pyproject.toml`. Bootstrap picks the subset that matches the actual layers.
+Bootstrap writes two artifacts in two different vocabularies:
+
+1. **`[tool.importlinter]` in `pyproject.toml`** — the enforcer. Import-linter's syntax: `source_modules`/`forbidden_modules`/`ignore_imports`/`layers`. Pick the subset matching the actual layers.
+2. **`boundaries:` in `agent-policy.yaml`** — metadata the reporter surfaces. Schema syntax: `{id, description, from, forbidImports[]}` (see `core/schema/agent-policy.schema.json`). Mirrors (1) so the reporter can describe what's enforced.
+
+Below is the import-linter side; `boundaries:` is the translation.
 
 ```toml
 [tool.importlinter]
@@ -239,10 +258,14 @@ zones:
 # Additional watch:
   watch:
     - path: "**/admin.py"
+      reason: Django admin registrations (data exposure surface)
     - path: "**/management/commands/**.py"
+      reason: Django management commands (operational scripts)
     # DRF only when djangorestframework is in deps:
     - path: "**/serializers.py"
+      reason: DRF serializer contracts
     - path: "**/viewsets.py"
+      reason: DRF viewsets
 ```
 
 ```toml
@@ -306,8 +329,11 @@ zones:
 
   watch:
     - path: "**/<pkg>/**/[!_]*.py"
+      reason: public (non-underscored) library modules
     - path: "CHANGELOG.md"
+      reason: published changelog
     - path: "README.md"
+      reason: README is part of the published package
 
   blue:
     - path: "tests/**"
@@ -372,11 +398,16 @@ zones:
       checkpoint: architecture-review
   watch:
     - path: "**/*.py"
+      reason: pipeline / glue code
     - path: "notebooks/**"
+      reason: notebook artifacts
     - path: "requirements*.txt"
+      reason: pinned dependencies
   blue:
     - path: "tests/**"
+      reason: tests
     - path: "docs/**"
+      reason: documentation
 
 boundaryAdapter:
   outputFormat: none
@@ -416,7 +447,9 @@ zones:
 zones:
   watch:
     - path: "**/<pkg>/tasks/**"
+      reason: task signatures are a contract for callers
     - path: "**/<pkg>/jobs/**"
+      reason: job signatures are a contract for callers
 ```
 
 ## Build / test commands

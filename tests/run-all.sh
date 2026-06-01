@@ -48,6 +48,7 @@ done
 layers=(
   "budget|bash tests/budget/check-budget.sh|"
   "schema|python tests/schema/check-schema.py|REQUIRES_PYTHON"
+  "skill-yaml|python tests/skill-yaml/check-skill-yaml.py|REQUIRES_PYTHON"
   "reporter-goldens|python tests/reporter/check-reporter.py|REQUIRES_PYTHON"
   "reporter-unit|python -m pytest tests/reporter/ -q|REQUIRES_PYTEST"
   "workflow-scripts|bash tests/workflow-scripts/test-diff-inputs.sh|"

@@ -108,7 +108,16 @@ For each red entry in the draft policy, walk through:
 
 This is a **starting hypothesis**. The first 2-4 weeks of shadow mode is where the team confirms or corrects it (Phase 5 / CI proposal).
 
-### 3b. Repo-specific questions
+### 3b. PR-history calibration (when applicable)
+
+1. Count merged PRs: `gh pr list --state merged --limit 1 --json number`. If fewer than 30, skip 3b; note in the policy comment that calibration will complete in Window 1 of shadow mode. If 30 or more, ask the developer: *"I can run the tuner against the last 30 merged PRs to see which red rules fire too often. Run it?"*
+2. On approval: `python scripts/agent-redline-tune.py --policy <draft-path> --repo <gh-slug> --limit 30 --suggest`.
+3. Present each suggestion: path, firing rate, current zone, proposed action. Ask the developer to approve, override, or split.
+4. For approved demotions, move the path from `red` to `watch` in the draft. For overrides, add a one-line comment in the policy: `# kept red despite NN% rate: <reason>`.
+
+Never auto-apply suggestions. Never run the tuner without confirmation.
+
+### 3c. Repo-specific questions
 
 Ask:
 - Third-party adapter contracts that should be red?

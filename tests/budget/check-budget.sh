@@ -34,6 +34,10 @@ if [[ ! -f "$MANIFEST" ]]; then
 fi
 
 # Approximate tokens for a file: words * 1.33, rounded up.
+# Pin LC_ALL so `wc -w` counts the same way locally (Git Bash on Windows defaults
+# to C locale, ~1573) as on CI (Linux, en_US.UTF-8, ~1603). UTF-8 mode is what
+# the SPEC's 1.33× heuristic is calibrated against and what real adopters on
+# Linux/macOS will get; pin to it everywhere.
 estimate_tokens() {
   local file="$1"
   if [[ ! -f "$file" ]]; then
@@ -41,7 +45,7 @@ estimate_tokens() {
     return
   fi
   local words
-  words=$(wc -w < "$file" | tr -d ' ')
+  words=$(LC_ALL=en_US.UTF-8 wc -w < "$file" | tr -d ' ')
   # ceil(words * 1.33) = (words * 133 + 99) / 100
   echo $(( (words * 133 + 99) / 100 ))
 }

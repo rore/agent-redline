@@ -90,17 +90,6 @@ zones:
 
 If your repo treats some of these as genuinely structural (e.g., you have a `domain/policy/` directory carrying invariants), promote them in Phase 3. The bias is toward narrower defaults; widen on evidence, not on intuition.
 
-### Calibration principle
-
-Path-based red zones are easy to over-broaden. The defaults above were validated against real PR history from three production Spring services (~50 PRs each). Two paths that *seemed* structural — `**/*Controller.java` and the default `application.yml` — fired on 30–55% of PRs combined and only rarely produced api/ops-shaped review discussion. They moved to watch. The remaining red rules each fire on a small minority of PRs (0–20%) and correspond to genuinely narrow structural surfaces.
-
-Two operating rules from that experience:
-
-- **Red is for changes that need different review behavior, not for files that look important.** A controller is important; a controller bug-fix isn't structural. A migration is important; a `CREATE INDEX` may not be. Calibrate on what reviewers *actually* treat differently, not on what feels architectural in the abstract.
-- **Prefer semantic / diff-based triggers over path-based triggers when the signal is available.** The `api: openapi-from-controllers` diff catches actual contract changes; path-touch on `*Controller.java` doesn't distinguish them from internal refactors. The schema-detect signal catches actual migrations; an unrelated DB-tooling change doesn't trip it. Use path-based red for cases where no semantic signal exists (e.g., `**/security/**`, `terraform/**`).
-
-Bootstrap Phase 3 challenges every red entry with the test "would this fire on a typical PR?" — if yes, downgrade to watch or split. The calibration data is in `docs/DECISIONS.md`.
-
 ### Blue — agents may work autonomously
 
 ```yaml

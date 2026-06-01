@@ -254,9 +254,12 @@ agent-redline/
 ├── operating-mode.md                   # everyday loop
 ├── references/per-checkpoint/          # detail docs the agent loads on demand
 ├── assets/templates/                   # files bootstrap copies into consuming repos
-├── assets/schema/                      # agent-policy.yaml schema
+├── assets/schema/                      # agent-policy.yaml + boundary-violations.json schemas
 ├── scripts/agent-redline-report.py     # the reporter (vendored into consuming repos)
-└── extensions/spring-archunit/         # reference language extension
+└── extensions/
+    ├── spring-archunit/                # JVM/Spring + ArchUnit (junit-xml output)
+    └── python/                         # Python services + libraries + import-linter
+                                        # (json-violations output via scripts/run-import-linter.py)
 ```
 
 This package is generated from the agent-redline source repo

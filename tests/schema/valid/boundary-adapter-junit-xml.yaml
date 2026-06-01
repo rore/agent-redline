@@ -1,0 +1,24 @@
+# Valid: boundaryAdapter with junit-xml + violationFilter (Spring/ArchUnit pattern, lifted into policy)
+version: 1
+
+project:
+  name: spring-service
+  extension: spring-archunit
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+
+boundaryAdapter:
+  outputFormat: junit-xml
+  outputPath: build/test-results/test/TEST-*ArchitectureTest.xml
+  violationFilter:
+    matchClassName: ArchitectureTest
+    matchTestNamePattern: "(?i).*depend.*|.*should_not.*"

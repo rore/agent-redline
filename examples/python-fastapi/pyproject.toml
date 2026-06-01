@@ -1,0 +1,56 @@
+[project]
+name = "orders"
+version = "0.1.0"
+description = "Minimal hexagonal FastAPI service used by agent-redline-python-demo."
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.111,<1",
+    "pydantic>=2.7,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0,<9",
+    "import-linter>=2.0,<3",
+    "httpx>=0.27,<1",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.importlinter]
+root_package = "orders"
+exclude_type_checking_imports = true
+include_external_packages = true
+
+# Layered: HIGH -> LOW. api may import application, application may import
+# domain. Domain may not import upward.
+[[tool.importlinter.contracts]]
+name = "Layered architecture"
+type = "layers"
+layers = [
+    "orders.api",
+    "orders.application",
+    "orders.domain",
+]
+exhaustive = false
+
+# Hexagonal sidearm: domain MUST NOT import infrastructure. infrastructure
+# imports domain (it implements ports defined there) — the inverse direction
+# is what makes it a hexagonal architecture.
+[[tool.importlinter.contracts]]
+name = "Domain stays free of infrastructure"
+type = "forbidden"
+source_modules = ["orders.domain"]
+forbidden_modules = ["orders.infrastructure"]
+
+# Domain stays framework-free.
+[[tool.importlinter.contracts]]
+name = "Domain stays framework-free"
+type = "forbidden"
+source_modules = ["orders.domain"]
+forbidden_modules = ["fastapi", "pydantic", "starlette"]

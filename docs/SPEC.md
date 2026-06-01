@@ -18,7 +18,7 @@ agent-redline is split into two layers:
 - **Core** is stack-neutral. It contains the skill (vocabulary, the two modes, the discipline rules), the policy schema, the reporter, and the templates that don't depend on language.
 - **Language extensions** are folders of markdown plus one small config file. Each binds the core to a specific stack: typical zone defaults, recommended boundary rules, the boundary-rule backend choice, and how the reporter should read that backend's output.
 
-agent-redline ships one reference language extension (`spring-archunit`) to prove the contract. Other stacks are extensions that teams build, maintain, and distribute themselves. The reference extension is structured the same as any third-party one — there is no special path for built-ins.
+agent-redline ships two reference language extensions (`spring-archunit` for JVM/Spring + ArchUnit, and `python` for Python + import-linter) to prove the contract. Other stacks are extensions that teams build, maintain, and distribute themselves. Reference extensions are structured the same as any third-party one — there is no special path for built-ins.
 
 ## 1.2 What the project is, in three layers
 
@@ -104,7 +104,7 @@ The verbose stuff exists; it just lives in `docs/`, not in the skill load path.
 |---|---|
 | **Skill (core)** | Teaches the agent how to behave: when to slow down, when to escalate, when to refuse a shortcut. Agent-side discipline. The agent is what classifies changes before editing. |
 | **Policy** (`agent-policy.yaml`) | Repo-local source of truth: zones, boundary rules, checkpoints. Written once during bootstrap, edited as the team learns. |
-| **Language extension** | A folder of markdown + one small config file that binds the core to a stack. agent-redline ships one reference extension (`spring-archunit`); others are community-built. |
+| **Language extension** | A folder of markdown + one small config file (plus an optional `scripts/` for backends that lack machine-readable output) that binds the core to a stack. agent-redline ships two reference extensions (`spring-archunit`, `python`); others are community-built. |
 | **Existing tools** | The boundary-rule backend (ArchUnit for JVM, dependency-cruiser for Node, import-linter for Python, Semgrep for generic patterns), API-diff tools, CODEOWNERS, the CI runner. agent-redline composes them; it does not bundle them. |
 | **Reporter (core)** | Small CI-side script that reads the policy, walks the diff, reads backend output via the extension's adapter config, and posts a single PR comment plus an exit code. Glue, not an engine. |
 | **CI** | Where the reporter and the existing tools run. Posts the verdict, blocks merge when binding rules fail. |
@@ -171,7 +171,7 @@ agent-redline introduces a small, stable vocabulary. Consuming repos use these t
 | **Zone** | A path-glob classification of code by architectural consequence. Red, blue, and gray are exclusive zones; watch is an additive tag. |
 | **Boundary rule** | A deterministic dependency rule (`X must not import Y`). |
 | **Boundary-rule backend** | The tool that enforces boundary rules for a given ecosystem (e.g., ArchUnit for JVM, dependency-cruiser for Node, import-linter for Python, Semgrep for generic patterns). The backend is a per-extension choice; agent-redline does not bundle one. |
-| **Language extension** | A folder of markdown plus one small config file that binds the core to a stack. Carries the stack's typical zones, recommended boundary rules, backend choice, and the adapter config telling the reporter how to read backend output. agent-redline ships one reference extension (`spring-archunit`); others are community-built. |
+| **Language extension** | A folder of markdown plus one small config file (plus an optional `scripts/` for backends without machine-readable output) that binds the core to a stack. Carries the stack's typical zones, recommended boundary rules, backend choice, and the adapter config telling the reporter how to read backend output. agent-redline ships two reference extensions (`spring-archunit`, `python`); others are community-built. |
 | **Adapter config** | The single small YAML file in a language extension that tells the reporter where the backend writes its output and what format it's in. |
 | **Checkpoint** | A required human attention point triggered by structural risk. Satisfied by reviewer approval, label, or both. |
 | **Change classification** | The result for a PR/diff: `BLUE`, `RED`, `GRAY`, `BOUNDARY_VIOLATION`, `API_CHANGE`, `SCHEMA_CHANGE`, etc. |
@@ -316,7 +316,7 @@ agent-redline/
 └── AGENTS.md                              # orientation for developer-agents working on this project
 ```
 
-A language extension is five files: a README, two markdown files the agent reads (profile + scaffold), one optional markdown file (operating-mode addendum), and one small YAML file (the adapter config). That's the entire shape. The reference extension (`spring-archunit`) and any third-party extension look the same.
+A language extension is a folder of markdown — a README, two markdown files the agent reads (profile + scaffold), one optional markdown file (operating-mode addendum) — plus one small YAML file (the adapter config). When the boundary backend has no machine-readable output, an extension may also ship a `scripts/` subdirectory with a focused adapter that converts to one of the reporter's supported formats (see EXTENSIONS.md § "Backends without machine-readable output"). The reference extensions (`spring-archunit`, `python`) and any third-party extension look the same.
 
 ### 5.2 What each consuming repo writes (during bootstrap)
 
@@ -603,9 +603,9 @@ That is the entire contract. No manifest, no version pins, no plugin metadata. I
 - **`operating.md`** — optional. Stack-specific notes the agent reads during operating mode (e.g., "in this stack, treat X as `watch` even if the policy says blue"). Most extensions won't need this.
 - **`adapter.yaml`** — the only structured (non-markdown) file. Tells the reporter where the backend wrote its output and what format it's in. See §10.4.
 
-### 10.3 Reference extension
+### 10.3 Reference extensions
 
-agent-redline ships one reference extension: **`spring-archunit`** for Spring Boot + ArchUnit. It is structured exactly like any third-party extension. There is no special path for built-ins.
+agent-redline ships two reference extensions: **`spring-archunit`** for Spring Boot + ArchUnit (`junit-xml` output), and **`python`** for Python services and libraries + import-linter (`json-violations` output via an adapter script in `extensions/python/scripts/`). They are structured exactly like any third-party extension. There is no special path for built-ins.
 
 ### 10.4 The adapter contract
 
@@ -628,7 +628,7 @@ This is what keeps the extension contract honest: extensions are markdown plus o
 
 ### 10.5 Building a new extension
 
-See [EXTENSIONS.md](EXTENSIONS.md) for the practical guide. The short version: copy `extensions/spring-archunit/`, rewrite the markdown for your stack, point `adapter.yaml` at your backend's output. Five files.
+See [EXTENSIONS.md](EXTENSIONS.md) for the practical guide. The short version: copy `extensions/spring-archunit/` (junit-xml reference) or `extensions/python/` (json-violations + adapter-script reference), rewrite the markdown for your stack, point `adapter.yaml` at your backend's output.
 
 ---
 
@@ -791,8 +791,8 @@ Items 1–7 each have a corresponding live PR scenario on `agent-redline-demo`. 
 
 The schema describes what the reporter actually does today. The items below are *not* in the schema yet — they will be added when the reporter learns them, not before.
 
-1. **Additional language extensions** (community or in-tree: Node, Python, Go, Rust). Will introduce a generic `boundaryBackend` field and wire the reporter to actually dispatch on `adapter.yaml`. Until there is a second backend to dispatch to, neither field exists, because there is no choice.
-2. **Additional backend output formats** supported natively by the reporter (SARIF, JSON-violations).
+1. **Additional language extensions** beyond the two shipped today (`spring-archunit` and `python`). Node (`dependency-cruiser`), Go (`go-arch-lint`), Rust (`cargo-deny` + Clippy), and a generic Semgrep extension are the natural next candidates. The reporter already dispatches on `boundaryAdapter.outputFormat` (the Python extension forced this generalization).
+2. **Additional backend output formats** supported natively by the reporter. Today: `junit-xml` and `json-violations`. SARIF is the most-requested next format; will land when an extension genuinely needs it.
 3. **Generic rule engine** (`changeRules`) — only if the v0.1 hardcoded behavior turns out not to be enough in practice. The hardcoded mapping is: red-zone change → require checkpoint; gray-zone change → warn; boundary violation → fail (when binding); api/schema/security/runtime-config change → require the corresponding checkpoint; PR-size warn → warn; PR-size fail → require split. If real users need to override these, we'll design the override surface with their cases in hand.
 4. **Richer checkpoint satisfaction** (`team: <name>`, `reviewerCount: <n>`). Requires querying the host (GitHub / GitLab / etc.) for team membership and approval counts.
 5. **Reusable GitHub Action** wrapping the reporter (`rore/agent-redline/report@v1`). Until then, CI invokes the standalone script directly.
@@ -801,6 +801,7 @@ The schema describes what the reporter actually does today. The items below are 
 8. **GitLab CI / Jenkins / CircleCI workflow templates.**
 9. **Dashboard for shadow-mode tuning data.**
 10. **CLI for non-agent / pure-CI use cases.**
+11. **DRF / FastAPI OpenAPI generation-from-code** in the Python extension. v1 falls back to path-touch on URL routing files; spec generation is the precise signal.
 
 ### 15.4 Validation artifacts required for v0.1
 

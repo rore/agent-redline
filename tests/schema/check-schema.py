@@ -32,12 +32,15 @@ except ImportError:
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCHEMA_PATH = REPO_ROOT / "core" / "schema" / "agent-policy.schema.json"
+BOUNDARY_SCHEMA_PATH = REPO_ROOT / "core" / "schema" / "boundary-violations.schema.json"
 VALID_DIR = REPO_ROOT / "tests" / "schema" / "valid"
 INVALID_DIR = REPO_ROOT / "tests" / "schema" / "invalid"
+BOUNDARY_VALID_DIR = REPO_ROOT / "tests" / "schema" / "boundary-valid"
+BOUNDARY_INVALID_DIR = REPO_ROOT / "tests" / "schema" / "boundary-invalid"
 
 
-def load_schema() -> dict:
-    with SCHEMA_PATH.open(encoding="utf-8") as f:
+def load_schema(path: Path = SCHEMA_PATH) -> dict:
+    with path.open(encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -50,9 +53,17 @@ def main() -> int:
     if not SCHEMA_PATH.exists():
         print(f"error: schema not found at {SCHEMA_PATH}", file=sys.stderr)
         return 1
+    if not BOUNDARY_SCHEMA_PATH.exists():
+        print(f"error: schema not found at {BOUNDARY_SCHEMA_PATH}", file=sys.stderr)
+        return 1
 
     schema = load_schema()
     validator = Draft202012Validator(schema)
+
+    boundary_schema = load_schema(BOUNDARY_SCHEMA_PATH)
+    # Self-check: the boundary schema must itself be a valid JSON Schema document.
+    Draft202012Validator.check_schema(boundary_schema)
+    boundary_validator = Draft202012Validator(boundary_schema)
 
     failures: list[str] = []
 
@@ -105,6 +116,36 @@ def main() -> int:
             failures.append(f"FAIL  {path.relative_to(REPO_ROOT)}: expected invalid, but passed schema")
         else:
             print(f"ok    {path.relative_to(REPO_ROOT)} (invalid; {len(errors)} schema error(s))")
+
+    # Boundary-violations schema: self-validity already checked above.
+    # Now validate boundary-valid/ (must pass) and boundary-invalid/ (must fail) fixtures.
+    if BOUNDARY_VALID_DIR.exists():
+        for path in sorted(BOUNDARY_VALID_DIR.glob("*.json")):
+            try:
+                with path.open(encoding="utf-8") as f:
+                    instance = json.load(f)
+            except json.JSONDecodeError as e:
+                failures.append(f"FAIL  {path.relative_to(REPO_ROOT)}: JSON parse error: {e}")
+                continue
+            errors = list(boundary_validator.iter_errors(instance))
+            if errors:
+                err_lines = "; ".join(f"{e.message} (at {list(e.absolute_path)})" for e in errors)
+                failures.append(f"FAIL  {path.relative_to(REPO_ROOT)}: expected valid, got: {err_lines}")
+            else:
+                print(f"ok    {path.relative_to(REPO_ROOT)} (boundary-violations valid)")
+    if BOUNDARY_INVALID_DIR.exists():
+        for path in sorted(BOUNDARY_INVALID_DIR.glob("*.json")):
+            try:
+                with path.open(encoding="utf-8") as f:
+                    instance = json.load(f)
+            except json.JSONDecodeError:
+                print(f"ok    {path.relative_to(REPO_ROOT)} (boundary-violations invalid; JSON parse error)")
+                continue
+            errors = list(boundary_validator.iter_errors(instance))
+            if not errors:
+                failures.append(f"FAIL  {path.relative_to(REPO_ROOT)}: expected invalid, but passed schema")
+            else:
+                print(f"ok    {path.relative_to(REPO_ROOT)} (boundary-violations invalid; {len(errors)} schema error(s))")
 
     print()
     if failures:

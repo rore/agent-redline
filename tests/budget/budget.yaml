@@ -31,10 +31,11 @@ ceilings:
     max_tokens: 1500
     why: loaded on every operating-mode turn
   - path: core/skill/bootstrap-mode.md
-    max_tokens: 2400
+    max_tokens: 2500
     why: loaded only during bootstrap (rare). Carries the Phase 3b
       data-driven calibration step (PR-history firing-rate tuning with
-      developer approval) plus the Phase 4 templates-discipline rules.
+      developer approval), the Phase 4 templates-discipline rules, and
+      shape-selection triage for multi-shape extensions (Python).
 
   # Per-checkpoint skill docs — each loaded only when its checkpoint is triggered.
   - path: core/templates/skills/*.md

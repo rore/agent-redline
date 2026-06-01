@@ -1,0 +1,20 @@
+# Valid: boundaryAdapter with outputFormat: none (extension declares no backend)
+version: 1
+
+project:
+  name: zone-only-pipeline
+  extension: python
+
+zones:
+  red:
+    - path: dags/**
+      reason: pipeline definitions
+      checkpoint: pipeline-review
+
+checkpoints:
+  pipeline-review:
+    satisfiedBy:
+      - codeownerApproval
+
+boundaryAdapter:
+  outputFormat: none

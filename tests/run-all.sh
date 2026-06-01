@@ -55,7 +55,8 @@ layers=(
   "gitignore|bash tests/gitignore/check-gitignore.sh|"
   "package|bash tests/package/check-package.sh|REQUIRES_PYTHON"
   "sync-demo|bash tests/sync/test-sync-demo.sh|"
-  "extension|bash tests/extensions/spring-archunit/check-extension.sh|OPTIONAL_GRADLE"
+  "extension-spring|bash tests/extensions/spring-archunit/check-extension.sh|OPTIONAL_GRADLE"
+  "extension-python|bash tests/extensions/python/check-extension.sh|OPTIONAL_IMPORTLINTER"
 )
 
 # ----------------------------------------------------------------------
@@ -65,6 +66,7 @@ layers=(
 has_python() { command -v python >/dev/null 2>&1 || command -v python3 >/dev/null 2>&1; }
 has_pytest() { python -m pytest --version >/dev/null 2>&1; }
 has_gradle() { command -v gradle >/dev/null 2>&1; }
+has_importlinter() { python -c "import importlinter" >/dev/null 2>&1; }
 
 prereq_ok() {
   case "$1" in
@@ -72,6 +74,7 @@ prereq_ok() {
     REQUIRES_PYTHON) has_python ;;
     REQUIRES_PYTEST) has_pytest ;;
     OPTIONAL_GRADLE) has_gradle ;;
+    OPTIONAL_IMPORTLINTER) has_importlinter ;;
     *) return 0 ;;
   esac
 }
@@ -81,6 +84,7 @@ prereq_msg() {
     REQUIRES_PYTHON) echo "python not on PATH" ;;
     REQUIRES_PYTEST) echo "pytest not installed (pip install pytest)" ;;
     OPTIONAL_GRADLE) echo "gradle not on PATH (Java toolchain required); skipping" ;;
+    OPTIONAL_IMPORTLINTER) echo "import-linter not installed (pip install 'import-linter>=2.0,<3'); skipping" ;;
     *) echo "missing prerequisite: $1" ;;
   esac
 }

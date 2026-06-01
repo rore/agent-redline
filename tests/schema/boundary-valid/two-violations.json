@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "source": "import-linter",
+  "violations": [
+    {
+      "rule": "Layered architecture",
+      "detail": "orders.domain.order -> orders.infrastructure.db.session (forbidden by 'layers' contract)",
+      "severity": "error"
+    },
+    {
+      "rule": "Adapters independence",
+      "detail": "orders.adapters.email_sender -> orders.adapters.sms_sender",
+      "severity": "error"
+    }
+  ]
+}

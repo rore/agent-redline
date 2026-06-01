@@ -1,0 +1,98 @@
+name: agent-redline
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install -e '.[dev]'
+      - run: mkdir -p build
+      - name: Run import-linter
+        # Adapter exits 1 when contracts are broken; the JSON report is
+        # always written. We don't fail the job here — the reporter (next
+        # job) is the gate.
+        run: python scripts/run-import-linter.py --out build/import-linter-report.json
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boundary-report
+          path: build/import-linter-report.json
+
+  report:
+    needs: boundary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: boundary-report
+          path: build/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pyyaml jsonschema
+      - name: Compute changed files
+        run: |
+          mkdir -p build
+          git diff --name-only \
+            ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
+            > build/changed-files.txt
+      - name: Run reporter
+        id: report
+        # Capture the reporter's exit code without failing the step yet —
+        # we want the comment to post regardless. The "Enforce reporter
+        # exit code" step below translates exit code 2 (binding-mode hard
+        # fail) into a step failure.
+        run: |
+          set +e
+          LABELS="$(jq -r '.pull_request.labels[].name' "$GITHUB_EVENT_PATH" | paste -sd,)"
+          python scripts/agent-redline-report.py \
+            --policy agent-policy.yaml \
+            --changed-files build/changed-files.txt \
+            --boundary-report build/import-linter-report.json \
+            --boundary-format json-violations \
+            --pr-labels "$LABELS" \
+            --json-out build/verdict.json \
+            --comment-out build/comment.md
+          EXIT=$?
+          echo "exit_code=$EXIT" >> "$GITHUB_OUTPUT"
+          echo "--- verdict.json ---"
+          cat build/verdict.json
+          echo
+          echo "--- comment.md ---"
+          cat build/comment.md
+          echo "reporter exit code: $EXIT"
+
+      - name: Post sticky PR comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          path: build/comment.md
+          header: agent-redline
+
+      - name: Enforce reporter exit code
+        # Fail the report job (and thus the required check) only when the
+        # reporter exited 2 — that's the binding-mode hard fail (boundary
+        # violation, unsatisfied checkpoint under binding mode, oversized
+        # PR under binding mode). Exit codes 0 and 1 leave the job green;
+        # the comment still surfaces the warning.
+        run: |
+          EXIT="${{ steps.report.outputs.exit_code }}"
+          if [[ "$EXIT" == "2" ]]; then
+            echo "Reporter exited 2 (binding-mode hard fail). Failing the report check."
+            exit 1
+          fi
+          echo "Reporter exited $EXIT — non-blocking."

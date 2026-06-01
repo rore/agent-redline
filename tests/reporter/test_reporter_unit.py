@@ -31,6 +31,7 @@ from core.reporter.reporter import (  # noqa: E402
     classify_files,
     matches,
     parse_archunit_junit_xml,
+    parse_json_violations,
     detect_api_change,
     detect_schema_change,
     detect_security_change,
@@ -262,6 +263,138 @@ Class &lt;A&gt; depends on &lt;B&gt;</failure></testcase></testsuite></testsuite
         # Both the rule statement and the violation should be present.
         assert "Rule" in violations[0].detail
         assert "depends on" in violations[0].detail
+
+
+# --------------------------------------------------------------------------
+# json-violations parsing
+# --------------------------------------------------------------------------
+
+class TestJsonViolationsParsing:
+
+    def test_minimal(self):
+        text = '{"violations": [{"rule": "r", "detail": "d"}]}'
+        v = parse_json_violations(text)
+        assert len(v) == 1
+        assert v[0].rule == "r"
+        assert v[0].detail == "d"
+        assert v[0].severity == "error"
+        assert v[0].source == "backend"
+
+    def test_with_source(self):
+        text = '{"source": "import-linter", "violations": [{"rule": "r", "detail": "d"}]}'
+        v = parse_json_violations(text)
+        assert v[0].source == "import-linter"
+
+    def test_multiple(self):
+        text = """{
+            "version": 1,
+            "source": "import-linter",
+            "violations": [
+                {"rule": "Layered", "detail": "a -> b"},
+                {"rule": "Independence", "detail": "c -> d", "severity": "warning"}
+            ]
+        }"""
+        v = parse_json_violations(text)
+        assert len(v) == 2
+        assert v[0].severity == "error"
+        assert v[1].severity == "warning"
+
+    def test_empty_violations(self):
+        assert parse_json_violations('{"violations": []}') == []
+
+    def test_malformed_json_returns_empty(self):
+        assert parse_json_violations("{not-json") == []
+        assert parse_json_violations("") == []
+
+    def test_root_not_object_returns_empty(self):
+        assert parse_json_violations('["not", "an", "object"]') == []
+
+    def test_violations_not_array_returns_empty(self):
+        assert parse_json_violations('{"violations": "oops"}') == []
+
+    def test_skips_missing_required_fields(self):
+        text = """{
+            "violations": [
+                {"rule": "good", "detail": "ok"},
+                {"rule": "no-detail"},
+                {"detail": "no-rule"},
+                {"rule": "", "detail": "empty-rule"},
+                "not-an-object"
+            ]
+        }"""
+        v = parse_json_violations(text)
+        assert len(v) == 1
+        assert v[0].rule == "good"
+
+    def test_unknown_severity_falls_back_to_error(self):
+        text = '{"violations": [{"rule": "r", "detail": "d", "severity": "exotic"}]}'
+        v = parse_json_violations(text)
+        assert v[0].severity == "error"
+
+    def test_long_detail_summarized(self):
+        long = "x" * 500
+        text = '{"violations": [{"rule": "r", "detail": "' + long + '"}]}'
+        v = parse_json_violations(text)
+        # _summarize_violation truncates to 400 + ellipsis
+        assert len(v[0].detail) <= 401
+
+
+# --------------------------------------------------------------------------
+# classify() with boundary_report parameter
+# --------------------------------------------------------------------------
+
+class TestClassifyBoundaryReport:
+
+    def _policy(self):
+        return {
+            "version": 1,
+            "project": {"name": "t"},
+            "zones": {"red": [{"path": "src/**", "reason": "x", "checkpoint": "architecture-review"}]},
+            "checkpoints": {"architecture-review": {"satisfiedBy": [{"label": "ok"}]}},
+            "modes": {"default": "binding"},
+        }
+
+    def test_boundary_report_json(self):
+        diff = Diff(changed_files=["src/foo.py"], files_changed=1, lines_changed=1)
+        report = '{"violations": [{"rule": "r", "detail": "d"}]}'
+        v = classify(self._policy(), diff,
+                     boundary_report=report, boundary_format="json-violations")
+        assert v.verdict == "BOUNDARY_VIOLATION"
+        assert len(v.boundary_violations) == 1
+        assert v.boundary_violations[0].source == "backend"
+
+    def test_boundary_report_junit_xml(self):
+        diff = Diff(changed_files=["src/foo.py"], files_changed=1, lines_changed=1)
+        xml = """<?xml version="1.0"?>
+<testsuites><testsuite name="ArchitectureTest"><testcase name="r">
+<failure>x</failure></testcase></testsuite></testsuites>"""
+        v = classify(self._policy(), diff,
+                     boundary_report=xml, boundary_format="junit-xml")
+        assert v.verdict == "BOUNDARY_VIOLATION"
+
+    def test_archunit_xml_kw_still_works(self):
+        # Back-compat: the legacy archunit_xml kwarg still parses junit-xml.
+        diff = Diff(changed_files=["src/foo.py"], files_changed=1, lines_changed=1)
+        xml = """<?xml version="1.0"?>
+<testsuites><testsuite name="ArchitectureTest"><testcase name="r">
+<failure>x</failure></testcase></testsuite></testsuites>"""
+        v = classify(self._policy(), diff, archunit_xml=xml)
+        assert v.verdict == "BOUNDARY_VIOLATION"
+
+    def test_boundary_format_none_skips_parsing(self):
+        diff = Diff(changed_files=["src/foo.py"], files_changed=1, lines_changed=1)
+        # Even if a report is passed, format=none means no boundary parsing.
+        v = classify(self._policy(), diff,
+                     boundary_report='{"violations": [{"rule": "r", "detail": "d"}]}',
+                     boundary_format="none")
+        assert v.boundary_violations == []
+        assert v.verdict != "BOUNDARY_VIOLATION"
+
+    def test_unknown_format_ignored(self):
+        diff = Diff(changed_files=["src/foo.py"], files_changed=1, lines_changed=1)
+        v = classify(self._policy(), diff,
+                     boundary_report="<garbage/>", boundary_format="invented")
+        assert v.boundary_violations == []
 
 
 # --------------------------------------------------------------------------

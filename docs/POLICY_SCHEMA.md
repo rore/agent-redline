@@ -83,6 +83,17 @@ modes:                                # optional; defaults to all shadow
 
 excludes:                             # optional; paths excluded from all classification
   - <glob>                            # e.g. generated sources, vendored code
+
+boundaryAdapter:                      # optional; how the boundary-rule backend's output is
+                                      # delivered to the reporter. Bootstrap copies this from
+                                      # the chosen extension's adapter.yaml.
+  outputFormat: junit-xml             # junit-xml | json-violations | none
+  outputPath: <path-or-glob>          # required when outputFormat != none. Where the backend
+                                      # writes its report. The reporter reads this file when
+                                      # no explicit --boundary-report flag is passed.
+  violationFilter:                    # optional; only meaningful for outputFormat: junit-xml.
+    matchClassName: <substring>       # Identifies architecture failures vs unrelated test
+    matchTestNamePattern: <regex>     # failures when both share a JUnit XML.
 ```
 
 ## Defaults
@@ -167,6 +178,20 @@ Other signals (`api_changed`, `schema_changed`, `security_changed`, `config_chan
 |---|---|
 | `codeownerApproval` | A CODEOWNER for any of the touched red-zone paths approves the PR |
 | `label: <name>` | The named label is applied to the PR |
+
+## `boundaryAdapter` semantics
+
+The `boundaryAdapter` block tells the reporter how the boundary-rule backend's output is delivered. Bootstrap copies the chosen extension's `adapter.yaml` into the policy.
+
+| `outputFormat` | Backend used by | What the reporter reads |
+|---|---|---|
+| `junit-xml` | ArchUnit (Spring extension), other JUnit-XML producers | `<testsuite>/<testcase>/<failure>` shapes from the file at `outputPath`. The optional `violationFilter` distinguishes architecture failures from unrelated test failures. |
+| `json-violations` | import-linter via the python extension's adapter script; any backend whose adapter emits the schema | A JSON document matching `core/schema/boundary-violations.schema.json`. Each entry yields a `BoundaryViolation` with `source` set from the document's top-level `source` field. |
+| `none` | Repos that opt out of boundary enforcement (data pipelines, mixed monorepos) | Nothing; the reporter skips the boundary leg entirely. |
+
+When `boundaryAdapter` is present and the reporter CLI is not given an explicit `--boundary-report` flag, the reporter reads the file at `outputPath` and dispatches on `outputFormat`. CI snippets that pass `--boundary-report` and `--boundary-format` directly still work; the policy-level dispatch is a fallback for non-CI invocations (e.g. local pre-push).
+
+The legacy `--archunit-xml <path>` flag is still accepted (it implies `outputFormat: junit-xml`) and is preserved for back-compat with v0.1 CI snippets.
 
 ## Example: minimal valid policy
 

@@ -29,26 +29,44 @@ Each phase ends with a developer review or confirmation. Do not skip ahead.
 ## Phase 1 — Inspect and pick an extension
 
 Read what's in the repo:
-- Build files (`build.gradle`, `pom.xml`, `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`)
-- Source layout
+- Build files (`build.gradle`, `pom.xml`, `package.json`, `pyproject.toml`, `setup.py`, `setup.cfg`, `go.mod`, `Cargo.toml`)
+- Source layout (`src/<pkg>/` vs flat `<pkg>/` for Python; `manage.py` for Django)
 - Existing agent-instruction file: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `copilot-instructions.md`, or any `*-instructions.md` at repo root
 - Existing CI (`.github/workflows/`, `.gitlab-ci.yml`)
 - Existing CODEOWNERS
-- Existing **boundary-rule backend setup** — for JVM/Spring, look for ArchUnit test classes (search `src/test/**` for files importing `com.tngtech.archunit`). Note the test class name, package, and existing rules. Treat these as authoritative.
+- Existing **boundary-rule backend setup**:
+  - JVM/Spring: ArchUnit test classes (search `src/test/**` for files importing `com.tngtech.archunit`).
+  - Python: `[tool.importlinter]` in `pyproject.toml`, `.importlinter`, or `[importlinter]` in `setup.cfg`.
+  Treat existing rules as authoritative.
 - Existing `pre-push` hook (`.git/hooks/pre-push`) or pre-push script (`scripts/pre-push*`)
-- OpenAPI / GraphQL / proto files; SpringDoc plugin in the build
-- DB migration directories
+- OpenAPI / GraphQL / proto files; SpringDoc plugin; FastAPI committed `openapi.json`
+- DB migration directories (`db/migration/**`, `**/alembic/versions/**`, `**/migrations/**`)
 - Security/auth code locations
 
 Propose a language extension:
 - Spring Boot + Gradle/Maven → `spring-archunit`
+- Python (web service, library, or pipeline) → `python` — see "Python shape selection" below
 - Other stacks → see [agent-redline EXTENSIONS docs](https://github.com/rore/agent-redline/blob/main/docs/EXTENSIONS.md); ask developer to pick a third-party one or proceed without one
 - No extension available → offer zone-only governance (no boundary backend)
 
 Don't modify anything yet. Produce a written summary; wait for developer confirmation. The summary must include:
-- Whether an existing arch test was found, and if so its rules — Phase 4 composes with it, doesn't replace it
+- Whether an existing arch test or import-linter config was found, and if so its rules — Phase 4 composes with it, doesn't replace it
 - Which agent-instruction file exists (if any) — Phase 4 adds a reference section there, not a fresh `AGENTS.md`
 - Whether an existing pre-push hook exists — Phase 4 chains, doesn't replace
+
+### Python shape selection
+
+`python` covers three shapes — `profile.md` enumerates them in detail. Quick triage:
+
+| Signal | Shape |
+|---|---|
+| `manage.py` at root + `django` in deps | layered service + Django addendum |
+| Any web framework dep (fastapi/flask/starlette/aiohttp/etc.), or layer dirs (`domain/`, `adapters/`, `infrastructure/`, `core/`, `services/`, `usecases/`, `ports/`) | layered service |
+| `pyproject.toml` `[project]`, no web dep, package with `__init__.py` re-exports | library / package |
+| `airflow`/`prefect`/`dagster`/`luigi` deps, or `dags/` / `pipelines/` / `notebooks/` | zone-only fallback |
+| None match | zone-only fallback |
+
+Confirm before loading `profile.md` details. If two shapes could fire, present both. src-layout vs flat is bootstrap-derived, not a separate shape.
 
 ## Phase 2 — Extension-driven proposal
 
@@ -126,7 +144,7 @@ Ask:
 - Generated source directories to exclude from classification?
 - Who owns architecture / API / persistence / security / ops review?
 - Normal PR size for this team — adjust thresholds?
-- Existing ArchUnit / CODEOWNERS / CI checks to compose with?
+- Existing arch tests / import-linter contracts / CODEOWNERS / CI checks to compose with?
 
 Update the draft. Show it. Get explicit sign-off before writing.
 
@@ -136,7 +154,7 @@ If the developer disagrees with extension defaults, the developer wins. Note ove
 
 Once signed off, write the committed artifacts.
 
-**`agent-policy.yaml`** — must classify the boundary-backend definition files as red (e.g., `src/test/java/**/architecture/**`, or wherever the existing arch test lives in this repo). Verify it parses against `core/schema/agent-policy.schema.json`.
+**`agent-policy.yaml`** — must classify the boundary-backend definition files as red (e.g., `src/test/java/**/architecture/**` for ArchUnit, `pyproject.toml` and `.importlinter` for import-linter, or wherever the existing config lives in this repo). Verify it parses against `core/schema/agent-policy.schema.json`.
 
 **Agent-instruction file** — if `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `copilot-instructions.md`, or a similar file already exists at the repo root, append a clearly-marked agent-redline reference section to it. Do NOT create a new `AGENTS.md` alongside an existing instruction file. Only create `AGENTS.md` from scratch if none of those files exist.
 
@@ -155,8 +173,8 @@ See `docs/agent/`. Framework: https://github.com/rore/agent-redline
 
 **Boundary-rule backend artifacts** — read the extension's `scaffold.md`. Two cases:
 
-- **Existing arch test found in Phase 1:** do NOT generate a new test. Translate its rules into `boundaries:` entries in the policy (one per rule) and tell the developer the existing test is what enforces them. The policy's `boundaries:` section is metadata that the reporter surfaces; the existing test does the actual checking.
-- **No existing arch test:** generate the file per `scaffold.md`. Substitute the actual base package. Don't write `..domain..` if the repo uses `..core..`.
+- **Existing setup found in Phase 1** (ArchUnit test, `[tool.importlinter]` block, etc.): do NOT generate a new one. Translate its rules into `boundaries:` entries in the policy (one per rule). The policy's `boundaries:` is metadata the reporter surfaces; the existing setup does the actual checking.
+- **No existing setup:** generate per `scaffold.md`. Substitute the actual base package. Don't write `..domain..` if the repo uses `..core..`.
 
 **`scripts/agent-redline-check.sh`** — copy `core/templates/pre-push-check.sh` verbatim, mark executable. Do NOT regenerate; a hand-rolled version will drift from CI.
 
@@ -200,7 +218,7 @@ Be honest about anything you couldn't classify cleanly.
 
 - Never auto-commit CI workflow files, branch-protection changes, or CODEOWNERS additions.
 - Never overwrite an existing `agent-policy.yaml` without confirmation.
-- Never overwrite an existing arch test (or other boundary-backend definition). Compose via `boundaries:` instead.
+- Never overwrite an existing arch test or import-linter config (or other boundary-backend definition). Compose via `boundaries:` instead.
 - Never overwrite an existing agent-instruction file. Append a reference section.
 - Never overwrite an existing pre-push hook. Tell the developer how to chain.
 - The generated policy must classify the boundary-backend definition files as red (`architecture-review` checkpoint).

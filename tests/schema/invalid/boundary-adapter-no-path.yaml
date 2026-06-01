@@ -1,0 +1,18 @@
+# Invalid: boundaryAdapter with outputFormat: junit-xml but no outputPath
+version: 1
+
+project:
+  name: bad-policy
+
+zones:
+  red:
+    - path: src/**
+      reason: source
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+
+boundaryAdapter:
+  outputFormat: junit-xml

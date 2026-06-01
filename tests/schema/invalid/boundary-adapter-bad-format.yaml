@@ -1,0 +1,19 @@
+# Invalid: boundaryAdapter with unknown outputFormat
+version: 1
+
+project:
+  name: bad-policy
+
+zones:
+  red:
+    - path: src/**
+      reason: source
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+
+boundaryAdapter:
+  outputFormat: sarif
+  outputPath: build/sarif.json

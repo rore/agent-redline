@@ -1,0 +1,417 @@
+# python — profile
+
+Default zones, boundary rules, and ecosystem options. Bootstrap derives placeholders (`<pkg>`, `<project>`, `<app>`) from the repo. When zones overlap, red wins.
+
+This profile enumerates **three shapes**: layered service (with a Django addendum), library/package, and zone-only fallback. Bootstrap inspects, picks one (or proposes two when ambiguous), developer confirms.
+
+Globs use `**/<pkg>/**` form so they match both src-layout (`src/<pkg>/...`) and flat (`<pkg>/...`) without duplication.
+
+## Shape detection (Phase 1)
+
+| Signal | Implies shape |
+|---|---|
+| `manage.py` at root **and** `django` in deps | layered service + Django addendum |
+| Web framework dep (`fastapi`, `flask`, `starlette`, `aiohttp`, `sanic`, `litestar`, `falcon`, `bottle`) | layered service |
+| Layer dirs: `domain/`, `application/`, `adapters/`, `infrastructure/`, `core/`, `services/`, `usecases/`, `ports/` | layered service |
+| `pyproject.toml` `[project]`, no web dep, package with `__init__.py` re-exports | library / package |
+| `apache-airflow`, `prefect`, `dagster`, `luigi` deps; or `dags/`, `pipelines/`, `notebooks/` | zone-only fallback |
+| None match | zone-only fallback (developer can adjust) |
+
+**Layout variants** (same shape — bootstrap derives, not separate shapes):
+- src-layout: `src/<pkg>/{...}/`. `src/` contains exactly one package.
+- flat: `<pkg>/{...}/` at repo root.
+
+## Shape: layered service
+
+### Default zones
+
+```yaml
+zones:
+  red:
+    # Persistence migrations (Alembic, framework, yoyo)
+    - path: "**/alembic/versions/**.py"
+      reason: persistence contract
+      checkpoint: persistence-review
+    - path: "**/migrations/**.py"
+      reason: persistence contract
+      checkpoint: persistence-review
+
+    # Outbound port / gateway / repository contracts
+    - path: "**/<pkg>/**/ports/**"
+      reason: architectural boundary contracts (port interfaces)
+      checkpoint: architecture-review
+    - path: "**/<pkg>/**/domain/repositories/**"
+      reason: domain repository interfaces
+      checkpoint: architecture-review
+
+    # Security / auth
+    - path: "**/<pkg>/**/security/**"
+      reason: auth/security-sensitive code
+      checkpoint: security-review
+    - path: "**/<pkg>/**/auth/**"
+      reason: auth/security-sensitive code
+      checkpoint: security-review
+
+    # Self-protection
+    - path: ".importlinter"
+      reason: dependency-rule definitions
+      checkpoint: architecture-review
+    - path: "pyproject.toml"
+      reason: build / dependency-rule configuration
+      checkpoint: architecture-review
+    - path: "agent-policy.yaml"
+      reason: governance source of truth
+      checkpoint: architecture-review
+
+  watch:
+    # API entry points — visible, but api-review fires from api: config.
+    - path: "**/<pkg>/**/api/**"
+    - path: "**/<pkg>/**/routers/**"
+    - path: "**/<pkg>/**/views/**"
+    - path: "**/<pkg>/**/controllers/**"
+    # Domain / adapters / infrastructure / application
+    - path: "**/<pkg>/**/domain/**"
+    - path: "**/<pkg>/**/adapters/**"
+    - path: "**/<pkg>/**/infrastructure/**"
+    - path: "**/<pkg>/**/application/**"
+    - path: "**/<pkg>/**/services/**"
+    - path: "**/<pkg>/**/usecases/**"
+    # Deps / locks
+    - path: "requirements*.txt"
+    - path: "Pipfile*"
+    - path: "poetry.lock"
+    - path: "uv.lock"
+
+  blue:
+    - path: "**/tests/**"
+      reason: tests
+    - path: "**/test_*.py"
+      reason: tests
+    - path: "**/*_test.py"
+      reason: tests
+    - path: "**/conftest.py"
+      reason: pytest configuration
+    - path: "docs/**"
+      reason: documentation
+    - path: "scripts/**"
+      reason: local tooling
+```
+
+**Deliberately NOT red** (tracked via watch instead): API entry files (path-touch is a poor proxy for contract change — use the `api:` openapi diff signal); domain modules other than `repositories/` and `ports/`; adapter/infrastructure implementations (boundary contracts cover the structural part); non-Django `models.py`. Promote in Phase 3 if the repo treats one as genuinely structural; widen on evidence, not intuition.
+
+### Default boundary contracts
+
+import-linter contracts written into `[tool.importlinter]` in `pyproject.toml`. Bootstrap picks the subset that matches the actual layers.
+
+```toml
+[tool.importlinter]
+root_package = "<pkg>"
+exclude_type_checking_imports = true
+# Required when any contract has forbidden_modules pointing at external
+# packages (e.g. fastapi, sqlalchemy below). Without it, import-linter
+# refuses to run.
+include_external_packages = true
+
+# 1. Layered architecture: HIGH -> LOW. Higher (listed first) imports lower;
+# lower may not import higher. Domain at the bottom; api/application above.
+[[tool.importlinter.contracts]]
+name = "Layered architecture"
+type = "layers"
+layers = [
+    "<pkg>.api",
+    "<pkg>.application",
+    "<pkg>.domain",
+]
+exhaustive = false
+
+# 2. Hexagonal sidearm: domain MUST NOT import infrastructure/adapters.
+# `layers` is linear; this enforces the side direction.
+[[tool.importlinter.contracts]]
+name = "Domain stays free of infrastructure"
+type = "forbidden"
+source_modules = ["<pkg>.domain"]
+forbidden_modules = ["<pkg>.infrastructure", "<pkg>.adapters"]
+
+# 3. Domain doesn't import any web/runtime framework.
+[[tool.importlinter.contracts]]
+name = "Domain stays framework-free"
+type = "forbidden"
+source_modules = ["<pkg>.domain"]
+forbidden_modules = [
+    "fastapi", "flask", "django", "starlette", "aiohttp",
+    "sqlalchemy", "alembic",
+]
+
+# 4. Adapters are independent of each other.
+[[tool.importlinter.contracts]]
+name = "Adapter independence"
+type = "independence"
+modules = [
+    "<pkg>.adapters.email",
+    "<pkg>.adapters.payments",
+    "<pkg>.adapters.notifications",
+]
+
+# 5. Hygiene: top-level package siblings don't form import cycles.
+[[tool.importlinter.contracts]]
+name = "Acyclic siblings"
+type = "acyclic_siblings"
+container = "<pkg>"
+```
+
+Bootstrap adapts:
+- Skip absent layers; substitute actual adapter package names.
+- Adjust `forbidden_modules` to what the repo actually imports.
+- Replace `<pkg>.infrastructure` / `<pkg>.adapters` with the repo's actual paths.
+
+### API contract handling
+
+```yaml
+# Committed OpenAPI spec (most common):
+api:
+  type: openapi-spec-file
+  specPath: "openapi/openapi.json"
+  diffMode: structural
+  checkpoint: api-review
+
+# Or no public surface:
+api:
+  type: none
+```
+
+Generation-from-code (FastAPI `app.openapi()`, Flask-RESTX, drf-spectacular) is roadmap. v1 falls back to path-touch on API entry directories (watch list).
+
+### Default PR-size thresholds
+
+```yaml
+prRules:
+  maxChangedFiles: { warn: 50, fail: 100 }
+  maxLinesChanged: { warn: 1000, fail: 2000 }
+```
+
+### Django addendum
+
+If `manage.py` exists at root **and** `django` is in deps, augment (don't replace) the layered-service zones:
+
+```yaml
+# Additional red:
+zones:
+  red:
+    - path: "**/settings.py"
+      reason: Django settings (auth, middleware, secrets)
+      checkpoint: security-review
+    - path: "**/settings/*.py"
+      reason: Django settings module
+      checkpoint: security-review
+    - path: "**/urls.py"
+      reason: Django URL routing (HTTP surface)
+      checkpoint: api-review
+    - path: "**/<app>/models.py"
+      reason: Django model definitions (paired with migrations)
+      checkpoint: persistence-review
+
+# Additional watch:
+  watch:
+    - path: "**/admin.py"
+    - path: "**/management/commands/**.py"
+    # DRF only when djangorestframework is in deps:
+    - path: "**/serializers.py"
+    - path: "**/viewsets.py"
+```
+
+```toml
+# Additional contracts: cross-app independence + views don't import other apps' models.
+[[tool.importlinter.contracts]]
+name = "Cross-app independence"
+type = "independence"
+modules = [
+    "<project>.apps.orders",
+    "<project>.apps.billing",
+    "<project>.apps.notifications",
+]
+
+[[tool.importlinter.contracts]]
+name = "App views don't reach into other apps' models"
+type = "forbidden"
+source_modules = ["<project>.apps.*.views", "<project>.apps.*.viewsets"]
+forbidden_modules = ["<project>.apps.*.models"]
+```
+
+Bootstrap notes:
+- Apps live at `apps/` or top-level (`<project>/<app>/`). Inspect to determine.
+- `INSTALLED_APPS` in `settings.py` is authoritative; directory layout is a heuristic. Surface any disagreement.
+- DRF entries only if `djangorestframework` is in deps.
+
+Django gotchas:
+- **`models.py` red zone fires often.** Calibration warning at bootstrap; consider demoting to watch until tuner has run.
+- **Migrations are auto-generated.** `RunPython` migrations contain arbitrary code — higher-risk than schema-only.
+- **`AUTH_USER_MODEL`** is architecturally one-way after launch — security-review.
+- **drf-spectacular integration is roadmap.** v1 uses `urls.py` path-touch.
+
+## Shape: library / package
+
+### Detection
+
+`pyproject.toml` `[project]` / `[tool.poetry]` / `[tool.setuptools]`; no web dep; top-level package with `__init__.py` re-exports.
+
+### Default zones
+
+```yaml
+zones:
+  red:
+    - path: "**/<pkg>/__init__.py"
+      reason: public API re-exports
+      checkpoint: api-review
+    - path: "**/<pkg>/**/*.pyi"
+      reason: published type stubs
+      checkpoint: api-review
+    - path: "**/<pkg>/py.typed"
+      reason: PEP 561 type-information marker
+      checkpoint: api-review
+    - path: "pyproject.toml"
+      reason: build / dependency-rule configuration
+      checkpoint: architecture-review
+    - path: ".importlinter"
+      reason: dependency-rule definitions
+      checkpoint: architecture-review
+    - path: "agent-policy.yaml"
+      reason: governance source of truth
+      checkpoint: architecture-review
+
+  watch:
+    - path: "**/<pkg>/**/[!_]*.py"
+    - path: "CHANGELOG.md"
+    - path: "README.md"
+
+  blue:
+    - path: "tests/**"
+      reason: tests
+    - path: "**/test_*.py"
+      reason: tests
+    - path: "docs/**"
+      reason: documentation
+```
+
+### Default boundary contracts
+
+```toml
+[tool.importlinter]
+root_package = "<pkg>"
+
+# 1. Private (leading-underscore) modules only imported within their own subtree.
+[[tool.importlinter.contracts]]
+name = "Private modules stay internal"
+type = "protected"
+protected_modules = ["<pkg>._internals", "<pkg>._compat", "<pkg>._utils"]
+allowed_importers = ["<pkg>"]
+
+# 2. Acyclic siblings.
+[[tool.importlinter.contracts]]
+name = "Acyclic siblings"
+type = "acyclic_siblings"
+container = "<pkg>"
+```
+
+Only generate the `protected` contract when the repo actually has leading-underscore modules; don't fabricate.
+
+### Default PR-size thresholds
+
+```yaml
+prRules:
+  maxChangedFiles: { warn: 20, fail: 50 }
+  maxLinesChanged: { warn: 500, fail: 1000 }
+```
+
+## Shape: zone-only fallback
+
+For pipelines, notebook-heavy ML repos, mixed monorepos, scripts-and-glue.
+
+```yaml
+zones:
+  red:
+    - path: "**/migrations/**.py"
+      reason: persistence contract
+      checkpoint: persistence-review
+    - path: "**/alembic/versions/**.py"
+      reason: persistence contract
+      checkpoint: persistence-review
+    - path: "dags/**"
+      reason: pipeline definitions
+      checkpoint: pipeline-review
+    - path: "pipelines/**"
+      reason: pipeline definitions
+      checkpoint: pipeline-review
+    - path: "agent-policy.yaml"
+      reason: governance source of truth
+      checkpoint: architecture-review
+  watch:
+    - path: "**/*.py"
+    - path: "notebooks/**"
+    - path: "requirements*.txt"
+  blue:
+    - path: "tests/**"
+    - path: "docs/**"
+
+boundaryAdapter:
+  outputFormat: none
+
+prRules:
+  maxChangedFiles: { warn: 30, fail: 80 }
+  maxLinesChanged: { warn: 800, fail: 1500 }
+```
+
+Reporter skips boundary parsing. Zones, persistence/security signals, PR-size still run.
+
+## Ecosystem options
+
+Ask in Phase 3 and include if relevant.
+
+**Multi-database services:**
+```yaml
+persistence:
+  migrationPaths:
+    - "**/alembic/versions/**.py"
+    - "**/<pkg>/persistence/migrations/**.py"
+    - "**/db/migrations/**.py"
+  checkpoint: persistence-review
+```
+
+**Third-party SDK contracts:**
+```yaml
+zones:
+  red:
+    - path: "**/<pkg>/adapters/<vendor>/dto/**"
+      reason: third-party API contract surface
+      checkpoint: api-review
+```
+
+**Tasks / queues as a public-ish surface** (Celery, RQ, FastAPI background):
+```yaml
+zones:
+  watch:
+    - path: "**/<pkg>/tasks/**"
+    - path: "**/<pkg>/jobs/**"
+```
+
+## Build / test commands
+
+| Action | Command |
+|---|---|
+| Run all tests | `pytest` |
+| Run boundary check | `python scripts/run-import-linter.py --out build/import-linter-report.json` |
+| Run local agent-redline check | `bash scripts/agent-redline-check.sh` |
+
+## Gotchas
+
+- **Dynamic imports bypass contracts.** `importlib.import_module()` and `__import__()` are invisible to the static graph. Operating-mode forbids them as a workaround.
+- **`if TYPE_CHECKING:` imports.** `exclude_type_checking_imports = true` (top-level) suppresses these. Default profile sets it.
+- **Namespace packages (PEP 420).** Set `root_package` to the portion (`mynamespace.foo`), not the namespace.
+- **src-layout requires the package to be importable.** CI installs editable (`pip install -e .`); flat-layout has the cwd on `sys.path`.
+- **Layer dirs need `__init__.py`** (even empty), or `layers` doesn't see them. Bootstrap warns if missing.
+- **`pyproject.toml` is authoritative** for package's own deps; `requirements.txt` (and lock files) describe the resolved environment.
+- **Django `INSTALLED_APPS` is authoritative** over directory layout. Bootstrap surfaces any disagreement.
+
+## Pointers
+
+- import-linter docs: <https://import-linter.readthedocs.io/>
+- contract types: <https://import-linter.readthedocs.io/en/stable/contract_types/index.html>

@@ -1,0 +1,47 @@
+{
+  "apiChanges": {
+    "detected": false
+  },
+  "boundaryViolations": [
+    {
+      "detail": "src.orders.domain.order -> src.orders.infrastructure.db.session (forbidden by 'layers' contract)",
+      "rule": "Layered architecture",
+      "severity": "error",
+      "source": "import-linter"
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "architecture-review",
+      "reason": "red-zone change: src/orders/domain/order.py",
+      "satisfied": false,
+      "satisfy_by": [
+        "CODEOWNER approval",
+        "label `architecture-reviewed`"
+      ]
+    }
+  ],
+  "exitCode": 2,
+  "prSize": {
+    "files": 1,
+    "lines": 0,
+    "verdict": "ok"
+  },
+  "recommendedAction": "fix-boundary-violation",
+  "schemaChanges": {
+    "detected": false
+  },
+  "securityChanges": {
+    "detected": false
+  },
+  "summary": "1 boundary violation(s) detected.",
+  "verdict": "BOUNDARY_VIOLATION",
+  "zones": {
+    "blue": [],
+    "gray": [],
+    "red": [
+      "src/orders/domain/order.py"
+    ],
+    "watch": []
+  }
+}

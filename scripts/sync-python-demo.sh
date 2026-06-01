@@ -74,6 +74,12 @@ copy_python_source() {
   cp -r "$PYTHON_FIXTURE/tests" "$dest/"
   cp "$PYTHON_FIXTURE/pyproject.toml" "$dest/"
   cp "$PYTHON_FIXTURE/.gitignore" "$dest/"
+  # Strip build artifacts that may exist if the fixture was installed editable
+  # locally (pip install -e). These are .gitignored normally; we drop them
+  # before they ever get tracked in the demo repo.
+  find "$dest" \( -name '__pycache__' -o -name '*.egg-info' -o -name '.pytest_cache' -o -name 'build' \) \
+    -type d -prune -exec rm -rf {} + 2>/dev/null || true
+  find "$dest" -name '*.pyc' -delete 2>/dev/null || true
 }
 
 copy_demo_artifacts() {

@@ -1,0 +1,85 @@
+version: 1
+
+project:
+  name: agent-redline-python-demo
+  extension: python
+
+zones:
+  red:
+    # Architectural boundary contracts (port interfaces)
+    - path: src/orders/domain/repositories/**
+      reason: domain repository (port) interfaces
+      checkpoint: architecture-review
+
+    # Self-protection — the rules that enforce the rules
+    - path: pyproject.toml
+      reason: build / dependency-rule configuration
+      checkpoint: architecture-review
+    - path: agent-policy.yaml
+      reason: governance source of truth; changes alter what counts as red elsewhere
+      checkpoint: architecture-review
+
+  blue:
+    - path: tests/**
+      reason: tests
+    - path: docs/**
+      reason: documentation
+    - path: scripts/**
+      reason: local tooling
+
+  watch:
+    # API entry — visible, not a checkpoint (api-review fires from api: signal)
+    - path: src/orders/api/**
+      reason: HTTP entry point
+    # Domain entities/value objects — touched on most feature PRs
+    - path: src/orders/domain/order.py
+      reason: domain entity
+    # Application orchestrators
+    - path: src/orders/application/**
+      reason: application use cases
+    # Adapters — broadly visible
+    - path: src/orders/infrastructure/**
+      reason: infrastructure adapters
+    # Dep-set changes
+    - path: requirements*.txt
+      reason: dependency updates
+
+boundaries:
+  - id: layered-architecture
+    description: api -> application -> domain (one-way; lower layers may not import higher)
+    from: src/orders/domain/**
+    forbidImports:
+      - src/orders/api/**
+      - src/orders/application/**
+
+  - id: domain-not-importing-infrastructure
+    description: Domain stays free of infrastructure (hexagonal sidearm)
+    from: src/orders/domain/**
+    forbidImports:
+      - src/orders/infrastructure/**
+
+api:
+  type: none
+
+prRules:
+  maxChangedFiles: { warn: 50, fail: 100 }
+  maxLinesChanged: { warn: 1000, fail: 2000 }
+
+checkpoints:
+  architecture-review:
+    description: |
+      A change to architectural surfaces (port interfaces, dependency-rule
+      configuration, the policy itself). Satisfied by a CODEOWNER approval
+      or by the `architecture-reviewed` label.
+    satisfiedBy:
+      - codeownerApproval
+      - label: architecture-reviewed
+
+modes:
+  default: shadow
+  perCheck:
+    boundary_violation: binding
+
+boundaryAdapter:
+  outputFormat: json-violations
+  outputPath: build/import-linter-report.json

@@ -49,6 +49,10 @@ Generate one contract per `boundaries[]` entry in the policy. Use the contract t
 [tool.importlinter]
 root_package = "<pkg>"            # the actual package name from inspection
 exclude_type_checking_imports = true
+# Set this when any forbidden_modules entry points at an external
+# package (e.g. fastapi, sqlalchemy). Without it, import-linter refuses
+# to run such contracts.
+include_external_packages = true
 
 # import-linter layers go HIGH -> LOW. Higher layers (listed first) may import
 # lower ones; lower layers may not import higher.

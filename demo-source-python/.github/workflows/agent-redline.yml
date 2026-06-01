@@ -1,0 +1,60 @@
+name: agent-redline
+
+on:
+  pull_request:
+
+jobs:
+  boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install -e '.[dev]'
+      - run: mkdir -p build
+      - name: Run import-linter
+        run: python scripts/run-import-linter.py --out build/import-linter-report.json
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boundary-report
+          path: build/import-linter-report.json
+
+  report:
+    needs: boundary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: boundary-report
+          path: build/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pyyaml jsonschema
+      - name: Compute changed files
+        run: |
+          mkdir -p build
+          git diff --name-only \
+            ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
+            > build/changed-files.txt
+      - name: Run reporter
+        run: |
+          python scripts/agent-redline-report.py \
+            --policy agent-policy.yaml \
+            --changed-files build/changed-files.txt \
+            --boundary-report build/import-linter-report.json \
+            --boundary-format json-violations \
+            --pr-labels "$(jq -r '.pull_request.labels[].name' "$GITHUB_EVENT_PATH" | paste -sd,)" \
+            --json-out build/verdict.json \
+            --comment-out build/comment.md
+      - name: Post sticky PR comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          path: build/comment.md
+          header: agent-redline

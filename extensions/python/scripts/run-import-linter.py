@@ -56,12 +56,21 @@ def _import_internals():
 
 
 def _safe_first_route(routes: Any) -> str:
-    """Format a single chain/route from import-linter metadata into one line."""
+    """Format a single chain/route from import-linter metadata into one line.
+
+    `routes` can be a list of dicts (from layers/forbidden/independence) or a
+    list of import-detail dicts (from forbidden/independence's `chains` lists).
+    """
     if not isinstance(routes, list) or not routes:
         return ""
     route = routes[0]
     if isinstance(route, dict):
-        # Layers / forbidden / independence put the chain under 'chain' or 'middle'.
+        # Direct edge dict: {importer, imported, ...}
+        importer = route.get("importer")
+        imported = route.get("imported")
+        if importer and imported:
+            return f"{importer} -> {imported}"
+        # Layers chain dict: {chain: [...]} or {middle: [...]}
         chain = route.get("chain") or route.get("middle") or []
         if isinstance(chain, list) and chain:
             parts = []
@@ -71,10 +80,11 @@ def _safe_first_route(routes: Any) -> str:
                     dst = hop.get("imported") or hop.get("dest")
                     if src and dst:
                         parts.append(f"{src} -> {dst}")
-                    elif src:
-                        parts.append(str(src))
             if parts:
                 return " ; ".join(parts)
+    elif isinstance(route, list):
+        # Forbidden/independence: chains is a list of lists of edge dicts.
+        return _safe_first_route(route)
     return ""
 
 
@@ -94,28 +104,57 @@ def _violations_from_layers(metadata: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def _violations_from_invalid_chains(metadata: dict[str, Any]) -> list[dict[str, str]]:
-    """Used by 'forbidden' and 'independence'."""
+    """Used by 'forbidden' and 'independence' contracts.
+
+    Metadata shape (per import-linter source):
+      {
+        "invalid_chains": [
+          {
+            "upstream_module": str,    # what was illegally imported
+            "downstream_module": str,  # what did the importing
+            "chains": [
+              [ {importer, imported, line_numbers}, ... ],   # one chain
+              ...
+            ],
+          },
+          ...
+        ]
+      }
+    """
     out: list[dict[str, str]] = []
     for chains_data in metadata.get("invalid_chains", []) or []:
-        importer = chains_data.get("importer", "?")
-        imported = chains_data.get("imported", "?")
-        first_route = _safe_first_route(chains_data.get("routes") or chains_data.get("chains"))
-        detail = f"{importer} -> {imported}"
+        downstream = chains_data.get("downstream_module", "?")
+        upstream = chains_data.get("upstream_module", "?")
+        first_route = _safe_first_route(chains_data.get("chains"))
+        detail = f"{downstream} is not allowed to import {upstream}"
         if first_route:
-            detail = f"{detail} (chain: {first_route})"
+            detail = f"{detail} (e.g. {first_route})"
         out.append({"detail": detail})
     return out
 
 
 def _violations_from_protected(metadata: dict[str, Any]) -> list[dict[str, str]]:
+    """The 'protected' contract uses a list of BrokenContractMetadata objects
+    (not plain dicts). Each has .illegal_links (list of {importer, imported,
+    line_numbers}) and .top_level_module."""
     out: list[dict[str, str]] = []
     for entry in metadata.get("illegal_imports", []) or []:
-        if isinstance(entry, dict):
-            importer = entry.get("importer", "?")
-            imported = entry.get("imported", "?")
-            out.append({"detail": f"{importer} -> {imported} (protected module)"})
+        # BrokenContractMetadata-like (object with attributes) OR a dict.
+        illegal_links = getattr(entry, "illegal_links", None)
+        top_level = getattr(entry, "top_level_module", None)
+        if illegal_links is None and isinstance(entry, dict):
+            illegal_links = entry.get("illegal_links") or []
+            top_level = entry.get("top_level_module") or "?"
+        if illegal_links:
+            for link in illegal_links:
+                if isinstance(link, dict):
+                    importer = link.get("importer", "?")
+                    imported = link.get("imported", "?")
+                    out.append({"detail": f"{importer} -> {imported} (protected: {top_level})"})
+                else:
+                    out.append({"detail": str(link)})
         else:
-            out.append({"detail": str(entry)})
+            out.append({"detail": f"protected module imported illegally: {top_level}"})
     return out
 
 

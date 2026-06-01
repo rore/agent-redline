@@ -107,6 +107,10 @@ import-linter contracts written into `[tool.importlinter]` in `pyproject.toml`. 
 [tool.importlinter]
 root_package = "<pkg>"
 exclude_type_checking_imports = true
+# Required when any contract has forbidden_modules pointing at external
+# packages (e.g. fastapi, sqlalchemy below). Without it, import-linter
+# refuses to run.
+include_external_packages = true
 
 # 1. Layered architecture: HIGH -> LOW. Higher (listed first) imports lower;
 # lower may not import higher. Domain at the bottom; api/application above.

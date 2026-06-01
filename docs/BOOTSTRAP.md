@@ -67,7 +67,19 @@ This is presented as a draft `agent-policy.yaml` with explanatory comments. The 
 
 ### Phase 3 — Adapt
 
-The agent asks targeted questions:
+Phase 3 has three sub-steps, in order.
+
+**3a. Zone-utility check.** For each red entry in the draft, the agent checks that it actually fires on a *minority* of the team's PRs. A red zone that triggers on routine work is alert fatigue, not protection. The agent walks the developer through three recent feature PRs and downgrades any red entry that fires on most of them to `watch` (still surfaced) or `blue` (autonomous). Where possible, paths are split (interfaces vs. implementations, prod-config vs. all config). The agent also prefers semantic triggers (the `api:` OpenAPI diff for API changes; schema-detect for migrations) over path-touch when both are available — path-based red zones over-fire on bug-fixes and refactors.
+
+**3b. PR-history calibration (when applicable).** If the repo has 30 or more merged PRs, the agent asks the developer for permission to run the calibration tuner against that history:
+
+```
+python scripts/agent-redline-tune.py --policy <draft> --repo <gh-slug> --limit 30 --suggest
+```
+
+The tuner emits a JSON list of red entries firing above a 30%-of-PRs threshold. The agent presents each suggestion (path, firing rate, current zone, proposed action) for the developer to approve, override, or split. Approved demotions are applied to the draft; overrides get a one-line policy comment recording the reason. The agent **never auto-applies** suggestions and **never runs the tuner without explicit approval**. When the repo has fewer than 30 merged PRs, 3b is skipped with a comment in the policy noting calibration will complete in Window 1 of shadow mode (see [CI_INTEGRATION.md](CI_INTEGRATION.md)).
+
+**3c. Repo-specific questions.** The agent asks targeted questions that the data can't answer:
 
 - "Does this repo have third-party adapter contracts that should be red?"
 - "Is there customer-specific code that must not leak into core?"
@@ -75,7 +87,7 @@ The agent asks targeted questions:
 - "Are there generated artifacts that should be excluded from classification?"
 - "Who owns architecture review? API review? Persistence review?"
 
-Answers feed into the policy.
+Answers feed into the policy. The developer signs off on the final draft before Phase 4 writes anything.
 
 ### Phase 4 — Write
 

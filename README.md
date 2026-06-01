@@ -110,8 +110,9 @@ See the live demo PRs for the three canonical states. Each sync rotates the PR n
 ✓ OpenAPI structural diff (SpringDoc-generated or committed specs)
 ✓ bootstrap composition with existing arch tests, instruction files,
   pre-push hooks (no overwriting)
-✓ zone-calibration tuning script (validate firing rates against a batch
-  of merged PRs before flipping to binding)
+✓ bootstrap-time policy calibration against the repo's PR history
+  (zone firing-rate analysis with developer approval gate)
+✓ zone-calibration tuning script for ongoing shadow-mode refinement
 ```
 
 ```

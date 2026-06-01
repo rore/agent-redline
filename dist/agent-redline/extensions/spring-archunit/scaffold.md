@@ -2,6 +2,8 @@
 
 What bootstrap generates and how. Each section maps to one artifact.
 
+By the time you reach this scaffold, `bootstrap-mode.md` Phase 3b has already tuned the policy against the repo's PR history (or noted that history was thin). Do not re-run the tuner here.
+
 **Before generating any of this:** check whether the repo already has an ArchUnit test (search `src/test/**` for files importing `com.tngtech.archunit`). If found:
 
 - Do NOT generate a new test class.

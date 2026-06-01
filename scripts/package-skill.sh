@@ -178,6 +178,7 @@ chmod +x "$DEST/assets/templates/pre-push-check.sh"
 # ----------------------------------------------------------------------
 
 cp "$REPO_ROOT/core/schema/agent-policy.schema.json" "$DEST/assets/schema/"
+cp "$REPO_ROOT/core/schema/boundary-violations.schema.json" "$DEST/assets/schema/"
 
 # ----------------------------------------------------------------------
 # 6. Reporter.
@@ -187,10 +188,15 @@ cp "$REPO_ROOT/core/reporter/reporter.py" "$DEST/scripts/agent-redline-report.py
 chmod +x "$DEST/scripts/agent-redline-report.py"
 
 # ----------------------------------------------------------------------
-# 7. Extensions. Each extension is a self-contained 5-file folder. Markdown
-#    files get reference rewriting (../../docs/X.md → absolute GitHub URL)
-#    so they resolve from inside the package. Non-markdown files (adapter.yaml)
-#    are copied verbatim.
+# 7. Extensions. Each extension is a self-contained folder of markdown +
+#    adapter.yaml + an optional scripts/ subdirectory (for adapters when
+#    the boundary backend has no machine-readable output — see
+#    docs/EXTENSIONS.md § "Backends without machine-readable output").
+#
+#    Markdown files get reference rewriting (../../docs/X.md → absolute
+#    GitHub URL) so they resolve from inside the package. Non-markdown
+#    files (adapter.yaml, scripts) are copied verbatim. Test fixtures
+#    (_test_fixture/) are excluded from the package.
 # ----------------------------------------------------------------------
 
 for ext_dir in "$REPO_ROOT"/extensions/*/; do
@@ -198,7 +204,20 @@ for ext_dir in "$REPO_ROOT"/extensions/*/; do
   mkdir -p "$DEST/extensions/$ext_name"
   for src_file in "$ext_dir"/*; do
     base=$(basename "$src_file")
-    if [[ "$src_file" == *.md ]]; then
+    # Skip test fixtures — they're for local validation, not packaged.
+    if [[ "$base" == _test_fixture ]] || [[ "$base" == _* ]]; then
+      continue
+    fi
+    if [[ -d "$src_file" ]]; then
+      # Recursively copy subdirectories (e.g. scripts/), preserving executability.
+      cp -r "$src_file" "$DEST/extensions/$ext_name/$base"
+      # Drop nested test fixtures under any subdir.
+      find "$DEST/extensions/$ext_name/$base" -type d -name '_test_fixture' -prune -exec rm -rf {} +
+      # Make .py files in scripts/ executable.
+      if [[ "$base" == "scripts" ]]; then
+        find "$DEST/extensions/$ext_name/$base" -type f -name '*.py' -exec chmod +x {} +
+      fi
+    elif [[ "$src_file" == *.md ]]; then
       substitute_extension_paths "$src_file" "$DEST/extensions/$ext_name/$base"
     else
       cp "$src_file" "$DEST/extensions/$ext_name/$base"

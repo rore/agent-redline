@@ -438,6 +438,12 @@ Each phase in the implementation plan ends with a verification step. The full te
 - **Windows path separators in globs** — the existing reporter uses `fnmatch`; verify Python paths from the demo repo and main repo match cleanly. Already handled in the existing reporter for JVM paths, so likely fine, but worth checking.
 - **`pyproject.toml` is dual-purpose** — it's both the build manifest and the import-linter config. Bootstrap edits it carefully (preserve existing `[tool.*]` blocks; only add `[tool.importlinter]` if absent).
 
+## 10b. Surprises caught during implementation
+
+Recorded so the spec stays honest:
+
+- **import-linter `layers` semantics caught us once.** The contract is "higher layers (listed first) may import lower; lower may not import higher." A first draft of the profile listed `[api, application, domain, infrastructure]` thinking infrastructure as the lowest could not import upward — but in hexagonal/clean architectures, infrastructure is precisely the layer that imports domain, so it can't sit below domain in a linear `layers` contract. The fix: list only `[api, application, domain]` in `layers` (where domain is genuinely the bottom), and use a separate `forbidden` contract to enforce the domain → infrastructure/adapters direction. Profile and scaffold updated; the test fixture confirmed the corrected order produces violations as expected.
+
 ## 11. Implementation phasing
 
 See the plan. Summary:

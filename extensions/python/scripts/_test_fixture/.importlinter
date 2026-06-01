@@ -1,0 +1,14 @@
+[importlinter]
+root_package = sample_pkg
+exclude_type_checking_imports = True
+
+[importlinter:contract:layered]
+name = Layered architecture (domain may not import infrastructure)
+type = layers
+# import-linter layers: high -> low; lower may not import higher.
+# We want "domain may not import infrastructure", so infrastructure is the
+# upper layer (allowed to import domain), domain is the lower (forbidden
+# to reach up).
+layers =
+    sample_pkg.infrastructure
+    sample_pkg.domain

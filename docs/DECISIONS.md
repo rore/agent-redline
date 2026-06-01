@@ -8,6 +8,40 @@ Each entry: short title, date, decision, alternatives, rationale, revisit-if.
 
 ---
 
+## 2026-06-01 (later) — Calibration starts at bootstrap, not at shadow
+
+**Decision:** Move zone calibration from a "first 1–2 weeks of shadow mode" activity to a *bootstrap-time* activity when the repo has ≥30 merged PRs. The bootstrap skill's Phase 3 grows a new sub-step (Phase 3b) that, with developer approval, runs `scripts/agent-redline-tune.py` against the repo's PR history and presents firing-rate-based downgrade suggestions. The developer approves, overrides, or splits each. The policy ships with red zones already tuned to the team's actual PR shape. Window 1 of shadow mode (per `docs/CI_INTEGRATION.md`) becomes "confirm and refine," not "discover from scratch."
+
+**Alternatives considered:**
+
+- **Keep calibration shadow-mode-only.** Rejected: the calibration data (`.local/calibration/REPORT.md`) showed default Spring policy firing on 44–54% of PRs across three services. A team going through bootstrap unchanged would hit alert fatigue in week 1 and conclude the tool was noisy before any tuning data accumulated. The signal needed is already in the repo at bootstrap time.
+- **Run the tuner automatically without developer approval.** Rejected: tuning suggestions can be wrong (a rule firing on 35% may still be correct if the team really does want every API change reviewed). The agent's job is to *propose*, not to *decide*. Approval gates are the same shape as every other Phase 3 decision.
+- **Make Phase 3b mandatory regardless of PR count.** Rejected: with fewer than 30 PRs the data isn't statistically informative; rules firing on 1/5 PRs could be 0% or 60% in a larger sample. Better to skip honestly and let Window 1 do the work than to tune on noise.
+- **Delete `agent-redline-tune.py` and run firing-rate detection inside the reporter on every PR.** Rejected: the tuner is a deliberate offline tool — it answers "are the defaults right?" against a corpus, which is different from "did this PR cross a rule?". Keeping them separate keeps the reporter simple and the tuner focused.
+
+**Rationale:**
+
+The `.local/calibration` experiment showed that ~30 merged PRs is the minimum where the dominant noise sources become visible (a rule firing on 50%+ is unmissable; rules firing rarely need a larger sample). Most active service repos have far more than 30 merged PRs. Running the tuner inside bootstrap turns the empirical lesson from the Spring-defaults retune into a *process*: every team that bootstraps gets the same kind of tuning the Spring defaults received, against their own history.
+
+The developer-approval gate matches the rest of Phase 3 — the agent never auto-changes policy. The 30-PR threshold is documented so the agent doesn't silently skip when the repo is genuinely too new.
+
+**Mechanics:**
+
+- `scripts/agent-redline-tune.py` gains `--repo`, `--limit`, and `--suggest` flags (offline-fetched PR data; JSON suggestions instead of markdown when `--suggest` is set).
+- `core/skill/bootstrap-mode.md` Phase 3 restructured: 3a unchanged, **3b new** (PR-history calibration, ≥30 PRs, developer approval, never auto-apply), 3c is the renamed prior 3b (repo-specific questions).
+- `extensions/spring-archunit/scaffold.md` notes that calibration ran in Phase 3b; the scaffold should not re-run it.
+- `docs/SPEC.md §4.3` restated as a continuum (bootstrap → shadow → binding).
+- `docs/CI_INTEGRATION.md` Window 1 restated as "confirm and refine."
+- `tests/budget/budget.yaml` raised the `core/skill/bootstrap-mode.md` ceiling from 2100 to 2400 to fit Phase 3b.
+
+**Revisit if:**
+
+- An adopter reports the 30-PR threshold is wrong in either direction (a 20-PR sample is enough for them, or 50 is the real minimum). Either changes the threshold; the framework stays.
+- A non-Spring extension lands and the tuner needs language-specific firing-rate logic. Currently the rates are path-glob-driven and language-agnostic, so this should be fine.
+- Bootstrap-time calibration becomes annoying because it slows bootstrap by minutes (the `gh` fetch is ~30s × 30 PRs ≈ a few minutes). At that point, cache the fetch in `.local/` so re-running bootstrap on the same repo doesn't refetch.
+
+---
+
 ## 2026-06-01 — Migration immutability and policy self-edit are skill-level refusal patterns
 
 **Decision:** Two new entries in `operating-mode.md`'s "Do not silently modify governance" refusal list, alongside the existing architecture-test entry:

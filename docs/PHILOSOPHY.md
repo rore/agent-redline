@@ -26,6 +26,8 @@ Anything in between — not yet placed in either — is the **gray zone**. Cauti
 
 The opportunity is in the asymmetry. Protect the red zone with deterministic guardrails. Leave the blue zone alone. Don't let the gray zone stay gray forever.
 
+The novelty agent-redline contributes is making this asymmetry binding *to the agent*, not only to CI. Tools that classify the same asymmetry post-hoc (ArchUnit, dependency-cruiser, Import Linter) leave the agent free to take the shortcut and weaken the rule on the way out. The skill closes that loop: the agent reads the policy before editing, refuses boundary shortcuts, and refuses to silently modify the governance files themselves.
+
 **Corollary: red zones must be calibrated against real PRs.** A red zone that fires on ordinary feature work isn't protecting structure — it's noise that reviewers will learn to ignore. "This file looks important" is not enough; the test is whether changes to it actually need different review behavior. The Spring extension defaults were tuned against three production services after the first round of defaults fired on ~50% of PRs. Where a semantic signal exists (OpenAPI diff for API changes, migration detection for schema), prefer it over path-touch — path-based red zones over-fire on bug-fixes and refactors.
 
 ## 4. Slop feeds slop

@@ -58,6 +58,20 @@ CODEOWNERS routes review by file ownership. agent-redline routes review by archi
 
 CODEOWNERS doesn't catch boundary violations; it only routes review. agent-redline catches them deterministically through a boundary-rule backend (ArchUnit on JVM, dependency-cruiser on Node, etc.).
 
+## How does this differ from ArchUnit / Modulith / dependency-cruiser / Import Linter?
+
+Architecture tools enforce dependency rules in tests or CI. They tell you *after the fact* that a forbidden import landed; they don't influence the agent that wrote it.
+
+agent-redline tells the agent which rules matter *before* it edits, refuses agent shortcuts that would weaken them (modifying the architecture-test files, suppressing a rule, laundering the import through another package), and adds zone-aware PR routing for non-rule risk that those tools don't model — red-zone path touches, persistence migrations, API surface diff, PR-size limits.
+
+Use them together. agent-redline's `spring-archunit` extension *generates and depends on* ArchUnit tests; it doesn't replace them. The deterministic boundary check in the PR verdict is fed by the same JUnit XML the architecture tests produce.
+
+## How does this differ from CodeRabbit / Qodo / PR-Agent / generic AI code review?
+
+Those tools generate LLM-written line review across the whole diff. agent-redline produces a single deterministic verdict on a narrow question: does this PR touch architecturally consequential paths, and are the required checkpoints satisfied?
+
+It is not a reviewer; it is a router. It says "a human with architecture context needs to look at this" — it does not attempt to be that human. The verdict is a few lines, not a wall of comments. The two coexist: agent-redline routes attention; the AI reviewers (or human reviewers) then look at the lines.
+
 ## Will agents actually follow the operating-mode rules?
 
 Some will, some won't. The skill teaches; CI enforces. If an agent ignores the skill and produces a boundary-violating PR, the boundary-rule backend (when one is wired up — Spring/ArchUnit in v0.1) fails CI in binding mode. If an agent ignores the skill and modifies a red-zone file, the reporter flags it; whether the missing checkpoint blocks merge depends on whether `report` is set to `binding` (shadow by default — see [CI_INTEGRATION.md](CI_INTEGRATION.md)).

@@ -4,7 +4,9 @@
 [![Agent Skills](https://img.shields.io/badge/agent--skills-compliant-blue)](https://agentskills.io)
 [![Demo](https://img.shields.io/badge/demo-agent--redline--demo-purple)](https://github.com/rore/agent-redline-demo)
 
-**Agent governance as a skill.** Stop AI agents from quietly turning local fixes into architecture debt.
+**The missing layer between repo instructions and CI.** agent-redline teaches coding agents when to slow down, then verifies the same structural-risk policy in the PR.
+
+Repo instructions (`AGENTS.md`, `CLAUDE.md`) are passive — agents drift. CI checks (ArchUnit, dependency rules) fire after the fact. agent-redline makes architectural risk *binding for the agent before it edits*, then checks it deterministically at PR time.
 
 agent-redline helps teams:
 
@@ -33,7 +35,11 @@ Boundary rule    a deterministic dependency rule the agent may not work around
 
 A **checkpoint** is satisfied by a CODEOWNER approval or a label (`architecture-reviewed`, `api-reviewed`, etc.). The reporter is deterministic; humans review only the small set of changes that actually need it.
 
+agent-redline is a **harness component**, not a complete harness. It composes with existing architecture tools (ArchUnit, dependency-cruiser, Import Linter), instruction files (`AGENTS.md`, `CLAUDE.md`), and AI review tools — it doesn't replace them. See [`docs/FAQ.md`](docs/FAQ.md) for detailed comparisons.
+
 ## Why this exists
+
+The novel piece isn't the rules — it's that the agent treats the rules as binding *before* it edits, not as suggestions to route around. In paired simulation runs on shortcut-tempting tasks, the with-skill agent refused both the canonical boundary bypass and a tempting weakening of the architecture test. The without-skill agent took both. Deterministic CI then catches whatever the skill misses.
 
 LLMs increase the rate of code production sharply. Human review capacity does not scale with it. Most code agents produce is low-consequence: tests, isolated adapters, mappers, internal utilities. A minority is structurally consequential: a controller that defines a public contract, a domain class that defines an invariant, a repository import that breaks a port boundary, a migration that reshapes persistence.
 

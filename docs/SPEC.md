@@ -206,9 +206,15 @@ The mental model:
 
 Bootstrap Phase 3 enforces this: every red entry in the draft policy is challenged with "would this fire on three recent feature PRs?" If yes, it's mis-classified. See `core/skill/bootstrap-mode.md` Phase 3a.
 
-The first 1-2 weeks of shadow mode is **zone calibration**: confirm the red entries actually fire on a minority of PRs (use `scripts/agent-redline-tune.py` against a batch of recent merged PRs). Re-tune the policy until the firing rates settle. Only after zones are stable do you start flipping rules from shadow to binding.
+Calibration is a continuum, not a one-shot:
 
-The Spring extension defaults are themselves the product of this exercise. They were calibrated against ~150 PRs from three production Spring services; the calibration moved `**/*Controller.java` and the default `application.yml` from red to watch when the data showed they fired on most PRs without producing matching review discussion. Where a semantic signal exists (the OpenAPI structural diff for API changes, schema-detect for migrations) the policy prefers it over a path-touch trigger. See `docs/DECISIONS.md` "Default red zones were calibrated against real PR history" for the data.
+1. **At bootstrap time, when the repo has ≥30 merged PRs**, the agent runs `scripts/agent-redline-tune.py --suggest` against that history (with developer approval) and tunes the draft policy before shipping. See `core/skill/bootstrap-mode.md` Phase 3b. This catches the dominant noise sources before the policy is committed.
+2. **In shadow mode**, the same tuner runs again 1–2 weeks in (or whenever live PR signal accumulates) to confirm bootstrap-time tuning matched reality. Re-tune until firing rates settle.
+3. **Only after zones are stable** do you start flipping rules from shadow to binding.
+
+When the repo has thin history (new project, rewrite-in-progress, fewer than 30 merged PRs), bootstrap skips step 1 and relies entirely on step 2. The policy is committed with `modes.default: shadow` and a comment noting that calibration is incomplete.
+
+The Spring extension defaults are themselves the product of step 1 applied to multiple repos. They were calibrated against ~150 PRs from three production Spring services; the calibration moved `**/*Controller.java` and the default `application.yml` from red to watch when the data showed they fired on most PRs without producing matching review discussion. Where a semantic signal exists (the OpenAPI structural diff for API changes, schema-detect for migrations) the policy prefers it over a path-touch trigger. See `docs/DECISIONS.md` "Default red zones were calibrated against real PR history" for the data, and "Calibration starts at bootstrap" for the continuum.
 
 ### 4.4 Gray vs. watch
 

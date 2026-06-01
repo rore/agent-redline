@@ -89,8 +89,17 @@ Two legitimate responses:
 
 - Don't expand into other zones during implementation. If you need to, re-classify.
 - No unrelated cleanup. Small PRs.
-- Do not modify the architecture-test files.
 - Do not split a coherent change into multiple PRs to evade size limits.
+
+### Do not silently modify governance — refuse, don't proceed
+
+Refuse to edit these as a side-effect of another task. The only legitimate edit is one the developer asks for explicitly and in isolation; that edit is itself red-zone (architecture-review).
+
+- **Architecture-test files** (matching the policy's architecture-test red entries).
+- **`agent-policy.yaml`** — including widening a threshold, dropping a red entry, relaxing a checkpoint.
+- **Already-shipped migrations** (any `V*.sql` / Flyway / Liquibase file already on `main`). To change V1, write V2 that compensates.
+
+If the task asks for any of these as a side-effect, stop and escalate.
 
 ## Step 5 — Local check
 

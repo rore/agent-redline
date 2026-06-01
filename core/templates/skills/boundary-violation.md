@@ -35,6 +35,6 @@ These rationalizations lead to working around the rule. Recognize them in your o
 - **"This import is just for tests."** The rule applies to all imports. If a test needs it, the test is at the wrong layer or the abstraction is missing.
 - **"This dependency already exists elsewhere."** That's the baseline the rule allows. It does not justify a *new* one. Existing violations are managed via the baseline file (see [agent-redline CI_INTEGRATION docs](https://github.com/rore/agent-redline/blob/main/docs/CI_INTEGRATION.md)).
 - **"This is temporary, I'll fix it later."** No mechanism tracks it. Add to the baseline explicitly if it must ship now, or escalate.
-- **"The rule is too strict."** That's a policy change, which is itself red-zone. Don't fix it inline.
+- **"The rule is too strict."** That's a policy edit. Refused as a side-effect — see `operating-mode.md` "Do not silently modify governance." Fix the structure or escalate.
 - **"It's just one line."** Lines aren't the issue. The forbidden dependency is.
 

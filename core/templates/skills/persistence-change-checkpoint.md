@@ -20,6 +20,10 @@ Migrations apply forward; rollback usually means a new compensating migration, n
 
 If the change is in the second category, the checkpoint note should include the recovery plan (backup, replay, etc.) — not the rollback plan.
 
+## Existing migrations are immutable
+
+Never edit a `V*.sql` file already on `main`. To change V1, write V2 that compensates — e.g., `ALTER TABLE ... ADD COLUMN` for a missed column, a follow-on migration for a wrong type. Listed as a refusal pattern in `operating-mode.md`.
+
 ## Index changes have hidden cost
 
 `CREATE INDEX` on a large table can lock writes for minutes or longer depending on the database. The checkpoint note must address:

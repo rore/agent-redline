@@ -8,6 +8,45 @@ Each entry: short title, date, decision, alternatives, rationale, revisit-if.
 
 ---
 
+## 2026-06-01 — Migration immutability and policy self-edit are skill-level refusal patterns
+
+**Decision:** Two new entries in `operating-mode.md`'s "Do not silently modify governance" refusal list, alongside the existing architecture-test entry:
+
+1. **Already-shipped migrations are immutable.** Editing a `V*.sql` file already on `main` (to add a column, fix a type, change a constraint) is a refusal pattern. The agent must propose a compensating forward migration (V2 alters what V1 created) instead of mutating V1 in place.
+2. **`agent-policy.yaml` is not edited as a side-effect.** Touching the policy to widen a threshold, drop a red entry, or relax a checkpoint while doing other work is a refusal pattern. The only legitimate policy edit is one the developer asks for explicitly and in isolation, and it remains red-zone (architecture-review).
+
+`core/templates/skills/persistence-change-checkpoint.md` gets an "Existing migrations are immutable" section with the V1/V2 mechanic. `core/templates/skills/boundary-violation.md`'s "policy is too strict" pattern is rewritten to point at the new explicit refusal.
+
+**Alternatives considered:**
+
+- **Migration immutability — only document, don't refuse.** Rejected: the C2 simulation showed a with-skill agent (otherwise behaving correctly on every other shortcut) cheerfully edited V1 to add a column because the existing skill content didn't say "don't." Documentation that's not in the refusal list isn't enforced — agents read what's near the task and act on it.
+- **Policy self-edit — keep it as PR-time-red-only.** Rejected: relying solely on the reporter's red-zone classification is weaker than the project's own boundary-rule stance. Boundary rules don't say "feel free to import the adapter, the reporter will catch it"; they say refuse and escalate. Policy weakening deserves the same treatment because the failure mode is symmetric — an agent that quietly bypasses governance to make a task easier produces undetectable damage if any layer of the chain misses the edit. The reporter remains the second line of defense for policy edits the developer *did* explicitly ask for; the skill refuses the silent-side-effect case.
+- **Refuse all policy edits, even explicit ones.** Rejected: policies do evolve. The skill must refuse the *implicit* edit ("threshold is annoying, raise it while we're here") but not the *explicit* one ("update the policy to add a new red zone for /security"). The wording — "the only legitimate policy edit is one the developer asks for explicitly and in isolation" — captures that.
+
+**Rationale:**
+
+The C2 agent-PR simulation (see `.local/calibration/C2_REPORT.md`) surfaced these as the two cleanest gaps in skill content. On every other shortcut tempted in the simulation, the with-skill agent refused or correctly flagged checkpoints; on these two it ploughed ahead because the skill content was silent. Adding them is a small, mechanical edit that closes a specific, observed failure mode.
+
+The migration case is also operationally severe: editing V1 in place breaks every environment that already applied V1, and the failure surfaces only at the next deploy when Flyway sees a checksum mismatch. The cost of silence here is much higher than the cost of a wrong refusal.
+
+The policy-self-edit case mirrors the architecture-test case structurally: both are governance files the agent could weaken to make the immediate task easier; both have the same right answer (refuse silent edits, route explicit ones through architecture-review). Treating them as sibling refusal patterns is consistent.
+
+**Mechanics:**
+
+- `core/skill/operating-mode.md` Step 4 — refactored "do not modify the architecture-test files" line into a "Do not silently modify governance — refuse, don't proceed" subsection listing the three patterns (architecture-test, agent-policy.yaml, already-shipped migrations).
+- `core/templates/skills/persistence-change-checkpoint.md` — new "Existing migrations are immutable" section with the V1/V2 mechanic and the Flyway/Liquibase checksum context.
+- `core/templates/skills/boundary-violation.md` — "rule is too strict" pattern points at the operating-mode refusal section.
+- `demo-source/docs/agent/persistence-change-checkpoint.md` and `boundary-violation.md` — synced from the templates.
+- `dist/agent-redline/...` — repackaged.
+
+**Revisit if:**
+
+- An adopter reports that the policy-self-edit refusal blocks a legitimate "fix the policy mid-task" workflow we hadn't considered. The current wording lets the developer's explicit ask through; if the boundary feels wrong in practice, narrow further (e.g., "refuse only edits that loosen, not edits that tighten").
+- A new persistence backend lands where in-place migration mutation is actually safe (some declarative-schema systems treat V*.sql as a desired-state spec, not a history). Then the immutability rule needs an extension-level override.
+- A future skill version makes "side-effect detection" first-class (the agent reasons explicitly about which goals are in-scope and which are not). At that point the refusal patterns might be expressed as a single "no governance side-effects" rule instead of an enumerated list.
+
+---
+
 ## 2026-05-31 (latest) — Default red zones were calibrated against real PR history
 
 **Decision:** Two paths move out of the `spring-archunit` red defaults: `**/*Controller.java` and the default `application.yml`. Both go to the watch list. The api-review checkpoint is now triggered solely by the `api: openapi-from-controllers` structural-diff signal, not by controller-path-touch. The production-only profiles (`application-prod*.yml`) and every other red rule stay as they were.

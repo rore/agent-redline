@@ -55,7 +55,7 @@ The skill inspects the repo's layout, build system, conventions, and existing CI
 
 - Generates `agent-policy.yaml` — the repo's red/blue/gray zones and boundary rules
 - Generates or composes with the existing agent-instruction file (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, etc.)
-- Scaffolds a boundary-rule backend (ArchUnit on JVM in v0.1; other ecosystems are roadmap)
+- Scaffolds a boundary-rule backend matching the chosen [language extension](#supported-stacks)
 - Drops a local pre-push script that mirrors what CI will check
 - *Proposes* (does not commit) a CI workflow, branch protection updates, and CODEOWNERS additions for human review
 
@@ -93,46 +93,48 @@ After CI runs, the reporter posts a single sticky comment summarizing the verdic
 
 A boundary violation looks the same shape but with the `Boundary check` line listing the violated rule and the failing class — and CI exits non-zero so the PR cannot merge.
 
-See the live demo PRs for the three canonical states. Each sync rotates the PR numbers; the latest open PR for each branch is what to look at:
+See the live demo PRs for the three canonical states. Each sync rotates the PR numbers; the latest open PR for each branch is what to look at.
+
+**JVM/Spring** — [`agent-redline-demo`](https://github.com/rore/agent-redline-demo):
 
 - [`demo/blue-only-pr`](https://github.com/rore/agent-redline-demo/pulls?q=is%3Apr+head%3Ademo%2Fblue-only-pr) — BLUE, green CI, no checkpoint
 - [`demo/red-with-checkpoint-pr`](https://github.com/rore/agent-redline-demo/pulls?q=is%3Apr+head%3Ademo%2Fred-with-checkpoint-pr) — RED, green CI, `architecture-reviewed` label applied → checkpoint satisfied
 - [`demo/boundary-violation-pr`](https://github.com/rore/agent-redline-demo/pulls?q=is%3Apr+head%3Ademo%2Fboundary-violation-pr) — BOUNDARY_VIOLATION, red CI, cannot merge
 
-## What v0.1 ships
+**Python/FastAPI** — [`agent-redline-python-demo`](https://github.com/rore/agent-redline-python-demo):
+
+- [`demo/blue-only-pr`](https://github.com/rore/agent-redline-python-demo/pulls?q=is%3Apr+head%3Ademo%2Fblue-only-pr) — BLUE
+- [`demo/red-with-checkpoint-pr`](https://github.com/rore/agent-redline-python-demo/pulls?q=is%3Apr+head%3Ademo%2Fred-with-checkpoint-pr) — RED with checkpoint satisfied
+- [`demo/boundary-violation-pr`](https://github.com/rore/agent-redline-python-demo/pulls?q=is%3Apr+head%3Ademo%2Fboundary-violation-pr) — BOUNDARY_VIOLATION
+
+## Supported stacks
+
+| Stack | Extension | Boundary backend | Demo |
+|---|---|---|---|
+| JVM (Java, Kotlin), Spring Boot | [`spring-archunit`](extensions/spring-archunit/) | [ArchUnit](https://www.archunit.org/) (JUnit XML) | [agent-redline-demo](https://github.com/rore/agent-redline-demo) |
+| Python services and libraries (incl. Django) | [`python`](extensions/python/) | [import-linter](https://import-linter.readthedocs.io/) (json-violations) | [agent-redline-python-demo](https://github.com/rore/agent-redline-python-demo) |
+
+The framework's stack-neutral pieces — zone classification, checkpoints, PR-size checks, the agent-side discipline — work on **any** repo. The boundary-rule backend is the ecosystem-specific piece, and is what each language extension brings.
+
+## Extending to a new stack
+
+A language extension is a small folder of mostly markdown:
 
 ```
-✓ path-glob zone classification (red / blue / gray + watch tag)
-✓ checkpoint computation from CODEOWNER approval and labels
-✓ PR-size warn / fail thresholds
-✓ shadow / binding modes, with per-check overrides
-✓ boundary-violation ingestion from Spring/ArchUnit JUnit XML
-✓ boundary-violation ingestion from import-linter (Python) via the
-  json-violations format
-✓ reporter dispatches on the policy's boundaryAdapter
-  (junit-xml / json-violations / none)
-✓ OpenAPI structural diff (SpringDoc-generated or committed specs)
-✓ bootstrap composition with existing arch tests, instruction files,
-  pre-push hooks (no overwriting)
-✓ bootstrap-time policy calibration against the repo's PR history
-  (zone firing-rate analysis with developer approval gate)
-✓ zone-calibration tuning script for ongoing shadow-mode refinement
+extensions/<your-stack>/
+├── README.md          # what stack, when to pick it
+├── profile.md         # default zones, boundary contracts, gotchas
+├── scaffold.md        # how bootstrap installs the backend and wires CI
+├── operating.md       # (optional) stack-specific operating-mode notes
+├── adapter.yaml       # tells the reporter where the backend writes its
+│                      # output and what format
+└── scripts/           # (optional) adapter script when the backend has no
+                       # machine-readable output (the Python extension uses one)
 ```
 
-```
-roadmap:
-  • Node / Go / Rust boundary backends
-  • additional output formats (SARIF)
-  • team: / reviewerCount: checkpoint satisfaction
-  • LLM-judge soft checks
-  • cross-repo signals
-  • reusable GitHub Action; GitLab / Jenkins templates
-  • DRF / FastAPI OpenAPI generation-from-code (Python)
-```
+The reporter dispatches on `adapter.yaml`'s `outputFormat` — `junit-xml`, `json-violations`, or `none`. Any backend that produces JUnit XML, matches the [`json-violations` schema](core/schema/boundary-violations.schema.json), or has a small adapter that converts, plugs in without core changes.
 
-The skill produces zone classification, checkpoints, and PR-size checks for any repo regardless of stack. Boundary-rule enforcement is now available for **JVM (ArchUnit)** and **Python (import-linter)** out of the box; other ecosystems are roadmap.
-
-See [`docs/SPEC.md` §15.3](docs/SPEC.md) for the roadmap and what gates each item.
+Recommended backends for stacks not yet shipped: [`dependency-cruiser`](https://github.com/sverweij/dependency-cruiser) for Node, [`go-arch-lint`](https://github.com/fe3dback/go-arch-lint) for Go, [`cargo-deny`](https://github.com/EmbarkStudios/cargo-deny) + Clippy for Rust, [Semgrep](https://semgrep.dev/) as a multi-language fallback. See [`docs/EXTENSIONS.md`](docs/EXTENSIONS.md) for the practical guide and [`docs/SPEC.md` §15.3](docs/SPEC.md) for the broader roadmap.
 
 ## Install
 
@@ -164,11 +166,5 @@ Other tools and project-scope installs: see [`INSTALL.md`](INSTALL.md).
 ## Status
 
 **v0.1.** Early. Things will change.
-
-Two reference language extensions ship in-tree:
-- [`spring-archunit`](extensions/spring-archunit/) — JVM/Spring + ArchUnit (junit-xml output)
-- [`python`](extensions/python/) — Python services and libraries + import-linter (json-violations output)
-
-Other ecosystems are roadmap. The paired demo repo at <https://github.com/rore/agent-redline-demo> exercises bootstrap and operating mode end-to-end with live Spring PRs; an `agent-redline-python-demo` mirror is in flight (see `demo-source-python/` and `scripts/sync-python-demo.sh`).
 
 Decisions and their rationale: [`docs/DECISIONS.md`](docs/DECISIONS.md). Roadmap: [`docs/SPEC.md` §15.3](docs/SPEC.md).

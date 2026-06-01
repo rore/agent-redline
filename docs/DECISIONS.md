@@ -491,3 +491,50 @@ Plus three PR-scenario branches (`demo/blue-only-pr`, `demo/red-with-checkpoint-
 
 - The demo grows multiple flavors (different language extensions); at that point, paired repos per stack may make sense.
 - `sync-demo.sh` becomes unwieldy because the demo's content diverges meaningfully from what agent-redline produces. That would suggest agent-redline's bootstrap output isn't right and should be fixed at the source.
+---
+
+## 2026-06-01 — Python extension uses import-linter; adapter script required
+
+**Decision:** The reference Python extension uses [`import-linter`](https://import-linter.readthedocs.io/) as the boundary-rule backend, with an adapter script (`extensions/python/scripts/run-import-linter.py`) that runs it and emits the `json-violations` format.
+
+**Why:**
+
+- import-linter is the most mature Python tool for layered/forbidden import contracts. Its five built-in contract types (`layers`, `forbidden`, `independence`, `protected`, `acyclic_siblings`) cover the boundary rules a Python extension needs.
+- import-linter has **no machine-readable output**: its CLI emits Rich-formatted text and its public Python API exposes only a boolean pass/fail. The internal `create_report(...)` API is what its own CLI uses; the adapter calls it and walks the resulting `Report.get_contracts_and_checks()`.
+- Each contract type has a different metadata shape (`layers` uses `invalid_dependencies` with `importer`/`imported`; `forbidden`/`independence` use `invalid_chains` with `downstream_module`/`upstream_module`; `protected` uses `illegal_imports` as objects with `.illegal_links`). The adapter handles all five with a fallback that stringifies unknown metadata.
+- The adapter pins `import-linter>=2.0,<3` because it depends on internal modules that may move between major versions. A `--help`-runnable standalone script is part of the contract; CI catches incompatible versions explicitly.
+
+**Revisit if:**
+
+- import-linter ships a JSON-output flag (the upstream issue exists). The adapter would shrink to a thin `subprocess` call and the contract dependency on internals would dissolve.
+- A different Python tool (e.g. `pydeps`-based, custom AST analyzer) becomes more capable. import-linter's static-graph approach is the limiting factor for catching dynamic imports; a runtime-tracing backend would catch more, at higher complexity.
+
+## 2026-06-01 — Reporter dispatches on `boundaryAdapter.outputFormat`; second native format is `json-violations`
+
+**Decision:** The reporter learns to read a second boundary-output format alongside `junit-xml`: `json-violations`, defined by `core/schema/boundary-violations.schema.json`. The new `boundaryAdapter` block in `agent-policy.yaml` (mirroring extensions' `adapter.yaml`) tells the reporter which format to expect; CI flags `--boundary-report` and `--boundary-format` are the canonical interface.
+
+**Why:**
+
+- SPEC §15.3 already promised reporter dispatch on `adapter.yaml` "when the second extension lands." Python is that second extension.
+- `json-violations` is the natural format for backends that don't natively produce JUnit XML (forcing a JSON-to-XML conversion would be tortured). It generalizes cleanly to future ecosystems (Go, Rust, Semgrep) that emit JSON or text.
+- The legacy `--archunit-xml` flag stays as a deprecated alias indefinitely; existing Spring CI snippets keep working unchanged.
+- Keeping the schema small (one `version`, one optional `source`, one `violations` array of `{rule, detail, severity}`) makes it cheap for any future backend's adapter to emit.
+
+**Revisit if:**
+
+- A third format is genuinely needed (SARIF is the obvious candidate). Adding a third dispatch arm is mechanical; we just don't ship it before there's a user.
+
+## 2026-06-01 — Extension contract revised: `scripts/` permitted as a narrow exception
+
+**Decision:** Extensions may include a `scripts/` subdirectory containing focused adapter scripts when the boundary-rule backend has no machine-readable output. The previous claim in `docs/EXTENSIONS.md` ("markdown plus one small YAML file. No scripts, no parsers, no plugins") was wrong; the corrected text constrains scripts narrowly.
+
+**Why:**
+
+- import-linter forces this. No conversion-step-in-`scaffold.md` workaround produces an honest result; the build-time script ends up doing exactly what `extensions/python/scripts/run-import-linter.py` does anyway, just hidden behind a `pip install` of a community converter we'd have to maintain or vendor.
+- The constraints retain the original intent: scripts MUST be pure output-format converters; MUST NOT replicate reporter logic, classify zones, or compute checkpoints; MUST be runnable standalone with `--help`. The audit surface is small.
+- This affects only the small minority of backends without machine-readable output. Spring/ArchUnit, dependency-cruiser, go-arch-lint, cargo-deny all produce something the reporter can read either natively or via well-supported converters.
+
+**Revisit if:**
+
+- An adapter script grows beyond the narrow constraints and starts embedding reporter logic. That would mean the contract is wrong; either pull the logic into the core or split the script's responsibilities cleanly.
+- A future extension's script needs persistent state, daemon behavior, or anything beyond stdin-or-config-in / file-out. Same response.

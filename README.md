@@ -107,6 +107,10 @@ See the live demo PRs for the three canonical states. Each sync rotates the PR n
 ✓ PR-size warn / fail thresholds
 ✓ shadow / binding modes, with per-check overrides
 ✓ boundary-violation ingestion from Spring/ArchUnit JUnit XML
+✓ boundary-violation ingestion from import-linter (Python) via the
+  json-violations format
+✓ reporter dispatches on the policy's boundaryAdapter
+  (junit-xml / json-violations / none)
 ✓ OpenAPI structural diff (SpringDoc-generated or committed specs)
 ✓ bootstrap composition with existing arch tests, instruction files,
   pre-push hooks (no overwriting)
@@ -117,15 +121,16 @@ See the live demo PRs for the three canonical states. Each sync rotates the PR n
 
 ```
 roadmap:
-  • Node / Python / Go / Rust boundary backends
-  • additional output formats (SARIF, JSON-violations)
+  • Node / Go / Rust boundary backends
+  • additional output formats (SARIF)
   • team: / reviewerCount: checkpoint satisfaction
   • LLM-judge soft checks
   • cross-repo signals
   • reusable GitHub Action; GitLab / Jenkins templates
+  • DRF / FastAPI OpenAPI generation-from-code (Python)
 ```
 
-The skill still produces zone classification, checkpoints, and PR-size checks for non-JVM repos; only the boundary-backend leg is JVM-only today.
+The skill produces zone classification, checkpoints, and PR-size checks for any repo regardless of stack. Boundary-rule enforcement is now available for **JVM (ArchUnit)** and **Python (import-linter)** out of the box; other ecosystems are roadmap.
 
 See [`docs/SPEC.md` §15.3](docs/SPEC.md) for the roadmap and what gates each item.
 
@@ -160,6 +165,10 @@ Other tools and project-scope installs: see [`INSTALL.md`](INSTALL.md).
 
 **v0.1.** Early. Things will change.
 
-The reference language extension (`spring-archunit`) is the only stack covered today; other ecosystems are roadmap. The paired demo repo at <https://github.com/rore/agent-redline-demo> exercises bootstrap mode and operating mode end-to-end with live PRs.
+Two reference language extensions ship in-tree:
+- [`spring-archunit`](extensions/spring-archunit/) — JVM/Spring + ArchUnit (junit-xml output)
+- [`python`](extensions/python/) — Python services and libraries + import-linter (json-violations output)
+
+Other ecosystems are roadmap. The paired demo repo at <https://github.com/rore/agent-redline-demo> exercises bootstrap and operating mode end-to-end with live Spring PRs; an `agent-redline-python-demo` mirror is in flight (see `demo-source-python/` and `scripts/sync-python-demo.sh`).
 
 Decisions and their rationale: [`docs/DECISIONS.md`](docs/DECISIONS.md). Roadmap: [`docs/SPEC.md` §15.3](docs/SPEC.md).

@@ -48,15 +48,26 @@ agent-redline starts you with a default set based on the language extension you 
 
 Three honest options, in order of effort:
 
-1. **Use agent-redline without a backend.** Zone classification, PR discipline, checkpoint routing, and the agent-side skill discipline work without a boundary-rule backend. You lose the deterministic boundary check but keep the rest. The extension's `adapter.yaml` declares `outputFormat: none` and the reporter skips the boundary section of the verdict. This is the v0.1 path for any non-JVM repo.
-2. **Build an extension.** Extensions are five files, mostly markdown. See [EXTENSIONS.md](EXTENSIONS.md). For most mainstream stacks (Node, Python, Go, Rust), the recommended backend already exists in the ecosystem; an extension is wiring, not invention. Generic `boundaryBackend` dispatch in the reporter is roadmap (see SPEC §15.3) and will land alongside the second extension.
-3. **Use Semgrep as a generic backend.** Pattern-based, multi-language, less precise than language-native tools but works as a fallback. Same caveat: backend dispatch is roadmap.
+1. **Use agent-redline without a backend.** Zone classification, PR discipline, checkpoint routing, and the agent-side skill discipline work without a boundary-rule backend. You lose the deterministic boundary check but keep the rest. The extension (or the consuming repo's policy) declares `boundaryAdapter.outputFormat: none` and the reporter skips the boundary section of the verdict.
+2. **Build an extension.** Extensions are markdown plus a small YAML file (plus an optional adapter script when the backend has no machine-readable output). See [EXTENSIONS.md](EXTENSIONS.md). For most mainstream stacks the recommended backend already exists; an extension is wiring, not invention.
+3. **Use Semgrep as a generic backend.** Pattern-based, multi-language, less precise than language-native tools but works as a fallback. Convert its output to `json-violations` in a small adapter script.
+
+## How do I add agent-redline to my Python repo?
+
+Same flow as any other stack: drop the packaged skill into your harness, then ask it to set up agent-redline. The skill will:
+
+1. Inspect the repo and pick the right Python shape (layered service, library/package, or zone-only fallback). For Django repos it auto-applies the Django addendum (settings/urls/migrations red-zoned, cross-app independence contracts).
+2. Generate `[tool.importlinter]` in `pyproject.toml` with default contracts (`layers`, `forbidden`, `independence`, `acyclic_siblings`) tuned to the actual layer directories it finds.
+3. Drop `scripts/run-import-linter.py` (the adapter that runs import-linter and emits the JSON the reporter reads), `scripts/agent-redline-check.sh`, and a CI workflow proposal.
+4. Write `agent-policy.yaml` with `boundaryAdapter.outputFormat: json-violations`.
+
+The Python extension lives at [`extensions/python/`](../extensions/python/); the layout details are in [`extensions/python/profile.md`](../extensions/python/profile.md). The paired demo (`agent-redline-python-demo`) exercises the three canonical PR states end-to-end.
 
 ## How is this different from CODEOWNERS?
 
 CODEOWNERS routes review by file ownership. agent-redline routes review by architectural consequence. The two are compatible: agent-redline checkpoints can be satisfied by CODEOWNER approval, by labels, or by both.
 
-CODEOWNERS doesn't catch boundary violations; it only routes review. agent-redline catches them deterministically through a boundary-rule backend (ArchUnit on JVM, dependency-cruiser on Node, etc.).
+CODEOWNERS doesn't catch boundary violations; it only routes review. agent-redline catches them deterministically through a boundary-rule backend (ArchUnit on JVM, import-linter on Python, dependency-cruiser on Node, etc.).
 
 ## How does this differ from ArchUnit / Modulith / dependency-cruiser / Import Linter?
 
@@ -101,7 +112,7 @@ A boundary rule classifies a *dependency*: "this code may not depend on that cod
 
 A change can be in a blue zone but still violate a boundary rule. An agent editing an adapter mapper (blue) to import a domain class incorrectly violates the boundary rule.
 
-You'll typically declare both. Zones tell the skill where to slow down. Boundary rules tell the boundary-rule backend (ArchUnit on JVM, dependency-cruiser on Node, etc.) what dependencies to forbid.
+You'll typically declare both. Zones tell the skill where to slow down. Boundary rules tell the boundary-rule backend (ArchUnit on JVM, import-linter on Python, dependency-cruiser on Node, etc.) what dependencies to forbid.
 
 ## Do I need OpenAPI?
 

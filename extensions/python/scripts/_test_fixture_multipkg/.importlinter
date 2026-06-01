@@ -1,0 +1,15 @@
+[importlinter]
+root_packages =
+    api
+    core
+    storage
+exclude_type_checking_imports = True
+
+# Forbidden: api must not reach directly into storage; it should go via core.
+[importlinter:contract:api-not-direct-to-storage]
+name = api must not reach directly into storage
+type = forbidden
+source_modules =
+    api
+forbidden_modules =
+    storage

@@ -82,6 +82,24 @@ layers = [
 ]
 ```
 
+**Multi-package layout** (each layer is its own top-level package, no parent — see `profile.md` "Layout variants"). Use `root_packages` (plural) and top-level layer names:
+
+```toml
+[tool.importlinter]
+root_packages = ["api", "core", "storage"]    # one entry per top-level package layer
+exclude_type_checking_imports = true
+include_external_packages = true
+
+# Use `forbidden` between layer pairs instead of a single linear `layers` list.
+[[tool.importlinter.contracts]]
+name = "core stays independent of higher layers"
+type = "forbidden"
+source_modules = ["core"]
+forbidden_modules = ["api", "storage"]
+```
+
+Bootstrap derives the layer order from the repo's architecture docs (`docs/`, `AGENTS.md`) when present; ask the developer when not. Generate one `forbidden` contract per illegal direction.
+
 ## 3. The adapter script
 
 Bootstrap copies `extensions/python/scripts/run-import-linter.py` into the consuming repo at `scripts/run-import-linter.py`. The script runs `import-linter` and emits `boundary-violations.json` (matching `core/schema/boundary-violations.schema.json`).

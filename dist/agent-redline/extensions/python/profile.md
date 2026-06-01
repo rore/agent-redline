@@ -20,6 +20,7 @@ Globs use `**/<pkg>/**` form so they match both src-layout (`src/<pkg>/...`) and
 **Layout variants** (same shape — bootstrap derives, not separate shapes):
 - src-layout: `src/<pkg>/{...}/`. `src/` contains exactly one package.
 - flat: `<pkg>/{...}/` at repo root.
+- multi-package: each layer is its OWN top-level package at the repo root (`api/`, `core/`, `storage/`, ...). Detected when ≥ 2 top-level dirs each contain `__init__.py` AND none matches the project name from `pyproject.toml`. Contracts use `root_packages` (plural) and top-level layer names.
 
 ## Shape: layered service
 
@@ -159,10 +160,35 @@ type = "acyclic_siblings"
 container = "<pkg>"
 ```
 
+**For multi-package layouts**, replace the block above with `root_packages` (plural) and top-level layer names — each layer is its own root package, no parent. Use `forbidden` between layer pairs instead of a single linear `layers` list when the layer graph isn't strictly linear (e.g., several lower layers all callable from the API layer).
+
+```toml
+[tool.importlinter]
+root_packages = ["api", "application", "core", "providers", "storage"]
+exclude_type_checking_imports = true
+include_external_packages = true
+
+# Lower layers must not import higher layers. One forbidden contract per
+# illegal direction; bootstrap generates these from the actual layer set.
+[[tool.importlinter.contracts]]
+name = "core stays independent of higher layers"
+type = "forbidden"
+source_modules = ["core"]
+forbidden_modules = ["api", "application", "providers", "storage"]
+
+[[tool.importlinter.contracts]]
+name = "storage stays independent of higher layers"
+type = "forbidden"
+source_modules = ["storage"]
+forbidden_modules = ["api", "application", "providers"]
+# (and so on for each lower layer)
+```
+
 Bootstrap adapts:
 - Skip absent layers; substitute actual adapter package names.
 - Adjust `forbidden_modules` to what the repo actually imports.
 - Replace `<pkg>.infrastructure` / `<pkg>.adapters` with the repo's actual paths.
+- For multi-package: derive the layer order from the repo's architecture docs (`docs/context/`, `docs/ARCHITECTURE.md`, `AGENTS.md`) when present; ask the developer when not. Generate one `forbidden` contract per illegal direction.
 
 ### API contract handling
 

@@ -211,8 +211,9 @@ for ext_dir in "$REPO_ROOT"/extensions/*/; do
     if [[ -d "$src_file" ]]; then
       # Recursively copy subdirectories (e.g. scripts/), preserving executability.
       cp -r "$src_file" "$DEST/extensions/$ext_name/$base"
-      # Drop nested test fixtures under any subdir.
-      find "$DEST/extensions/$ext_name/$base" -type d -name '_test_fixture' -prune -exec rm -rf {} +
+      # Drop nested test fixtures under any subdir. Match any directory whose
+      # name starts with `_test_fixture` (`_test_fixture`, `_test_fixture_multipkg`, ...).
+      find "$DEST/extensions/$ext_name/$base" -type d -name '_test_fixture*' -prune -exec rm -rf {} +
       # Make .py files in scripts/ executable.
       if [[ "$base" == "scripts" ]]; then
         find "$DEST/extensions/$ext_name/$base" -type f -name '*.py' -exec chmod +x {} +

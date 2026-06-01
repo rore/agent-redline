@@ -30,7 +30,7 @@ Each phase ends with a developer review or confirmation. Do not skip ahead.
 
 Read what's in the repo:
 - Build files (`build.gradle`, `pom.xml`, `package.json`, `pyproject.toml`, `setup.py`, `setup.cfg`, `go.mod`, `Cargo.toml`)
-- Source layout (`src/<pkg>/` vs flat `<pkg>/` for Python; `manage.py` for Django)
+- Source layout. For Python: `src/<pkg>/` vs flat `<pkg>/` vs multi-package (multiple top-level `__init__.py` dirs, none matching the project name). For Django: `manage.py` at root.
 - Existing agent-instruction file: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `copilot-instructions.md`, or any `*-instructions.md` at repo root
 - Existing CI (`.github/workflows/`, `.gitlab-ci.yml`)
 - Existing CODEOWNERS
@@ -66,7 +66,7 @@ Don't modify anything yet. Produce a written summary; wait for developer confirm
 | `airflow`/`prefect`/`dagster`/`luigi` deps, or `dags/` / `pipelines/` / `notebooks/` | zone-only fallback |
 | None match | zone-only fallback |
 
-Confirm before loading `profile.md` details. If two shapes could fire, present both. src-layout vs flat is bootstrap-derived, not a separate shape.
+Confirm before loading `profile.md` details. If two shapes could fire, present both. Layout (src-layout / flat / multi-package) is bootstrap-derived, not a separate shape.
 
 ## Phase 2 — Extension-driven proposal
 

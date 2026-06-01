@@ -175,5 +175,48 @@ if report.get("violations"):
 print("ok: tree clean after restore")
 PYEOF
 
+# Step 5 — multi-package layout fixture: each layer is its own top-level
+# package at repo root (no parent), import-linter uses root_packages
+# (plural). The fixture has a baked-in violation (api -> storage); we
+# don't inject — we just assert the adapter detects the existing one.
+echo "==> step 5: multi-package layout fixture; adapter must detect existing violation"
+MULTIPKG_FIXTURE="$REPO_ROOT/extensions/python/scripts/_test_fixture_multipkg"
+[[ -d "$MULTIPKG_FIXTURE" ]] || { echo "error: multipkg fixture not found at $MULTIPKG_FIXTURE" >&2; exit 1; }
+
+cd "$MULTIPKG_FIXTURE"
+mkdir -p build
+set +e
+python "$ADAPTER" --out build/import-linter-report.json > "$TMPDIR_LOCAL/step5.log" 2>&1
+multipkg_exit=$?
+set -e
+if [[ "$multipkg_exit" -ne 1 ]]; then
+  echo "FAIL: multipkg adapter exit code is $multipkg_exit (expected 1)" >&2
+  cat "$TMPDIR_LOCAL/step5.log" >&2
+  exit 2
+fi
+
+SCHEMA_PATH="$SCHEMA" python - <<'PYEOF'
+import json, os, sys
+from pathlib import Path
+from jsonschema import Draft202012Validator
+schema = json.loads(Path(os.environ["SCHEMA_PATH"]).read_text(encoding="utf-8"))
+report = json.loads(Path("build/import-linter-report.json").read_text(encoding="utf-8"))
+errs = list(Draft202012Validator(schema).iter_errors(report))
+if errs:
+    print("schema errors:", [e.message for e in errs], file=sys.stderr)
+    sys.exit(2)
+violations = report.get("violations", [])
+if not violations:
+    print("FAIL: multipkg fixture should have violations", file=sys.stderr)
+    sys.exit(2)
+# Detail must reference top-level package names (api, storage), proving the
+# multi-package metadata flows correctly through the adapter.
+detail = violations[0].get("detail", "")
+if "api" not in detail or "storage" not in detail:
+    print(f"FAIL: detail doesn't reference top-level packages api/storage: {detail!r}", file=sys.stderr)
+    sys.exit(2)
+print(f"ok: multipkg adapter detected violation with top-level package names ({detail!r})")
+PYEOF
+
 echo
-echo "all 4 step(s) passed."
+echo "all 5 step(s) passed."

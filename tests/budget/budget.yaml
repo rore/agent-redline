@@ -54,12 +54,13 @@ ceilings:
 
   # Language-extension files.
   - path: extensions/*/profile.md
-    max_tokens: 2600
+    max_tokens: 2700
     why: loaded during bootstrap. Python's profile carries three layout
-      variants (src-layout / flat / multi-package), Django addendum, and
-      the two-vocabularies clarification (import-linter syntax vs
-      agent-redline `boundaries:` schema syntax) bootstrap needs to
-      avoid producing schema-invalid policies.
+      variants (src-layout / flat / multi-package), Django addendum, the
+      two-vocabularies clarification (import-linter syntax vs
+      agent-redline `boundaries:` schema syntax), and load-bearing
+      import-linter knob notes (allow_indirect_imports for forbidden
+      contracts in multi-package; ancestors field for acyclic_siblings).
   - path: extensions/*/scaffold.md
     max_tokens: 2000
     why: loaded during scaffold phase of bootstrap

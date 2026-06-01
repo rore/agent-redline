@@ -138,12 +138,23 @@ api:
         cp /tmp/base/build/openapi.json /tmp/spec_base.yaml
         git worktree remove /tmp/base --force
 
-    - run: ./scripts/agent-redline-report.sh
-      env:
-        API_SPEC_BASE: /tmp/spec_base.yaml
-        API_SPEC_HEAD: /tmp/spec_head.yaml
-        BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    - run: |
+        # Compute the changed-files list at PR time.
+        mkdir -p build
+        git diff --name-only \
+          ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
+          > build/changed-files.txt
+        # The reporter reads policy.boundaryAdapter to find the ArchUnit
+        # JUnit XML; for openapi-from-controllers it also takes the two
+        # generated specs explicitly.
+        python scripts/agent-redline-report.py \
+          --policy agent-policy.yaml \
+          --changed-files build/changed-files.txt \
+          --api-spec-base /tmp/spec_base.yaml \
+          --api-spec-head /tmp/spec_head.yaml \
+          --pr-labels "$(jq -r '.pull_request.labels[].name' "$GITHUB_EVENT_PATH" | paste -sd,)" \
+          --json-out build/verdict.json \
+          --comment-out build/comment.md
 ```
 
 The reporter consumes the two specs via `--api-spec-base` / `--api-spec-head` and computes a structural diff (paths added / removed, methods added / removed / modified). The output is a list of changed surface points; reviewers judge severity. The reporter does NOT classify breaking-vs-additive — false certainty there would be worse than no signal.

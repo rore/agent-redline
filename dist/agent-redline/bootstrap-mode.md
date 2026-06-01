@@ -129,7 +129,7 @@ This is a **starting hypothesis**. The first 2-4 weeks of shadow mode is where t
 ### 3b. PR-history calibration (when applicable)
 
 1. Count merged PRs: `gh pr list --state merged --limit 1 --json number`. If fewer than 30, skip 3b; note in the policy comment that calibration will complete in Window 1 of shadow mode. If 30 or more, ask the developer: *"I can run the tuner against the last 30 merged PRs to see which red rules fire too often. Run it?"*
-2. On approval: `python scripts/agent-redline-tune.py --policy <draft-path> --repo <gh-slug> --limit 30 --suggest`.
+2. On approval, run the tuner from the agent-redline skill (not the consuming repo): `python <skill-root>/scripts/agent-redline-tune.py --policy <draft-path> --repo <gh-slug> --limit 30 --suggest`. The tuner queries GitHub via `gh` and writes nothing into the consuming repo.
 3. Present each suggestion: path, firing rate, current zone, proposed action. Ask the developer to approve, override, or split.
 4. For approved demotions, move the path from `red` to `watch` in the draft. For overrides, add a one-line comment in the policy: `# kept red despite NN% rate: <reason>`.
 
@@ -156,25 +156,14 @@ Once signed off, write the committed artifacts.
 
 **`agent-policy.yaml`** — must classify the boundary-backend definition files as red (e.g., `src/test/java/**/architecture/**` for ArchUnit, `pyproject.toml` and `.importlinter` for import-linter, or wherever the existing config lives in this repo). Verify it parses against `assets/schema/agent-policy.schema.json`.
 
-**Agent-instruction file** — if `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `copilot-instructions.md`, or a similar file already exists at the repo root, append a clearly-marked agent-redline reference section to it. Do NOT create a new `AGENTS.md` alongside an existing instruction file. Only create `AGENTS.md` from scratch if none of those files exist.
-
-The reference section is short:
-
-```markdown
-## agent-redline
-
-This repo uses agent-redline. Before making changes:
-1. Read `agent-policy.yaml`.
-2. Classify as blue / red / gray; note any `watch` paths touched (additive — surfaced in the PR comment).
-3. Refuse to work around boundary rules.
-
-See `docs/agent/`. Framework: https://github.com/rore/agent-redline
-```
+**Agent-instruction file** — if `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `copilot-instructions.md`, or a similar file already exists at the repo root, append the agent-redline reference section from `assets/templates/AGENTS.md.template` (drop the `# AGENTS.md` heading; keep the body) under a clearly-marked heading. Do NOT create a new `AGENTS.md` alongside an existing instruction file. If none exists, copy `assets/templates/AGENTS.md.template` verbatim as `AGENTS.md`.
 
 **Boundary-rule backend artifacts** — read the extension's `scaffold.md`. Two cases:
 
 - **Existing setup found in Phase 1** (ArchUnit test, `[tool.importlinter]` block, etc.): do NOT generate a new one. Translate its rules into `boundaries:` entries in the policy (one per rule). The policy's `boundaries:` is metadata the reporter surfaces; the existing setup does the actual checking.
 - **No existing setup:** generate per `scaffold.md`. Substitute the actual base package. Don't write `..domain..` if the repo uses `..core..`.
+
+**Vendor the reporter** — copy `scripts/agent-redline-report.py` (which the packaged skill ships as `scripts/agent-redline-report.py`) into the consuming repo at `scripts/agent-redline-report.py`, mark executable. The pre-push script and CI workflow both invoke it.
 
 **`scripts/agent-redline-check.sh`** — copy `assets/templates/pre-push-check.sh` verbatim, mark executable. Do NOT regenerate; a hand-rolled version will drift from CI.
 

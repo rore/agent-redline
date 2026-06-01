@@ -172,27 +172,27 @@ report:
       with:
         python-version: '3.11'
     - run: pip install pyyaml jsonschema
-    - run: bash scripts/agent-redline-report.sh
-      env:
-        BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    - run: |
+        # Compute changed-files list at PR time and run the reporter.
+        mkdir -p build
+        git diff --name-only \
+          ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
+          > build/changed-files.txt
+        python scripts/agent-redline-report.py \
+          --policy agent-policy.yaml \
+          --changed-files build/changed-files.txt \
+          --pr-labels "$(jq -r '.pull_request.labels[].name' "$GITHUB_EVENT_PATH" | paste -sd,)" \
+          --json-out build/verdict.json \
+          --comment-out build/comment.md
 ```
 
-(`scripts/agent-redline-report.sh` is the same wrapper the Spring extension uses; the only difference is which artifact the boundary job produces.)
+(The reporter dispatches on `policy.boundaryAdapter`, which declares
+`outputFormat: json-violations` and `outputPath:
+build/import-linter-report.json` — the file the boundary job uploaded.)
 
 ## 6. Pre-push integration
 
-Add this line to `scripts/agent-redline-check.sh` (the local pre-push script):
-
-```bash
-# Boundary check — runs import-linter via the adapter, writes JSON.
-# Skipped if import-linter is not on PATH (developer hasn't installed dev deps yet).
-if command -v lint-imports >/dev/null 2>&1; then
-  python scripts/run-import-linter.py --out build/import-linter-report.json || true
-fi
-```
-
-The `|| true` is intentional: pre-push surfaces the violation in the reporter's output; it doesn't block the push twice.
+`scripts/agent-redline-check.sh` (vendored from the skill at bootstrap) already runs the import-linter adapter before invoking the reporter when it sees `scripts/run-import-linter.py` in the consuming repo. No additional wiring needed.
 
 ## 7. Baseline for retrofit cases
 

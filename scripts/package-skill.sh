@@ -186,6 +186,12 @@ cp "$REPO_ROOT/core/schema/boundary-violations.schema.json" "$DEST/assets/schema
 
 cp "$REPO_ROOT/core/reporter/reporter.py" "$DEST/scripts/agent-redline-report.py"
 chmod +x "$DEST/scripts/agent-redline-report.py"
+# The tuner is invoked from inside the skill during bootstrap Phase 3b
+# (PR-history calibration). It runs against the consuming repo via `gh`
+# and writes nothing into the repo; bootstrap calls it from the skill's
+# own scripts/ directory rather than vendoring it.
+cp "$REPO_ROOT/scripts/agent-redline-tune.py" "$DEST/scripts/agent-redline-tune.py"
+chmod +x "$DEST/scripts/agent-redline-tune.py"
 
 # ----------------------------------------------------------------------
 # 7. Extensions. Each extension is a self-contained folder of markdown +

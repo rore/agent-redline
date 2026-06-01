@@ -234,9 +234,11 @@ Shadow mode answers two separate questions, and treating them as one is a common
 
 ### Window 1 — Zone calibration (the first 1-2 weeks)
 
-**Question:** does the policy match the team's reality?
+**Question:** did the bootstrap-time calibration match reality?
 
-The bootstrap policy is a *starting hypothesis*: this is what we think the structural surface looks like. Shadow data immediately tells you whether the hypothesis is right. The signal is **firing rate per red entry**:
+Bootstrap (`core/skill/bootstrap-mode.md` Phase 3b) tunes the policy against the last 30 merged PRs before it ships, when history is available. Window 1 confirms that tuning under live PR conditions and catches anything bootstrap couldn't see. If the repo had thin history at bootstrap (<30 merged PRs), Window 1 is the *first* pass at calibration — plan for 3–4 weeks rather than 1–2.
+
+The signal is **firing rate per red entry**:
 
 - Red entry firing on 80%+ of PRs → too broad. The path covers routine work, not architectural change. Downgrade to the `watch` list (still surfaced) or `blue` (autonomous).
 - Red entry firing on 30-50% of PRs → ambiguous. Try to split it (interfaces vs implementations, prod config vs all config). If it can't be split, leave it and re-evaluate after Window 2.

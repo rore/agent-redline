@@ -10,23 +10,28 @@ runs the block under `bash -e`, the reporter exits 1 on a normal
 RED verdict, the step fails, the sticky-comment + enforce steps
 are skipped, and shadow-mode signal silently disappears.
 
-The pattern, expressed structurally:
+Two flow modes; each block must follow ONE consistent pattern:
 
-  - the run-block calling the reporter MUST set `set +e` first
-  - the run-block MUST capture `EXIT=$?` (or equivalent) AFTER the
-    reporter call so subsequent steps see the value via outputs
-  - the same yaml block MUST include a sticky-comment step
-    (uses: marocchino/sticky-pull-request-comment)
-  - the same yaml block MUST include an enforce step that gates on
-    exit code 2 specifically
+  PR-driven flow (`on: pull_request:`):
+    - `set +e` (executable line, not just a comment)
+    - `EXIT=$?` capture
+    - publish `exit_code=$EXIT` to $GITHUB_OUTPUT
+    - sticky-comment step (uses: marocchino/sticky-pull-request-comment)
+    - enforce step gating on `"$EXIT" == "2"`
 
-This is a narrow check on a narrow piece of skill content (scaffold
-CI snippets), not a generic YAML linter. It exists because the
-pattern matters and the cost of getting it wrong is silent failure
-mode in shadow-mode CI — exactly what bit Pallium.
+  push-driven flow (`on: push:`):
+    - `set +e` (executable line)
+    - `EXIT=$?` capture
+    - publish `exit_code=$EXIT` to $GITHUB_OUTPUT
+    - NO sticky-comment step (no PR to comment on)
+    - enforce step gating on `"$EXIT" != "0"` (warnings + binding fails
+      both block CI because there's no comment surface for warnings)
+
+Mode is detected from the same yaml block: `pull_request` vs `push:`
+appears in the trigger / changed-files git diff invocation.
 
 Exit codes:
-  0 — every reporter run-block follows the pattern
+  0 — every reporter run-block follows its mode's pattern
   1 — script error
   2 — at least one block is missing required pattern elements
 """
@@ -44,25 +49,7 @@ SCAFFOLDS = [
     "extensions/python/scaffold.md",
 ]
 
-# A reporter-calling run-block is identified by this needle in any
-# yaml fenced block.
 REPORTER_NEEDLE = "python scripts/agent-redline-report.py"
-
-# Required pattern elements. Each is a substring search inside the
-# same yaml block (not the whole file) — they need to coexist in the
-# same workflow snippet so a copy-paster gets the working pattern.
-REQUIRED_ELEMENTS = [
-    ("set +e",
-     "must run `set +e` to override bash's default abort-on-non-zero"),
-    ("EXIT=$?",
-     "must capture the reporter's exit code in EXIT"),
-    ("exit_code=$EXIT",
-     "must publish the captured exit code via $GITHUB_OUTPUT for the enforce step"),
-    ("marocchino/sticky-pull-request-comment",
-     "must include the sticky-comment step so the verdict reaches the PR"),
-    ('"$EXIT" == "2"',
-     "must include the enforce step that gates on exit code 2 (binding-mode hard fail)"),
-]
 
 
 def extract_yaml_blocks(text: str) -> list[tuple[int, str]]:
@@ -70,20 +57,63 @@ def extract_yaml_blocks(text: str) -> list[tuple[int, str]]:
     return [(i, m.group(1)) for i, m in enumerate(pattern.finditer(text))]
 
 
-def block_has_actual_set_plus_e(block: str) -> bool:
-    """`set +e` must appear as an executable line, not in a comment that
-    explains it. Match `set +e` only when it's the entire trimmed line."""
+def has_actual_set_plus_e(block: str) -> bool:
+    """`set +e` must be an executable line, not in a comment."""
     for line in block.splitlines():
-        stripped = line.strip()
-        if stripped == "set +e":
+        if line.strip() == "set +e":
             return True
     return False
+
+
+def detect_mode(block: str) -> str:
+    """Return 'pr', 'push', or 'unknown' based on signals in the block.
+
+    Heuristics in order:
+      1. `on: pull_request:` or `pull_request.base.sha` -> PR mode
+      2. `on: push:` or `github.event.before` or `github.sha` -> push mode
+      3. fallback: presence of marocchino sticky-comment is a strong PR
+         signal; absence + reporter-call is a push signal
+    """
+    if "pull_request" in block and ("base.sha" in block or "head.sha" in block):
+        return "pr"
+    if "github.event.before" in block or "on: push" in block:
+        return "push"
+    if "pull_request" in block:
+        return "pr"
+    if "marocchino/sticky-pull-request-comment" in block:
+        return "pr"
+    return "push"  # default — push mode is more permissive (no sticky required)
+
+
+def required_for_mode(mode: str) -> list[tuple[str, str]]:
+    """Substring -> error message. Same elements for both modes EXCEPT
+    sticky-comment (PR only) and enforce-gate threshold."""
+    common = [
+        ("EXIT=$?",
+         "must capture the reporter's exit code in EXIT"),
+        ("exit_code=$EXIT",
+         "must publish the captured exit code via $GITHUB_OUTPUT for the enforce step"),
+    ]
+    if mode == "pr":
+        return common + [
+            ("marocchino/sticky-pull-request-comment",
+             "PR-driven flow must include the sticky-comment step so the verdict reaches the PR"),
+            ('"$EXIT" == "2"',
+             "PR-driven flow must include an enforce step gating on exit code 2 (binding-mode hard fail; exit 1 surfaces in the comment, doesn't block)"),
+        ]
+    # push mode
+    return common + [
+        ('"$EXIT" != "0"',
+         "push-driven flow must include an enforce step gating on `\"$EXIT\" != \"0\"` (warnings AND hard fails block CI; without a sticky comment surface, exit 1 is invisible otherwise)"),
+    ]
 
 
 def main() -> int:
     failures: list[str] = []
     blocks_checked = 0
     files_seen = 0
+    pr_blocks = 0
+    push_blocks = 0
 
     for rel in SCAFFOLDS:
         path = REPO_ROOT / rel
@@ -97,27 +127,41 @@ def main() -> int:
             if REPORTER_NEEDLE not in block_text:
                 continue
             blocks_checked += 1
-            # `set +e` is checked structurally — it must be an actual
-            # executable line, not just mentioned in a comment.
-            if not block_has_actual_set_plus_e(block_text):
+            mode = detect_mode(block_text)
+            if mode == "pr":
+                pr_blocks += 1
+            else:
+                push_blocks += 1
+
+            if not has_actual_set_plus_e(block_text):
                 failures.append(
-                    f"{rel} block#{idx}: must run `set +e` as an executable line "
+                    f"{rel} block#{idx} ({mode}): must run `set +e` as an executable line "
                     "(found only in prose/comments) to override bash's default abort-on-non-zero"
                 )
-            for needle, message in REQUIRED_ELEMENTS:
-                if needle == "set +e":
-                    continue  # handled above
+
+            # push-mode must NOT include a PR-only sticky-comment surface — the
+            # block doesn't fail the test for it, but if a push-mode block has
+            # marocchino in it, that's a structural confusion worth flagging.
+            if mode == "push" and "marocchino/sticky-pull-request-comment" in block_text:
+                failures.append(
+                    f"{rel} block#{idx} (push): contains marocchino sticky-comment but "
+                    "is detected as push-mode (no PR to comment on). Either change the "
+                    "trigger to pull_request: or remove the sticky-comment step."
+                )
+
+            for needle, message in required_for_mode(mode):
                 if needle not in block_text:
-                    failures.append(f"{rel} block#{idx}: {message}")
+                    failures.append(f"{rel} block#{idx} ({mode}): {message}")
 
     print()
-    print(f"scanned {files_seen} scaffold(s); {blocks_checked} reporter run-block(s) validated.")
+    print(f"scanned {files_seen} scaffold(s); {blocks_checked} reporter run-block(s) validated "
+          f"({pr_blocks} PR-driven, {push_blocks} push-driven).")
     if failures:
         for f in failures:
             print(f"FAIL  {f}", file=sys.stderr)
         print(f"\n{len(failures)} pattern violation(s).", file=sys.stderr)
         return 2
-    print("all reporter run-blocks follow the exit-code-capture pattern.")
+    print("all reporter run-blocks follow their flow-mode pattern.")
     return 0
 
 

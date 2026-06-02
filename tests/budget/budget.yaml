@@ -31,13 +31,13 @@ ceilings:
     max_tokens: 1500
     why: loaded on every operating-mode turn
   - path: core/skill/bootstrap-mode.md
-    max_tokens: 2600
+    max_tokens: 3000
     why: loaded only during bootstrap (rare). Carries the Phase 3b
-      data-driven calibration step (PR-history firing-rate tuning with
-      developer approval), the Phase 4 templates-discipline rules, and
-      shape-selection triage for multi-shape extensions (Python). The
-      ceiling rose to accommodate Python's three-layout-variants
-      detection (src-layout / flat / multi-package).
+      data-driven calibration step (PR-history AND push-history
+      firing-rate tuning with developer approval), the Phase 4
+      templates-discipline rules, shape-selection triage for
+      multi-shape extensions (Python's three layouts), and flow-mode
+      triage (PR-driven vs push-driven CI shape).
 
   # Per-checkpoint skill docs — each loaded only when its checkpoint is triggered.
   - path: core/templates/skills/*.md
@@ -62,12 +62,13 @@ ceilings:
       import-linter knob notes (allow_indirect_imports for forbidden
       contracts in multi-package; ancestors field for acyclic_siblings).
   - path: extensions/*/scaffold.md
-    max_tokens: 2100
+    max_tokens: 2800
     why: loaded during scaffold phase of bootstrap. Carries the
       complete CI-workflow report-step pattern (set +e, capture exit,
-      sticky-comment action, enforce-on-exit-2 step). Without the full
-      pattern, bash -e on the run block masks the comment-posting step
-      and silently breaks shadow-mode signal surfacing.
+      sticky-comment action, enforce-on-exit-2 step) AND the parallel
+      push-driven flow (no sticky comment, BEFORE/AFTER diff with
+      merge-base fallback, fail-on-1-or-2 enforcement). The agent loads
+      whichever subsection matches the flow mode picked in Phase 1.
   - path: extensions/*/operating.md
     max_tokens: 600
     why: loaded during operating mode if the extension provides one

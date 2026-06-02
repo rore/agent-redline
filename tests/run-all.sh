@@ -52,6 +52,7 @@ layers=(
   "skill-refs|python tests/skill-refs/check-skill-refs.py|REQUIRES_PYTHON"
   "skill-toml|python tests/skill-toml/check-skill-toml.py|OPTIONAL_IMPORTLINTER"
   "scaffold-ci|python tests/scaffold-ci/check-scaffold-ci.py|REQUIRES_PYTHON"
+  "tuner|bash tests/tuner/check-tuner.sh|REQUIRES_PYTHON"
   "pre-push|bash tests/pre-push/check-pre-push.sh|"
   "reporter-goldens|python tests/reporter/check-reporter.py|REQUIRES_PYTHON"
   "reporter-unit|python -m pytest tests/reporter/ -q|REQUIRES_PYTEST"

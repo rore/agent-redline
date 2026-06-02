@@ -779,29 +779,32 @@ Items 1–7 each have a corresponding live PR scenario on `agent-redline-demo`. 
 - LLM-judge layer
 - Cross-service / cross-repo signal
 - Skill marketplace / central distribution
-- Language extensions other than `spring-archunit` (community-built or later)
+- Language extensions other than `spring-archunit` and `python` (community-built or later)
 - Dashboard / metrics aggregation
 - Auto-installer
 - File-level "trust tiers"
 - Formal IR layer
 - Reusable GitHub Action wrapping the reporter
 - CLI for non-agent / pure-CI use cases
+- A push-driven Layer-5 demo repo (push-driven CI is shipped and tested end-to-end via `tests/scaffold-ci-e2e/`; a paired demo repo using push-driven mode is roadmap)
 
 ### 15.3 Roadmap candidates (in priority order)
 
 The schema describes what the reporter actually does today. The items below are *not* in the schema yet — they will be added when the reporter learns them, not before.
 
-1. **Additional language extensions** beyond the two shipped today (`spring-archunit` and `python`). Node (`dependency-cruiser`), Go (`go-arch-lint`), Rust (`cargo-deny` + Clippy), and a generic Semgrep extension are the natural next candidates. The reporter already dispatches on `boundaryAdapter.outputFormat` (the Python extension forced this generalization).
+1. **Additional language extensions** beyond the two shipped today (`spring-archunit` and `python`). Node (`dependency-cruiser`), Go (`go-arch-lint`), Rust (`cargo-deny` + Clippy), and a generic Semgrep extension are the natural next candidates. The reporter dispatches on `boundaryAdapter.outputFormat` (the Python extension forced this generalization), so adding a new extension is mostly a matter of writing the profile / scaffold / adapter.
 2. **Additional backend output formats** supported natively by the reporter. Today: `junit-xml` and `json-violations`. SARIF is the most-requested next format; will land when an extension genuinely needs it.
 3. **Generic rule engine** (`changeRules`) — only if the v0.1 hardcoded behavior turns out not to be enough in practice. The hardcoded mapping is: red-zone change → require checkpoint; gray-zone change → warn; boundary violation → fail (when binding); api/schema/security/runtime-config change → require the corresponding checkpoint; PR-size warn → warn; PR-size fail → require split. If real users need to override these, we'll design the override surface with their cases in hand.
 4. **Richer checkpoint satisfaction** (`team: <name>`, `reviewerCount: <n>`). Requires querying the host (GitHub / GitLab / etc.) for team membership and approval counts.
-5. **Reusable GitHub Action** wrapping the reporter (`rore/agent-redline/report@v1`). Until then, CI invokes the standalone script directly.
-6. **LLM-judge layer** for soft checks (implicit-contract risk, modeling-change detection).
-7. **Cross-repo API-consumer signal** (when one service changes its API, surface to its consumers).
-8. **GitLab CI / Jenkins / CircleCI workflow templates.**
-9. **Dashboard for shadow-mode tuning data.**
-10. **CLI for non-agent / pure-CI use cases.**
-11. **DRF / FastAPI OpenAPI generation-from-code** in the Python extension. v1 falls back to path-touch on URL routing files; spec generation is the precise signal.
+5. **Reusable GitHub Action** wrapping the reporter (`rore/agent-redline/report@v1`). Until then, CI invokes the standalone script directly. Two flow modes (PR-driven, push-driven) are supported via separate workflow YAML; the Action would unify them behind a single `with: flow: pr|push` parameter.
+6. **Push-driven demo repo** — a third paired demo using `on: push:` instead of `on: pull_request:`. The push-driven workflow is exercised end-to-end via `tests/scaffold-ci-e2e/check-scaffold-ci-e2e.sh`, but a Layer-5-shaped demo repo doesn't exist yet.
+7. **LLM-judge layer** for soft checks (implicit-contract risk, modeling-change detection).
+8. **Cross-repo API-consumer signal** (when one service changes its API, surface to its consumers).
+9. **GitLab CI / Jenkins / CircleCI workflow templates.**
+10. **Dashboard for shadow-mode tuning data.**
+11. **CLI for non-agent / pure-CI use cases.**
+12. **DRF / FastAPI OpenAPI generation-from-code** in the Python extension. v1 falls back to path-touch on URL routing files; spec generation is the precise signal.
+13. **Multi-package layout for non-Python extensions.** The Python extension supports it natively (`root_packages` in import-linter); when other extensions land, the same layout question may apply (Node monorepos, Go cmd-shaped repos).
 
 ### 15.4 Validation artifacts required for v0.1
 

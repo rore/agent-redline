@@ -167,4 +167,6 @@ Other tools and project-scope installs: see [`INSTALL.md`](INSTALL.md).
 
 **v0.1.** Early. Things will change.
 
+Two flow modes for CI integration: PR-driven (sticky-comment surface, fail CI on exit 2) and push-driven (CI artifact surface, fail CI on exit 1 OR 2). Bootstrap picks one based on the repo's actual flow.
+
 Decisions and their rationale: [`docs/DECISIONS.md`](docs/DECISIONS.md). Roadmap: [`docs/SPEC.md` §15.3](docs/SPEC.md).

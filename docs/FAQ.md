@@ -38,7 +38,7 @@ The skill should be honest about this during bootstrap rather than fabricate zon
 
 Less work. Bootstrap detects existing boundary-backend setups (ArchUnit tests on JVM, dependency-cruiser configs on Node, etc.), existing CODEOWNERS rules, existing CI checks. Where they exist, agent-redline composes with them rather than duplicating them.
 
-(In v0.1 the reporter only ingests boundary results from Spring/ArchUnit JUnit XML. For other ecosystems, the existing rules keep running as they always did; agent-redline contributes zone classification, checkpoints, and PR-size checks on top. Generic boundary-backend dispatch is roadmap.)
+(The reporter ingests boundary results in two formats today: JUnit XML, used by Spring/ArchUnit and other JVM-style architecture testers; and `json-violations`, used by Python's `import-linter` via the extension's adapter script. New extensions can target either format directly or ship a small adapter to convert; see [EXTENSIONS.md](EXTENSIONS.md) § "Backends without machine-readable output".)
 
 ## What if my team has no architecture rules?
 
@@ -99,11 +99,21 @@ Two safeguards:
 
 Neither is bulletproof against a determined bad actor. agent-redline is not a security perimeter. It's a discipline layer for cooperative agents and an enforcement layer for legitimate mistakes.
 
+## Do I have to use pull requests?
+
+No. agent-redline supports two CI flow modes: **PR-driven** (`on: pull_request:`, sticky-comment surface, fail CI on exit 2) and **push-driven** (`on: push: branches: [main]`, CI artifact surface, fail CI on exit 1 OR 2). Bootstrap detects which fits your repo from Phase 1 inspection — if the dominant flow is `git push` to a long-lived branch and PRs are rare or absent, push-driven is what gets proposed.
+
+The agent-side discipline (read the policy before editing, classify the change, refuse boundary shortcuts) is flow-agnostic. The local pre-push check (`scripts/agent-redline-check.sh`) runs the same reporter regardless of CI shape — solo developers and trunk-based teams get verdict signal at edit time without depending on PR review.
+
+The history-based calibration tuner (`scripts/agent-redline-tune.py`) accepts both PR history (`--repo <gh-slug>`) and push history (`--push-history --branch main`) — same tool, different input, same output.
+
+See [CI_INTEGRATION.md](CI_INTEGRATION.md) § "Two flow modes" for the full picture.
+
 ## How big should a PR be?
 
-A per-team decision. Bootstrap proposes generous defaults (50 files / 1000 lines warn; 100 files / 2000 lines fail) so the tool doesn't fight existing workflow. Tighten over time as the team adapts.
+A per-team decision. Bootstrap proposes generous defaults (50 files / 1000 lines warn; 100 files / 2000 lines fail) so the tool doesn't fight existing workflow. Tighten over time as the team adapts. (For push-driven solo repos, the same thresholds apply per-commit instead of per-PR; tighten more aggressively if you're typically pushing small changes.)
 
-The principle: a PR exceeds the human attention budget if a reviewer can't read it carefully in one sitting. Teams typically discover their actual threshold during shadow mode.
+The principle: a change exceeds the human attention budget if a reviewer can't read it carefully in one sitting. Teams typically discover their actual threshold during shadow mode.
 
 ## What's the difference between a zone and a boundary rule?
 

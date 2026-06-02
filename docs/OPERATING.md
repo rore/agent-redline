@@ -124,15 +124,19 @@ Run `scripts/agent-redline-check.sh`. This runs the same reporter CI runs, again
 
 If the local check reports problems, fix them before declaring work done.
 
-## Step 6 — PR description
+## Step 6 — Change description
 
-Write a PR description that exposes the classification. Use the repo's PR template (the bootstrap added the relevant fields). Specifically:
+Write a description that exposes the classification. The description goes:
+- in the **PR description** for PR-driven flow (use the repo's PR template; bootstrap added the relevant fields), or
+- in the **commit message** for push-driven flow (no PR exists; the commit message is the only durable record per change).
 
-- Tick the correct classification box
-- Tick the correct checkpoint box
-- Write a *short, factual* "what changed" — not a history of attempts, not a restatement of the requirements, not a paragraph per file
-- Write a *short* "why"
-- List the verification commands actually run
+Either way, write:
+
+- The classification (red / blue / gray; any watch paths touched)
+- Which checkpoint the change satisfies, if any
+- A *short, factual* "what changed" — not a history of attempts, not a restatement of requirements, not a paragraph per file
+- A *short* "why"
+- The verification commands actually run
 
 Do not produce verbose generated descriptions. The reporter may flag them as slop.
 

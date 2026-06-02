@@ -538,3 +538,72 @@ Plus three PR-scenario branches (`demo/blue-only-pr`, `demo/red-with-checkpoint-
 
 - An adapter script grows beyond the narrow constraints and starts embedding reporter logic. That would mean the contract is wrong; either pull the logic into the core or split the script's responsibilities cleanly.
 - A future extension's script needs persistent state, daemon behavior, or anything beyond stdin-or-config-in / file-out. Same response.
+
+## 2026-06-01 — Multi-package layout treated as a layout variant, not a fourth shape
+
+**Decision:** Repos where each architectural layer is its own top-level package (`api/`, `core/`, `storage/`, ...) instead of children of a single parent package are recognised as the **multi-package layout** of the existing **layered service** shape, not as a separate fourth Python shape. Detection: ≥2 top-level dirs each contain `__init__.py` AND none matches the project name from `pyproject.toml` AND no `src/` dir.
+
+**Why:**
+
+- The zones, watch list, and Django addendum are unchanged from src-layout / flat. Only the `[tool.importlinter]` config and contract shape differ — `root_packages` (plural) instead of `root_package`, with top-level layer names instead of `<pkg>.layer` names.
+- Treating it as a fourth shape would split the profile across four parallel sections that mostly say the same thing. A layout variant is the lighter lift.
+- import-linter's `forbidden` contract checks transitive imports by default, which makes multi-package contracts unsatisfiable when one layer (e.g. `core`) bridges multiple siblings. Multi-package examples in the profile set `allow_indirect_imports = true` and explain why; the regression test (`tests/skill-toml/`) enforces this on examples.
+
+**Revisit if:**
+
+- A repo shape emerges that genuinely needs different zones, not just different contract config. That would justify a new shape, not a layout variant.
+
+## 2026-06-02 — Push-driven CI as a first-class flow mode
+
+**Decision:** Bootstrap proposes one of two CI workflow shapes based on the consuming repo's actual flow: **PR-driven** (`on: pull_request:`, sticky-comment surface, fail on exit 2) or **push-driven** (`on: push: branches: [main]`, CI artifact surface, fail on exit 1 OR 2). Neither is the "default"; bootstrap detects the dominant flow during Phase 1 and proposes the matching shape.
+
+**Why:**
+
+- Solo developers and trunk-based teams don't have a PR review surface. The PR-shaped workflow proposes machinery (sticky comment, CODEOWNERS routing, `architecture-reviewed` label) that has no consumer. Telling them to use PRs anyway would be insisting on overhead the team-flow assumption no longer justifies.
+- The reporter exit-code contract (0/1/2) stays unchanged — it's what makes the local pre-push check work for solo developers regardless of CI shape. The flow modes differ only in trigger, diff method, and how the enforce step gates CI.
+- Without a sticky-comment surface, the push-driven mode fails CI on exit 1 (warnings) too. CI red is the only available visibility channel; silencing it would silence shadow-mode signal entirely.
+
+**Revisit if:**
+
+- A third surface emerges (e.g., a Slack notification action that posts the verdict) that gives push-driven repos an exit-1 visibility channel without CI red. At that point the enforce-on-non-zero default could relax to enforce-on-2-only.
+- Detection of the dominant flow turns out to be unreliable. Currently the signal is "merged-PR count vs commit count over the last 30 days." So far that's correct on every real repo we've bootstrapped (Pallium has 2 PRs and 141 commits/30 days → push-driven; the demo repos are PR-driven by construction).
+
+## 2026-06-02 — Tuner takes either PR history or push history as input
+
+**Decision:** `scripts/agent-redline-tune.py` accepts a new `--push-history` mode that walks `git log <branch>` and treats each commit as one changeset. Existing `--pr-dir` / `--pr-list` / `--repo` modes are retained. The output's "changeset(s)" terminology is generic across both modes.
+
+**Why:**
+
+- A tuner that requires merged PRs is useless on solo / trunk-based repos. The data exists (commits to the long-lived branch are the unit of change); only the input source needed generalising.
+- Squash-merged PRs collapse to one commit on the destination branch, so `--push-history` and `--repo` (PR mode) produce roughly comparable samples on volume. The threshold (30 changesets) applies to either.
+- The tuner runs read-only inside the agent-redline skill (`<skill-root>/scripts/agent-redline-tune.py`) — it queries GitHub via `gh` (PR mode) or `git log` against a local clone (push mode). Doesn't write into the consuming repo.
+
+**Revisit if:**
+
+- A consuming repo wants per-author / per-time-window slices (e.g., "only commits in the last 6 months", "exclude bot commits"). Could become extra `--push-history` filters.
+
+## 2026-06-02 — Skill correctness has multiple regression layers, one per bug class
+
+**Decision:** When a bug surfaces in a real bootstrap or smoke run, fix the instance AND add a regression layer that catches the underlying *class* of bug. Each test layer below was added in response to a real bug:
+
+| Layer | Bug class caught | Triggered by |
+|---|---|---|
+| `tests/skill-yaml/` | YAML examples in skill markdown that don't validate against the policy schema | Pallium Round 1 |
+| `tests/skill-refs/` | Path references in skill markdown that don't resolve to a shipped file or documented vendor instruction | Pallium Round 2 |
+| `tests/skill-scripts-runnable/` | Python `import` references in shipped scripts that resolve in source but not in dist | Pallium Round 5 |
+| `tests/skill-toml/` | `[[tool.importlinter.contracts]]` examples with wrong field names (`container=` vs `ancestors=`, missing `allow_indirect_imports` for multi-package) | Pallium Round 3 |
+| `tests/scaffold-ci/` | Scaffold reporter run-blocks missing required pattern elements (set +e, EXIT capture, sticky comment, enforce step) | Pallium Round 4 |
+| `tests/scaffold-ci-e2e/` and `scaffold-spring-e2e` | Scaffold run-block extracted, executed end-to-end against fixture; verdict shape asserted | Internal (push-driven feature work) |
+| `tests/bootstrap-detect/` | Profile detection table missing a layer dir (caught `api/` was missing from the layered-service signal) | Internal (caught while building the test) |
+| `tests/tuner/` | Tuner crashes / wrong output on edge cases (empty repo, missing branch, empty commit, limit > available) | Internal (pre-emptive after Round 5) |
+
+**Why:**
+
+- Each layer catches a class of bug, not just the original instance. If the same shape of bug appears again — different file, different field name, different missing reference — the existing layer catches it before it reaches a consuming repo.
+- Each layer is verified by transiently reverting its target fix; if the test doesn't fail under the revert, it isn't testing what it claims to.
+- Skill content is harder to test than runtime code because most of the "behavior" is what an agent does after reading it. The framework can't run agents in CI. So instead, every concrete artifact the skill produces (YAML examples, file references, contract definitions, scaffold patterns) gets a structural test that asserts the artifact's shape is right.
+
+**Revisit if:**
+
+- A new bug class emerges that isn't covered by an existing layer. Add a new layer; don't try to retrofit an existing one.
+- A layer grows brittle (false positives on legitimate changes). Either tighten the assertion (the empty-commit case in `tests/tuner/` was tightened from "either outcome OK" to "must skip empty" to make the test meaningful) or split the layer.

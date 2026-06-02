@@ -62,8 +62,12 @@ ceilings:
       import-linter knob notes (allow_indirect_imports for forbidden
       contracts in multi-package; ancestors field for acyclic_siblings).
   - path: extensions/*/scaffold.md
-    max_tokens: 2000
-    why: loaded during scaffold phase of bootstrap
+    max_tokens: 2100
+    why: loaded during scaffold phase of bootstrap. Carries the
+      complete CI-workflow report-step pattern (set +e, capture exit,
+      sticky-comment action, enforce-on-exit-2 step). Without the full
+      pattern, bash -e on the run block masks the comment-posting step
+      and silently breaks shadow-mode signal surfacing.
   - path: extensions/*/operating.md
     max_tokens: 600
     why: loaded during operating mode if the extension provides one

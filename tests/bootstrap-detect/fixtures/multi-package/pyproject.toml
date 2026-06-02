@@ -1,0 +1,7 @@
+[project]
+name = "biggie"
+version = "0.1.0"
+dependencies = [
+  "fastapi>=0.111,<1",
+  "sqlalchemy>=2,<3",
+]

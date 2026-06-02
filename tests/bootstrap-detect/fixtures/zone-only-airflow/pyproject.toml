@@ -1,0 +1,6 @@
+[project]
+name = "pipelines"
+version = "0.1.0"
+dependencies = [
+  "apache-airflow>=2,<3",
+]

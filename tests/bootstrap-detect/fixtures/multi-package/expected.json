@@ -1,0 +1,7 @@
+{
+  "shape": "layered-service",
+  "layout": "multi-package",
+  "web_deps": ["fastapi"],
+  "has_django": false,
+  "flat_top_packages": ["api", "core", "storage"]
+}

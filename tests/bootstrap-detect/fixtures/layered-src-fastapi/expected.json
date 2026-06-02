@@ -1,0 +1,7 @@
+{
+  "shape": "layered-service",
+  "layout": "src-layout",
+  "web_deps": ["fastapi"],
+  "has_django": false,
+  "layer_dirs_found": ["api", "application", "domain"]
+}

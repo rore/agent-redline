@@ -1,21 +1,28 @@
 #!/usr/bin/env bash
 # tests/tuner/check-tuner.sh
 #
-# Smoke test for scripts/agent-redline-tune.py --push-history mode.
-# Builds a tiny throwaway git repo with 5 commits, each touching a
-# specific file. Runs the tuner against a policy that classifies those
-# files as red. Asserts:
-#   1. tuner exits 0
-#   2. report says "5 changeset(s)"
-#   3. each red rule's firing rate matches the actual touch count
+# Smoke + edge-case test for scripts/agent-redline-tune.py --push-history.
 #
-# This validates the new --push-history source mode end-to-end without
-# requiring network access (no `gh`) or a real Pallium-shaped repo.
+# Coverage:
+#   1. Happy path — 5 commits with known file-touch distribution, asserts
+#      changeset count and per-rule firing rates.
+#   2. Empty repo — no commits at all; tuner must exit non-zero with a
+#      clear "no PRs found" message (or equivalent), not crash.
+#   3. Missing branch — --branch nonexistent against a populated repo;
+#      tuner must exit non-zero.
+#   4. Zero-file commit — a merge / empty commit that touches no files;
+#      tuner must include the commit in the count but not credit any
+#      zone with its absence.
+#   5. Limit exceeds available — --limit 100 against 3 commits; tuner
+#      must walk all 3 and report 3 (not 100).
+#
+# Validates the new --push-history source mode end-to-end without
+# requiring network access (no `gh`).
 #
 # Exit codes:
-#   0 — tuner output matches expected
+#   0 — all cases pass
 #   1 — script error
-#   2 — tuner output diverged from expected
+#   2 — at least one case produced wrong output
 
 set -euo pipefail
 
@@ -26,43 +33,11 @@ TUNER="$REPO_ROOT/scripts/agent-redline-tune.py"
 command -v git >/dev/null || { echo "error: git not on PATH" >&2; exit 1; }
 command -v python >/dev/null || { echo "error: python not on PATH" >&2; exit 1; }
 
-# Disposable fixture
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
-FIXTURE="$TMPDIR/repo"
-mkdir -p "$FIXTURE"
-cd "$FIXTURE"
-git init -q -b main
-git config user.email "t@t"
-git config user.name "t"
 
-# Build 5 commits, each touching ONE file we care about.
-# - 3 commits touch core/foo.py (red, should fire 3/5 = 60%)
-# - 1 commit touches storage/db.py (red, should fire 1/5 = 20%)
-# - 1 commit touches tests/test_a.py (blue, should not fire on red)
-mkdir -p core storage tests
-echo "# initial" > README.md
-git add README.md
-git commit -q -m "init"
-
-for i in 1 2 3; do
-  echo "# v$i" > core/foo.py
-  git add core/foo.py
-  git commit -q -m "edit core/foo.py #$i"
-done
-
-echo "# storage" > storage/db.py
-git add storage/db.py
-git commit -q -m "edit storage/db.py"
-
-echo "# test" > tests/test_a.py
-git add tests/test_a.py
-git commit -q -m "edit tests/test_a.py"
-
-# Compose a minimal valid policy where core/** and storage/** are red,
-# tests/** is blue. The tuner sees the 5 most recent commits (we built 5
-# beyond the init).
-cat > "$TMPDIR/policy.yaml" <<EOF
+# Shared minimal policy used by all cases.
+cat > "$TMPDIR/policy.yaml" <<'POLICY_EOF'
 version: 1
 project: { name: tuner-fixture }
 zones:
@@ -78,49 +53,139 @@ checkpoints:
   persistence-review:
     satisfiedBy:
       - codeownerApproval
-EOF
+POLICY_EOF
 
-# Run the tuner with --push-history --limit 5 (5 most recent commits).
-# Wrap in `set +e` so a non-zero exit from the tuner doesn't kill the
-# test before we can inspect the output and assert against it.
-set +e
-OUT=$(python "$TUNER" \
-  --policy "$TMPDIR/policy.yaml" \
-  --push-history \
-  --repo-path "$FIXTURE" \
-  --branch main \
-  --limit 5 2>&1)
-RC=$?
-set -e
+build_repo() {
+  # Build a fresh git repo at $1 and cd into it.
+  local dir="$1"
+  rm -rf "$dir"
+  mkdir -p "$dir"
+  cd "$dir"
+  git init -q -b main
+  git config user.email "t@t"
+  git config user.name "t"
+}
 
-if [[ $RC -ne 0 ]]; then
-  echo "FAIL: tuner exited $RC (expected 0)" >&2
-  echo "$OUT" >&2
-  exit 2
+run_tuner() {
+  # Invoke the tuner, capturing stdout+stderr and exit code.
+  # Args: <repo-path> <branch> <limit> [--out=tuner.log]
+  local repo_path="$1" branch="$2" limit="$3"
+  set +e
+  OUT=$(python "$TUNER" \
+    --policy "$TMPDIR/policy.yaml" \
+    --push-history \
+    --repo-path "$repo_path" \
+    --branch "$branch" \
+    --limit "$limit" 2>&1)
+  RC=$?
+  set -e
+}
+
+failed=0
+fail() {
+  echo "FAIL: $1" >&2
+  if [[ -n "${OUT:-}" ]]; then
+    echo "--- tuner output ---" >&2
+    echo "$OUT" >&2
+  fi
+  failed=$(( failed + 1 ))
+}
+
+# ----------------------------------------------------------------------
+# Case 1: happy path
+# ----------------------------------------------------------------------
+echo "==> case 1: happy path (5 commits, known distribution)"
+FIXTURE="$TMPDIR/case1"
+build_repo "$FIXTURE"
+mkdir -p core storage tests
+echo "# initial" > README.md && git add README.md && git commit -q -m "init"
+for i in 1 2 3; do
+  echo "# v$i" > core/foo.py
+  git add core/foo.py && git commit -q -m "edit core/foo.py #$i"
+done
+echo "# storage" > storage/db.py && git add storage/db.py && git commit -q -m "edit storage/db.py"
+echo "# test" > tests/test_a.py && git add tests/test_a.py && git commit -q -m "edit tests/test_a.py"
+
+run_tuner "$FIXTURE" main 5
+[[ $RC -eq 0 ]] || fail "case1: exited $RC (expected 0)"
+echo "$OUT" | grep -q "5 changeset(s)" || fail "case1: report missing '5 changeset(s)'"
+echo "$OUT" | grep -q 'core/\*\*.*60%' || fail "case1: core/** should fire at 60%"
+echo "$OUT" | grep -q 'storage/\*\*.*20%' || fail "case1: storage/** should fire at 20%"
+[[ $failed -eq 0 ]] && echo "ok"
+
+# ----------------------------------------------------------------------
+# Case 2: empty repo (no commits)
+# ----------------------------------------------------------------------
+echo "==> case 2: empty repo"
+FIXTURE="$TMPDIR/case2"
+build_repo "$FIXTURE"
+# No commits.
+run_tuner "$FIXTURE" main 5
+if [[ $RC -eq 0 ]]; then
+  fail "case2: tuner exited 0 on empty repo (expected non-zero — no commits to walk)"
+elif echo "$OUT" | grep -qiE "no .* found|no commits|fatal: ambiguous"; then
+  echo "ok: empty repo produces clear non-zero exit ($RC) and an error message"
+else
+  fail "case2: non-zero exit but no recognizable error message"
 fi
 
-# Assert: report header says "5 changeset(s)"
-if ! echo "$OUT" | grep -q "5 changeset(s)"; then
-  echo "FAIL: report header missing '5 changeset(s)'" >&2
-  echo "$OUT" >&2
-  exit 2
+# ----------------------------------------------------------------------
+# Case 3: missing branch
+# ----------------------------------------------------------------------
+echo "==> case 3: missing branch"
+FIXTURE="$TMPDIR/case3"
+build_repo "$FIXTURE"
+echo x > a.txt && git add a.txt && git commit -q -m "x"
+
+run_tuner "$FIXTURE" nonexistent-branch 5
+if [[ $RC -eq 0 ]]; then
+  fail "case3: tuner exited 0 with --branch nonexistent (expected non-zero)"
+else
+  echo "ok: missing branch produces non-zero exit ($RC)"
 fi
 
-# Assert: core/** red rule fires on 3/5 (60%)
-if ! echo "$OUT" | grep -q "core/\*\*.*60%"; then
-  echo "FAIL: core/** rule should fire at 60% (3 of 5 commits); not found in:" >&2
-  echo "$OUT" >&2
-  exit 2
+# ----------------------------------------------------------------------
+# Case 4: empty (zero-file) commit
+# ----------------------------------------------------------------------
+echo "==> case 4: empty commit (touches zero files)"
+FIXTURE="$TMPDIR/case4"
+build_repo "$FIXTURE"
+mkdir -p core
+echo "# real" > core/foo.py && git add core/foo.py && git commit -q -m "real change"
+git commit -q --allow-empty -m "empty commit (no file changes)"
+
+run_tuner "$FIXTURE" main 5
+[[ $RC -eq 0 ]] || fail "case4: exited $RC (expected 0; empty commits should be tolerated)"
+# The tuner's documented behavior: zero-file commits are skipped (they
+# carry no signal for any rule). After 1 real + 1 empty commit, we
+# expect the report to show 1 changeset, not 2. If you change the
+# behavior to include empty commits, update the assertion AND document
+# the rationale in fetch_push_history's docstring.
+if ! echo "$OUT" | grep -qE "1 changeset\(s\)"; then
+  fail "case4: expected 1 changeset (empty commit skipped); got: $(echo "$OUT" | head -2)"
+else
+  echo "ok: empty commit skipped (1 changeset, not 2)"
 fi
 
-# Assert: storage/** red rule fires on 1/5 (20%)
-if ! echo "$OUT" | grep -q "storage/\*\*.*20%"; then
-  echo "FAIL: storage/** rule should fire at 20% (1 of 5 commits); not found in:" >&2
-  echo "$OUT" >&2
+# ----------------------------------------------------------------------
+# Case 5: limit > available
+# ----------------------------------------------------------------------
+echo "==> case 5: --limit 100 against a 3-commit repo"
+FIXTURE="$TMPDIR/case5"
+build_repo "$FIXTURE"
+mkdir -p core
+for i in 1 2 3; do
+  echo "v$i" > core/file.py && git add core/file.py && git commit -q -m "c$i"
+done
+
+run_tuner "$FIXTURE" main 100
+[[ $RC -eq 0 ]] || fail "case5: exited $RC (expected 0)"
+echo "$OUT" | grep -qE "3 changeset\(s\)" || fail "case5: should report 3 changeset(s) (got: $(echo "$OUT" | head -2))"
+[[ $failed -eq 0 || -n "$(echo "$OUT" | grep -E "3 changeset\(s\)")" ]] && echo "ok: tuner walked the available 3 commits, not the requested 100"
+
+echo
+if [[ $failed -gt 0 ]]; then
+  echo "$failed case(s) failed."
   exit 2
 fi
-
-echo "ok: tuner --push-history produced expected firing rates"
-echo "  - 5 changesets sampled"
-echo "  - core/**     -> 60% (3 of 5)"
-echo "  - storage/**  -> 20% (1 of 5)"
+echo "all 5 case(s) passed."

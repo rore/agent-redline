@@ -1,0 +1,7 @@
+[project]
+name = "myservice"
+version = "0.1.0"
+dependencies = [
+  "fastapi>=0.111,<1",
+  "pydantic>=2.7,<3",
+]

@@ -1,0 +1,6 @@
+{
+  "shape": "layered-service-django",
+  "has_django": true,
+  "has_manage_py": true,
+  "web_deps": ["django"]
+}

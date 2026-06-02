@@ -1,0 +1,7 @@
+{
+  "shape": "layered-service",
+  "layout": "flat",
+  "web_deps": ["flask"],
+  "has_django": false,
+  "flat_top_packages": ["myservice"]
+}

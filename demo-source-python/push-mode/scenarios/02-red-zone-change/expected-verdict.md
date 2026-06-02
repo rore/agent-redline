@@ -23,7 +23,8 @@ The run summary at the top of github.com/{owner}/{repo}/actions/runs/{id} shows:
 ```
 
 - Verdict: RED
-- Reporter exit code: 1 (unsatisfied checkpoint surfaces as warnings; binding hard fail would be exit 2)
-- CI: **red** (enforce step fails on EXIT != 0)
+- Reporter exit code: 1
+- Workflow job: **green** (push-mode fails the workflow only on EXIT == 2)
+- agent-redline Check Run conclusion: `action_required` (🟠 orange warning in the commit list — distinct from a red failure; surfaces on the commit list and triggers GitHub notifications without blocking unrelated jobs)
 - Run-summary visible on the run page
-- The "Satisfy by: CODEOWNER approval or label" note is from the policy. **In push-mode there's no PR to label**; the developer sees the warning and either commits a separate review-acknowledgment commit, or merges the policy's red-zone classification.
+- The "Satisfy by: CODEOWNER approval or label" note is from the policy. **In push-mode there's no PR to label**; the developer sees the orange icon on the commit, opens the run summary, and acknowledges by reviewing the change in place. The signal is delivered; there is no flag to flip.

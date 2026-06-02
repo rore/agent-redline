@@ -257,7 +257,15 @@ jobs:
 
 ### 5b. Push-driven flow — `on: push:`
 
-For solo developers and trunk-based teams. No PR comment surface, so the verdict goes to the workflow log + an artifact. Without a sticky-comment surface, exit 1 (warnings) needs CI red as its visibility channel — otherwise warnings become invisible. The enforce step therefore fails on either exit 1 or exit 2 in this mode (configurable; see the comment).
+For solo developers and trunk-based teams. No PR comment surface, so the verdict surfaces via the run-page summary AND a dedicated **Check Run** posted via the Checks API. The check icon in the commit list triages:
+
+| Reporter exit | Check conclusion | Icon | Meaning |
+|---|---|---|---|
+| 0 | `success` | 🟢 | Clean |
+| 1 | `action_required` | 🟠 | Look at the run summary — red-zone touch / unsatisfied checkpoint / warning |
+| 2 | `failure` | 🔴 | Stop — boundary violation or hard fail |
+
+The workflow job stays green on exit 1 (so unrelated downstream jobs aren't blocked by an informational signal) and fails on exit 2.
 
 ```yaml
 on:
@@ -266,6 +274,7 @@ on:
 
 permissions:
   contents: read
+  checks: write        # required to post the agent-redline Check Run
 
 jobs:
   # boundary: ... (see §4)
@@ -319,12 +328,8 @@ jobs:
           echo "reporter exit code: $EXIT"
 
       - name: Write verdict to job summary
-        # Without a PR sticky comment, the run page itself is the
-        # primary visibility surface. Appending comment.md to
-        # $GITHUB_STEP_SUMMARY makes the verdict show up at the top of
-        # the workflow run's summary page on github.com — visible with
-        # one click from the commit, no artifact download required.
-        # The artifact below stays as the machine-readable copy.
+        # Run-page summary is the human-readable surface; one click from
+        # the commit, no artifact download.
         if: always()
         run: |
           {
@@ -342,21 +347,51 @@ jobs:
             build/verdict.json
             build/comment.md
 
-      - name: Enforce reporter exit code
-        # Push-mode default: fail CI on exit 1 OR 2. Without a PR comment,
-        # CI red is the only surface for exit-1 warnings — silencing them
-        # silences shadow-mode signal entirely. If you prefer informational
-        # warnings, change `[[ "$EXIT" != "0" ]]` to `[[ "$EXIT" == "2" ]]`
-        # — the verdict still appears in the run summary above, so warnings
-        # remain visible without blocking CI.
+      - name: Post agent-redline Check Run
+        # Posts a Check Run keyed to the commit SHA. Conclusion -> icon
+        # in the commit-list/branch view: success (green), action_required
+        # (orange — distinct from a red failure; surfaces in the commit
+        # list and triggers notifications), failure (red).
+        # "Details" link points at this run's summary.
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           EXIT="${{ steps.report.outputs.exit_code }}"
-          if [[ "$EXIT" != "0" ]]; then
-            echo "Reporter exited $EXIT. Failing the check."
-            echo "See the run summary above (or the agent-redline-verdict artifact) for the full verdict."
+          case "$EXIT" in
+            0) CONCLUSION="success"          ;;
+            1) CONCLUSION="action_required"  ;;
+            *) CONCLUSION="failure"          ;;
+          esac
+          SUMMARY_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          # head -c is a safety belt for Check Run's 65535-byte text limit
+          BODY="$(head -c 60000 build/comment.md)"
+          jq -n \
+            --arg name      "agent-redline" \
+            --arg head_sha  "${{ github.sha }}" \
+            --arg conclusion "$CONCLUSION" \
+            --arg details_url "$SUMMARY_URL" \
+            --arg title     "agent-redline: $(jq -r .verdict build/verdict.json)" \
+            --arg summary   "$BODY" \
+            '{name:$name, head_sha:$head_sha, status:"completed",
+              conclusion:$conclusion, details_url:$details_url,
+              output:{title:$title, summary:$summary}}' \
+            > build/check-run.json
+          gh api --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/check-runs" \
+            --input build/check-run.json
+
+      - name: Enforce reporter exit code
+        # Fail only on exit 2. Exit 1 is already surfaced via the
+        # action_required Check Run + run summary.
+        run: |
+          EXIT="${{ steps.report.outputs.exit_code }}"
+          if [[ "$EXIT" == "2" ]]; then
+            echo "Reporter exited 2 (binding-mode hard fail). Failing the report check."
             exit 1
           fi
-          echo "Reporter exited 0 — clean."
+          echo "Reporter exited $EXIT — non-blocking."
 ```
 
 (The reporter dispatches on `policy.boundaryAdapter`, which declares `outputFormat: json-violations` and `outputPath: build/import-linter-report.json` — the file the boundary job uploaded.)

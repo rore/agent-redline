@@ -555,18 +555,20 @@ Plus three PR-scenario branches (`demo/blue-only-pr`, `demo/red-with-checkpoint-
 
 ## 2026-06-02 — Push-driven CI as a first-class flow mode
 
-**Decision:** Bootstrap proposes one of two CI workflow shapes based on the consuming repo's actual flow: **PR-driven** (`on: pull_request:`, sticky-comment surface, fail on exit 2) or **push-driven** (`on: push: branches: [main]`, CI artifact surface, fail on exit 1 OR 2). Neither is the "default"; bootstrap detects the dominant flow during Phase 1 and proposes the matching shape.
+**Decision:** Bootstrap proposes one of two CI workflow shapes based on the consuming repo's actual flow: **PR-driven** (`on: pull_request:`, sticky-comment surface, fail on exit 2) or **push-driven** (`on: push: branches: [main]`, run-page summary surface plus a Check Run posted via the Checks API for commit-list triage, workflow fails only on exit 2). Neither is the "default"; bootstrap detects the dominant flow during Phase 1 and proposes the matching shape.
 
 **Why:**
 
 - Solo developers and trunk-based teams don't have a PR review surface. The PR-shaped workflow proposes machinery (sticky comment, CODEOWNERS routing, `architecture-reviewed` label) that has no consumer. Telling them to use PRs anyway would be insisting on overhead the team-flow assumption no longer justifies.
-- The reporter exit-code contract (0/1/2) stays unchanged — it's what makes the local pre-push check work for solo developers regardless of CI shape. The flow modes differ only in trigger, diff method, and how the enforce step gates CI.
-- Without a sticky-comment surface, the push-driven mode fails CI on exit 1 (warnings) too. CI red is the only available visibility channel; silencing it would silence shadow-mode signal entirely.
+- The reporter exit-code contract (0/1/2) stays unchanged — it's what makes the local pre-push check work for solo developers regardless of CI shape. The flow modes differ only in trigger, diff method, surface, and how the enforce step gates the workflow.
+- Push-mode visibility is dual: `$GITHUB_STEP_SUMMARY` makes the verdict visible at the top of the run page, and a Check Run posted via `gh api .../check-runs` puts an icon on the commit. The Check Run conclusion maps reporter exit codes 0/1/2 to `success` (green check) / `action_required` (orange warning) / `failure` (red X). The orange icon is distinct from a red failure — it surfaces in the commit list, triggers GitHub notifications for "look at this", but doesn't mark the workflow as failed. That distinction is what makes push-mode honest: the agent (not the developer) is the author, the developer is the reviewer summoned by CI; an exit-1 red-zone touch is "look when you can," an exit-2 boundary violation is "stop now," and the icon difference triages between them at a glance.
 
 **Revisit if:**
 
-- A third surface emerges (e.g., a Slack notification action that posts the verdict) that gives push-driven repos an exit-1 visibility channel without CI red. At that point the enforce-on-non-zero default could relax to enforce-on-2-only.
+- The Check Run icon turns out to be insufficient as a surface (e.g., GitHub UI changes, or developers report missing notifications). At that point a Slack/email action could complement it.
 - Detection of the dominant flow turns out to be unreliable. Currently the signal is "merged-PR count vs commit count over the last 30 days." So far that's correct on every real repo we've bootstrapped (Pallium has 2 PRs and 141 commits/30 days → push-driven; the demo repos are PR-driven by construction).
+
+**Earlier iteration:** the first version of push-mode failed the workflow on exit 1 OR 2, on the grounds that "without a comment surface, exit 1 is invisible." That's wrong: failing the workflow on exit 1 conflates "structurally broken code" with "you touched something risky" — the reviewer can't tell which from the badge, and every red-zone push becomes a red badge to manually dismiss. The Check Run + summary surfaces solve this; the workflow now fails only on exit 2 (real hard fail), and exit 1 is loud-but-not-blocking via the orange icon.
 
 ## 2026-06-02 — Tuner takes either PR history or push history as input
 

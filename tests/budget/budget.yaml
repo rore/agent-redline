@@ -62,15 +62,18 @@ ceilings:
       import-linter knob notes (allow_indirect_imports for forbidden
       contracts in multi-package; ancestors field for acyclic_siblings).
   - path: extensions/*/scaffold.md
-    max_tokens: 2900
+    max_tokens: 3100
     why: loaded during scaffold phase of bootstrap. Carries the
       complete CI-workflow report-step pattern (set +e, capture exit,
       sticky-comment action OR step-summary append, enforce step) for
-      both PR-driven and push-driven flow modes. Without the full
-      pattern, bash -e on the run block masks subsequent steps and
-      shadow-mode signal silently breaks; without the visibility step
-      ($GITHUB_STEP_SUMMARY append in push-mode), the verdict reaches
-      no human eyes even when CI fails.
+      both PR-driven and push-driven flow modes, plus the push-mode
+      Check Run posting via `gh api` that maps reporter exits 0/1/2 to
+      success/action_required/failure conclusions (the orange-warning
+      icon is the only triage signal between red-zone touches and
+      boundary violations on the commit list). Without the full pattern,
+      bash -e masks subsequent steps and shadow-mode signal silently
+      breaks; without the visibility surfaces (run-summary append + the
+      Check Run), the verdict reaches no human eyes.
   - path: extensions/*/operating.md
     max_tokens: 600
     why: loaded during operating mode if the extension provides one

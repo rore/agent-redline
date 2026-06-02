@@ -82,10 +82,10 @@ Two paired GitHub repos exercise the whole loop against real GitHub Actions, rea
 **`agent-redline-python-demo`** (Python/FastAPI, PR-driven **and** push-driven):
 - PR-driven: same shape as the Spring demo — `greenfield`, `main`, three PR-scenario branches exercising the canonical verdicts.
 - Push-driven (same repo, separate long-lived branch + scenarios so the two flow modes coexist):
-  - `push-demo-main` — push-mode workflow (`on: push:`); verdict surfaces in `$GITHUB_STEP_SUMMARY` instead of a sticky PR comment, enforce step fails on `EXIT != 0`.
-  - `push-demo-blue-only` → BLUE, CI green
-  - `push-demo-red-zone-change` → RED, CI red (no label mechanism in push-mode; warnings block)
-  - `push-demo-boundary-violation` → BOUNDARY_VIOLATION, CI red
+  - `push-demo-main` — push-mode workflow (`on: push:`); verdict surfaces in `$GITHUB_STEP_SUMMARY` (run page) AND a Check Run posted via the Checks API (commit-list icon). The workflow itself fails only on exit 2; exit 1 is surfaced via the orange `action_required` Check Run conclusion.
+  - `push-demo-blue-only` → BLUE, workflow green, Check Run `success` (🟢)
+  - `push-demo-red-zone-change` → RED, workflow **green**, Check Run `action_required` (🟠 — distinct from a red failure; orange icon in the commit list, GitHub notification fires)
+  - `push-demo-boundary-violation` → BOUNDARY_VIOLATION, workflow red, Check Run `failure` (🔴)
 
 Source-of-truth content lives at `demo-source/` (Spring) and `demo-source-python/` (Python — `pr-scenarios/` and `push-mode/` subtrees). `scripts/sync-demo.sh` (Spring) and `scripts/sync-python-demo.sh --with-pr-branches --with-push-demo` (Python) regenerate the demo repos' branches deterministically. The push-mode workflow is also exercised at the unit level by `tests/scaffold-ci-e2e/check-scaffold-ci-e2e.sh` (Layer 8 above), which extracts both the reporter run-block and the summary-write step from the scaffold and asserts they produce a verdict and write it to `$GITHUB_STEP_SUMMARY`.
 

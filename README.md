@@ -108,10 +108,10 @@ PR-driven flow (sticky comment + label-satisfied checkpoints):
 - [`demo/red-with-checkpoint-pr`](https://github.com/rore/agent-redline-python-demo/pulls?q=is%3Apr+head%3Ademo%2Fred-with-checkpoint-pr) — RED with checkpoint satisfied
 - [`demo/boundary-violation-pr`](https://github.com/rore/agent-redline-python-demo/pulls?q=is%3Apr+head%3Ademo%2Fboundary-violation-pr) — BOUNDARY_VIOLATION
 
-Push-driven flow (verdict in run-page `$GITHUB_STEP_SUMMARY`, CI red on `EXIT != 0`):
-- [`push-demo-blue-only`](https://github.com/rore/agent-redline-python-demo/actions?query=branch%3Apush-demo-blue-only) — BLUE, CI green
-- [`push-demo-red-zone-change`](https://github.com/rore/agent-redline-python-demo/actions?query=branch%3Apush-demo-red-zone-change) — RED, CI red (no PR-label mechanism)
-- [`push-demo-boundary-violation`](https://github.com/rore/agent-redline-python-demo/actions?query=branch%3Apush-demo-boundary-violation) — BOUNDARY_VIOLATION, CI red
+Push-driven flow (verdict in run-page `$GITHUB_STEP_SUMMARY` + Check Run icon on the commit; workflow fails only on exit 2, exit 1 surfaces as 🟠 `action_required`):
+- [`push-demo-blue-only`](https://github.com/rore/agent-redline-python-demo/actions?query=branch%3Apush-demo-blue-only) — BLUE, workflow green, Check Run `success` 🟢
+- [`push-demo-red-zone-change`](https://github.com/rore/agent-redline-python-demo/actions?query=branch%3Apush-demo-red-zone-change) — RED, workflow green, Check Run `action_required` 🟠 (orange icon in the commit list)
+- [`push-demo-boundary-violation`](https://github.com/rore/agent-redline-python-demo/actions?query=branch%3Apush-demo-boundary-violation) — BOUNDARY_VIOLATION, workflow red, Check Run `failure` 🔴
 
 ## Supported stacks
 
@@ -173,6 +173,6 @@ Other tools and project-scope installs: see [`INSTALL.md`](INSTALL.md).
 
 **v0.1.** Early. Things will change.
 
-Two flow modes for CI integration: PR-driven (sticky-comment surface, fail CI on exit 2) and push-driven (CI artifact surface, fail CI on exit 1 OR 2). Bootstrap picks one based on the repo's actual flow.
+Two flow modes for CI integration: PR-driven (sticky-comment surface, fail CI on exit 2) and push-driven (run-page `$GITHUB_STEP_SUMMARY` + Check Run on the commit; the orange `action_required` icon for exit 1 is distinct from red `failure` for exit 2 — workflow fails only on exit 2). Bootstrap picks one based on the repo's actual flow.
 
 Decisions and their rationale: [`docs/DECISIONS.md`](docs/DECISIONS.md). Roadmap: [`docs/SPEC.md` §15.3](docs/SPEC.md).

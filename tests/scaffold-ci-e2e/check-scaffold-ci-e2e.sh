@@ -67,7 +67,15 @@ if ! python "$EXTRACTOR" "$SCAFFOLD" --summary > "$TMPDIR/extracted-summary.sh" 
   exit 2
 fi
 
-echo "==> step 1: extracted reporter + summary run-blocks from scaffold.md"
+# Also extract the Check Run step — posts to /check-runs via gh api.
+# We mock `gh api` and `jq` is already on PATH for the JSON build.
+if ! python "$EXTRACTOR" "$SCAFFOLD" --check-run > "$TMPDIR/extracted-check-run.sh" 2> "$TMPDIR/check-run-extract.err"; then
+  echo "FAIL: check-run step extractor failed:" >&2
+  cat "$TMPDIR/check-run-extract.err" >&2
+  exit 2
+fi
+
+echo "==> step 1: extracted reporter + summary + check-run run-blocks from scaffold.md"
 
 # ----------------------------------------------------------------------
 # Step 2: Build a minimal fixture.
@@ -127,6 +135,19 @@ sed -i \
   -e 's|${{ github.sha }}|$GH_AFTER|g' \
   "$TMPDIR/extracted.sh"
 
+# The check-run step references several github-context expressions and
+# `steps.report.outputs.exit_code`. Replace them all with bash vars so
+# the script runs in plain bash. We also point `gh` at a mock that
+# captures the API call payload to a file we can inspect.
+sed -i \
+  -e 's|${{ steps.report.outputs.exit_code }}|$REPORT_EXIT|g' \
+  -e 's|${{ github.server_url }}|$GH_SERVER_URL|g' \
+  -e 's|${{ github.repository }}|$GH_REPOSITORY|g' \
+  -e 's|${{ github.run_id }}|$GH_RUN_ID|g' \
+  -e 's|${{ github.sha }}|$GH_AFTER|g' \
+  -e 's|${{ secrets.GITHUB_TOKEN }}|$GH_TOKEN_FAKE|g' \
+  "$TMPDIR/extracted-check-run.sh"
+
 export GITHUB_OUTPUT="$TMPDIR/github_output"
 : > "$GITHUB_OUTPUT"
 # GITHUB_STEP_SUMMARY: the run-block's "Write verdict to job summary"
@@ -166,6 +187,99 @@ if [[ "$SUMMARY_RC" -ne 0 ]]; then
 fi
 
 echo "==> step 4b: summary step executed (exit $SUMMARY_RC)"
+
+# ----------------------------------------------------------------------
+# Step 4c: Execute the Check Run step under three reporter exits — verify
+# it maps 0/1/2 to success/action_required/failure conclusions. We mock
+# `gh api` with a shim that captures the JSON payload to a file so we
+# can introspect it without hitting the network.
+# ----------------------------------------------------------------------
+#
+# Requires `jq` (which the canonical scaffold uses to build the API
+# payload). On systems without jq we still run the static shape check
+# above; only the live execution is skipped.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "==> step 4c: jq not on PATH; skipping Check Run live-execution layer"
+  echo "          (the static check covers the structural pattern; jq is on"
+  echo "           the canonical GitHub Actions ubuntu-latest image)"
+else
+  GH_SHIM_DIR="$TMPDIR/bin"
+  mkdir -p "$GH_SHIM_DIR"
+  cat > "$GH_SHIM_DIR/gh" <<'GH_SHIM_EOF'
+#!/usr/bin/env bash
+# Mock `gh` for the e2e test. Captures the --input file's JSON contents
+# next to the calling test's TMPDIR for assertion. Accepts the canonical
+# argv shape: `gh api --method POST -H ... <endpoint> --input <file>`.
+INPUT_FILE=""
+ENDPOINT=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --input) INPUT_FILE="$2"; shift 2 ;;
+    --method|-H) shift 2 ;;
+    /*) ENDPOINT="$1"; shift ;;
+    *) shift ;;
+  esac
+done
+if [[ -n "$INPUT_FILE" && -f "$INPUT_FILE" ]]; then
+  cp "$INPUT_FILE" "$GH_MOCK_CAPTURE"
+fi
+echo "GH_MOCK: endpoint=$ENDPOINT input=$INPUT_FILE" >> "$GH_MOCK_LOG"
+GH_SHIM_EOF
+  chmod +x "$GH_SHIM_DIR/gh"
+
+  # Tee variables the check-run step reads.
+  export GH_SERVER_URL="https://github.com"
+  export GH_REPOSITORY="example-org/example-repo"
+  export GH_RUN_ID="999999"
+  export GH_TOKEN_FAKE="fake-token"
+  export GH_MOCK_LOG="$TMPDIR/gh-mock.log"
+  : > "$GH_MOCK_LOG"
+
+  # Run the check-run step three times: once with each EXIT in {0,1,2}.
+  # For each, assert the captured JSON's `conclusion` field equals the
+  # expected mapping.
+  declare -A EXPECTED=( [0]="success" [1]="action_required" [2]="failure" )
+  for EXIT_VAL in 0 1 2; do
+    export REPORT_EXIT="$EXIT_VAL"
+    export GH_MOCK_CAPTURE="$TMPDIR/check-run-payload-$EXIT_VAL.json"
+
+    # The check-run step assumes `build/comment.md` and `build/verdict.json`
+    # exist (created by the reporter step earlier). They do — the reporter
+    # ran with EXIT 1 above.
+    PATH="$GH_SHIM_DIR:$PATH" bash "$TMPDIR/extracted-check-run.sh" \
+      > "$TMPDIR/check-run-$EXIT_VAL.log" 2>&1
+    CR_RC=$?
+    if [[ "$CR_RC" -ne 0 ]]; then
+      echo "FAIL: check-run step exited $CR_RC for EXIT=$EXIT_VAL" >&2
+      cat "$TMPDIR/check-run-$EXIT_VAL.log" >&2
+      exit 2
+    fi
+    if [[ ! -f "$GH_MOCK_CAPTURE" ]]; then
+      echo "FAIL: check-run step did not call \`gh api\` (no payload captured for EXIT=$EXIT_VAL)" >&2
+      cat "$TMPDIR/check-run-$EXIT_VAL.log" >&2
+      exit 2
+    fi
+    GOT_CONCLUSION=$(jq -r '.conclusion' "$GH_MOCK_CAPTURE")
+    EXPECTED_CONCLUSION="${EXPECTED[$EXIT_VAL]}"
+    if [[ "$GOT_CONCLUSION" != "$EXPECTED_CONCLUSION" ]]; then
+      echo "FAIL: EXIT=$EXIT_VAL produced conclusion=$GOT_CONCLUSION, expected $EXPECTED_CONCLUSION" >&2
+      cat "$GH_MOCK_CAPTURE" >&2
+      exit 2
+    fi
+    # Also assert the payload has the required shape.
+    HEAD_SHA=$(jq -r '.head_sha' "$GH_MOCK_CAPTURE")
+    if [[ "$HEAD_SHA" != "$AFTER_SHA" ]]; then
+      echo "FAIL: head_sha=$HEAD_SHA != AFTER_SHA=$AFTER_SHA" >&2
+      exit 2
+    fi
+    DETAILS_URL=$(jq -r '.details_url' "$GH_MOCK_CAPTURE")
+    if [[ "$DETAILS_URL" != "$GH_SERVER_URL/$GH_REPOSITORY/actions/runs/$GH_RUN_ID" ]]; then
+      echo "FAIL: details_url=$DETAILS_URL doesn't match expected run URL" >&2
+      exit 2
+    fi
+  done
+  echo "==> step 4c: check-run step maps {0,1,2} -> {success, action_required, failure} correctly"
+fi
 
 # ----------------------------------------------------------------------
 # Step 5: Assertions.

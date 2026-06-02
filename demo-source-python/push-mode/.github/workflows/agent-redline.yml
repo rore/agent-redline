@@ -3,12 +3,15 @@ name: agent-redline
 # Push-driven flow: this branch demonstrates the push-mode CI shape.
 # - Trigger fires on `push: branches: [main]` rather than `pull_request:`.
 # - The verdict surfaces in $GITHUB_STEP_SUMMARY (visible at the top of
-#   the run page on github.com — one click from the commit) rather than
-#   a sticky PR comment. The same comment.md is also uploaded as a
-#   build artifact for machine-readable access.
-# - Enforce step fails CI on EXIT != 0 (warnings + hard fails both
-#   block) since there's no PR comment surface to absorb exit-1
-#   warnings non-blockingly.
+#   the run page on github.com — one click from the commit) AND as a
+#   dedicated Check Run posted via the Checks API. The Check Run's
+#   conclusion (success / action_required / failure) controls the icon
+#   shown in the commit-list and branch view.
+# - The workflow job itself fails CI ONLY on EXIT == 2 (binding-mode
+#   hard fail). EXIT == 1 (red-zone touch / unsatisfied checkpoint /
+#   warning) is surfaced via the orange `action_required` Check Run +
+#   the run summary; the workflow stays green so unrelated downstream
+#   jobs aren't blocked by an informational signal.
 
 on:
   # Push-driven flow demo: fires on push to the long-lived branch
@@ -24,6 +27,7 @@ on:
 
 permissions:
   contents: read
+  checks: write   # required to post the agent-redline Check Run
 
 jobs:
   boundary:
@@ -130,15 +134,51 @@ jobs:
             build/verdict.json
             build/comment.md
 
-      - name: Enforce reporter exit code
-        # Push-mode: fail on EXIT != 0 (warnings + hard fails both block).
-        # Without a PR comment surface, CI red is the only signal channel
-        # for exit-1 warnings — silencing them silences shadow-mode entirely.
+      - name: Post agent-redline Check Run
+        # Posts a Check Run keyed to the commit SHA. Conclusion -> icon
+        # in the commit-list/branch view: success (green), action_required
+        # (orange — distinct from a red failure; surfaces in the commit
+        # list and triggers notifications), failure (red).
+        # "Details" link points at this run's summary.
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           EXIT="${{ steps.report.outputs.exit_code }}"
-          if [[ "$EXIT" != "0" ]]; then
-            echo "Reporter exited $EXIT. Failing the check."
+          case "$EXIT" in
+            0) CONCLUSION="success"          ;;
+            1) CONCLUSION="action_required"  ;;
+            *) CONCLUSION="failure"          ;;
+          esac
+          SUMMARY_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          # head -c is a safety belt for Check Run's 65535-byte text limit
+          BODY="$(head -c 60000 build/comment.md)"
+          jq -n \
+            --arg name      "agent-redline" \
+            --arg head_sha  "${{ github.sha }}" \
+            --arg conclusion "$CONCLUSION" \
+            --arg details_url "$SUMMARY_URL" \
+            --arg title     "agent-redline: $(jq -r .verdict build/verdict.json)" \
+            --arg summary   "$BODY" \
+            '{name:$name, head_sha:$head_sha, status:"completed",
+              conclusion:$conclusion, details_url:$details_url,
+              output:{title:$title, summary:$summary}}' \
+            > build/check-run.json
+          gh api --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/check-runs" \
+            --input build/check-run.json
+
+      - name: Enforce reporter exit code
+        # Push-mode: fail only on exit 2 (binding-mode hard fail). Exit 1
+        # (red-zone touch / unsatisfied checkpoint / warning) is surfaced
+        # via the orange `action_required` Check Run + run summary above —
+        # no need to fail the workflow on it.
+        run: |
+          EXIT="${{ steps.report.outputs.exit_code }}"
+          if [[ "$EXIT" == "2" ]]; then
+            echo "Reporter exited 2 (binding-mode hard fail). Failing the report check."
             echo "See the run summary above (or the agent-redline-verdict artifact) for the full verdict."
             exit 1
           fi
-          echo "Reporter exited 0 — clean."
+          echo "Reporter exited $EXIT — non-blocking."

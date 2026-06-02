@@ -22,6 +22,7 @@ The run summary at the top of github.com/{owner}/{repo}/actions/runs/{id} shows:
 
 - Verdict: BOUNDARY_VIOLATION
 - Reporter exit code: 2 (binding-mode hard fail per `modes.perCheck.boundary_violation: binding`)
-- CI: **red** (enforce step fails on EXIT != 0)
+- Workflow job: **red** (push-mode enforce step fails on EXIT == 2)
+- agent-redline Check Run conclusion: `failure` (🔴 red X in the commit list — signals a hard fail distinct from the orange `action_required` for warnings)
 - Run-summary visible on the run page; the offending import chain is named precisely
 - The push cannot be considered safe to merge until the structure is fixed (or the violation is explicitly baselined via `ignore_imports` in `pyproject.toml`, which is itself a red-zone change).

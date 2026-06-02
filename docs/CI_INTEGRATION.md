@@ -12,10 +12,10 @@ CI is red-zone. The skill respects its own discipline.
 
 agent-redline supports two CI flow modes; bootstrap picks one based on Phase 1 inspection (see [BOOTSTRAP.md](BOOTSTRAP.md)) and the developer's confirmation:
 
-| Flow mode | When | Trigger | Verdict surface | CI gate |
+| Flow mode | When | Trigger | Verdict surface | Workflow gate |
 |---|---|---|---|---|
 | **PR-driven** | Team flow with PR review | `on: pull_request:` | Sticky comment on the PR | Fails on exit 2 (binding-mode hard fail) |
-| **Push-driven** | Solo / trunk-based / no PR review | `on: push: branches: [main]` | Verdict in CI logs + uploaded artifact | Fails on exit 1 OR 2 (no comment surface, so warnings need CI red as their visibility channel) |
+| **Push-driven** | Solo / trunk-based / no PR review | `on: push: branches: [main]` | `$GITHUB_STEP_SUMMARY` on the run page **+ a Check Run** posted via the Checks API (orange `action_required` icon for exit 1, red `failure` icon for exit 2 — distinct triage in the commit list) | Fails on exit 2; exit 1 surfaces via the orange Check Run icon and run summary without blocking the workflow |
 
 The reporter exit-code contract is the same in both modes: `0` clean, `1` warnings (gray-zone, watch-list touched, unmet checkpoint in shadow, PR-size warn), `2` binding-mode hard fail (boundary violation, unsatisfied checkpoint under binding, PR-size fail under binding). The two modes differ only in trigger, in how they compute the changed-files diff, and in how the enforce step gates CI.
 
@@ -132,6 +132,7 @@ on:
 
 permissions:
   contents: read
+  checks: write   # required to post the agent-redline Check Run
 
 jobs:
   boundary:
@@ -187,28 +188,34 @@ jobs:
             build/verdict.json
             build/comment.md
 
+      # Append the verdict to $GITHUB_STEP_SUMMARY (run-page surface) and
+      # post a Check Run via the Checks API (commit-list surface, with
+      # action_required → orange icon distinct from a red failure).
+      # See extensions/python/scaffold.md §5b for the full canonical pattern.
+
       - name: Enforce reporter exit code
-        # Push-mode default: fail on EXIT != 0. Without a PR comment surface,
-        # CI red is the only surface for exit-1 warnings — silencing them
-        # silences shadow-mode signal entirely. Change to "$EXIT" == "2" to
-        # only block on binding-mode hard fails (warnings become invisible).
+        # Push-mode: fail only on exit 2 (binding-mode hard fail). Exit 1
+        # (warnings, red-zone touch) is surfaced via the orange
+        # action_required Check Run + the run summary; the workflow stays
+        # green so unrelated downstream jobs aren't blocked by an
+        # informational signal.
         run: |
           EXIT="${{ steps.report.outputs.exit_code }}"
-          if [[ "$EXIT" != "0" ]]; then
-            echo "Reporter exited $EXIT. Failing the check."
-            echo "See the agent-redline-verdict artifact for the verdict."
+          if [[ "$EXIT" == "2" ]]; then
+            echo "Reporter exited 2 (binding-mode hard fail). Failing the check."
             exit 1
           fi
+          echo "Reporter exited $EXIT — non-blocking."
 ```
 
 The differences from PR-driven, summarized:
 - Trigger: `on: push:` instead of `on: pull_request:`
-- No `pull-requests: write` permission (no PR to write to)
+- `checks: write` permission (to post the agent-redline Check Run) instead of `pull-requests: write`
 - Diff: `${{ github.event.before }}...${{ github.sha }}` with merge-base fallback
 - No `--pr-labels` (no PR has labels)
-- No sticky-comment step
-- Verdict uploaded as a CI artifact instead
-- Enforce step gates on `EXIT != 0`, not `EXIT == 2`
+- No sticky-comment step; verdict surfaces via `$GITHUB_STEP_SUMMARY` (run page) + a Check Run posted via `gh api .../check-runs`
+- Verdict also uploaded as a CI artifact for machine-readable access
+- Enforce step gates on `EXIT == 2`; exit 1 surfaces via the action_required Check Run icon (orange) and run summary without blocking the workflow
 
 ## Boundary-backend baseline
 

@@ -24,8 +24,13 @@ Two flow modes; each block must follow ONE consistent pattern:
     - `EXIT=$?` capture
     - publish `exit_code=$EXIT` to $GITHUB_OUTPUT
     - NO sticky-comment step (no PR to comment on)
-    - enforce step gating on `"$EXIT" != "0"` (warnings + binding fails
-      both block CI because there's no comment surface for warnings)
+    - $GITHUB_STEP_SUMMARY append step (run-page surface)
+    - Check Run posting via `gh api .../check-runs` mapping reporter
+      exits 0/1/2 to success/action_required/failure conclusions
+    - `checks: write` in the workflow's permissions block
+    - enforce step gating on `"$EXIT" == "2"` (only binding-mode hard
+      fails block the workflow; exit 1 surfaces via the orange
+      `action_required` Check Run + run summary, doesn't block)
 
 Mode is detected from the same yaml block: `pull_request` vs `push:`
 appears in the trigger / changed-files git diff invocation.
@@ -104,9 +109,15 @@ def required_for_mode(mode: str) -> list[tuple[str, str]]:
     # push mode
     return common + [
         ('>> "$GITHUB_STEP_SUMMARY"',
-         "push-driven flow must append the verdict to $GITHUB_STEP_SUMMARY (`>> \"$GITHUB_STEP_SUMMARY\"`) so it appears on the run summary page (without a PR comment, this is the primary visibility surface)"),
-        ('"$EXIT" != "0"',
-         "push-driven flow must include an enforce step gating on `\"$EXIT\" != \"0\"` (warnings AND hard fails block CI; without a sticky comment surface, exit 1 is invisible otherwise)"),
+         "push-driven flow must append the verdict to $GITHUB_STEP_SUMMARY (`>> \"$GITHUB_STEP_SUMMARY\"`) so it appears on the run summary page (one of two visibility surfaces)"),
+        ("checks: write",
+         "push-driven flow must declare `checks: write` in the workflow's permissions block to post the agent-redline Check Run"),
+        ("/check-runs",
+         "push-driven flow must post a Check Run via `gh api .../check-runs` (the orange `action_required` icon is the triage signal between red-zone touches and boundary violations on the commit list)"),
+        ("action_required",
+         "push-driven flow must map reporter exit 1 to the `action_required` Check Run conclusion (orange icon, not red — distinct from a hard failure)"),
+        ('"$EXIT" == "2"',
+         "push-driven flow must include an enforce step gating on `\"$EXIT\" == \"2\"` (only binding-mode hard fails block the workflow; exit 1 is surfaced via the action_required Check Run + run summary)"),
     ]
 
 

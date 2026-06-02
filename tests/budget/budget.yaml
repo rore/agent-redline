@@ -62,18 +62,17 @@ ceilings:
       import-linter knob notes (allow_indirect_imports for forbidden
       contracts in multi-package; ancestors field for acyclic_siblings).
   - path: extensions/*/scaffold.md
-    max_tokens: 3000
+    max_tokens: 3100
     why: loaded during scaffold phase of bootstrap. Carries the
       complete CI-workflow report-step pattern (set +e, capture exit,
       sticky-comment action OR step-summary append, enforce step) for
       both PR-driven and push-driven flow modes. Push-mode uses
       `--flow-mode push` so checkpoint text is rendered as a review
       obligation on the commit (no CODEOWNER / label phrasing, since
-      neither mechanism applies on a direct push). Without the full
-      pattern, bash -e on the run block masks subsequent steps and
-      shadow-mode signal silently breaks; without the visibility step
-      ($GITHUB_STEP_SUMMARY append in push-mode), the verdict reaches
-      no human eyes even when CI fails.
+      neither mechanism applies on a direct push). Both modes also
+      emit `git diff --numstat` and pass `--lines-per-file` so
+      `policy.excludes` applies to prSize (without it, excluded files
+      silently inflate the size budget).
   - path: extensions/*/operating.md
     max_tokens: 600
     why: loaded during operating mode if the extension provides one

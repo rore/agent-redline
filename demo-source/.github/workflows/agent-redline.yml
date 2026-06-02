@@ -159,6 +159,8 @@ jobs:
           OUT_DIR="${AR_OUT_DIR:-/tmp/agent-redline}"
           mkdir -p "$OUT_DIR"
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$OUT_DIR/changed-files.txt"
+          # Per-file line counts so policy.excludes applies to prSize.
+          git diff --numstat "$BASE_SHA" "$HEAD_SHA" > "$OUT_DIR/lines-per-file.txt"
           ADD=$(git diff --shortstat "$BASE_SHA" "$HEAD_SHA" | grep -oE '[0-9]+ insertion' | head -1 | grep -oE '[0-9]+' || echo 0)
           DEL=$(git diff --shortstat "$BASE_SHA" "$HEAD_SHA" | grep -oE '[0-9]+ deletion' | head -1 | grep -oE '[0-9]+' || echo 0)
           LINES_CHANGED=$((ADD + DEL))
@@ -196,6 +198,7 @@ jobs:
           python scripts/agent-redline-report.py \
             --policy agent-policy.yaml \
             --changed-files /tmp/agent-redline/changed-files.txt \
+            --lines-per-file /tmp/agent-redline/lines-per-file.txt \
             --lines-changed ${{ steps.diff.outputs.lines_changed }} \
             --mode shadow \
             --pr-labels "$LABELS" \

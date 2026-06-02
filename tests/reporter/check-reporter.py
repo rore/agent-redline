@@ -7,7 +7,11 @@ output matches the recorded expectations.
 Each fixture directory contains:
   policy.yaml or symlink/copy of _common-policy.yaml
   changed-files.txt           # newline-separated paths
-  lines-changed.txt           # optional; integer
+  lines-changed.txt           # optional; integer scalar (fallback)
+  lines-per-file.txt          # optional; `git diff --numstat` format
+                              #   (added<TAB>deleted<TAB>path).
+                              #   When present, excludes are applied
+                              #   to size accounting.
   archunit.xml                # optional
   api-spec-base.yaml          # optional; OpenAPI spec at base SHA
   api-spec-head.yaml          # optional; OpenAPI spec at head SHA
@@ -70,7 +74,12 @@ def read_lines_changed(fixture: Path) -> int:
 
 def run_fixture(fixture: Path) -> tuple[dict, str]:
     policy = load_policy(resolve_policy(fixture))
-    diff = load_diff_from_files(fixture / "changed-files.txt", read_lines_changed(fixture))
+    lines_per_file_path = fixture / "lines-per-file.txt"
+    diff = load_diff_from_files(
+        fixture / "changed-files.txt",
+        read_lines_changed(fixture),
+        lines_per_file_path=lines_per_file_path if lines_per_file_path.exists() else None,
+    )
     archunit = load_archunit_xml(fixture / "archunit.xml")
     pr_labels = read_lines(fixture / "pr-labels.txt")
     approvals = read_lines(fixture / "codeowners.txt")

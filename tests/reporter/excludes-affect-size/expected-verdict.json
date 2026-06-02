@@ -7,22 +7,21 @@
     {
       "id": "architecture-review",
       "reason": "red-zone change: src/main/java/com/example/orders/domain/Order.java",
-      "satisfied": true,
+      "satisfied": false,
       "satisfy_by": [
-        "CODEOWNER approval",
         "label `architecture-reviewed`"
       ]
     }
   ],
-  "exitCode": 0,
+  "exitCode": 1,
   "prSize": {
-    "excludedFiles": 0,
-    "excludedLines": 0,
-    "files": 2,
-    "lines": 120,
+    "excludedFiles": 2,
+    "excludedLines": 10500,
+    "files": 1,
+    "lines": 5,
     "verdict": "ok"
   },
-  "recommendedAction": "none",
+  "recommendedAction": "review-shadow-warnings",
   "schemaChanges": {
     "detected": false
   },
@@ -32,9 +31,7 @@
   "summary": "Red-zone files changed.",
   "verdict": "RED",
   "zones": {
-    "blue": [
-      "src/test/java/com/example/orders/OrderServiceTest.java"
-    ],
+    "blue": [],
     "gray": [],
     "red": [
       "src/main/java/com/example/orders/domain/Order.java"

@@ -553,6 +553,22 @@ Plus three PR-scenario branches (`demo/blue-only-pr`, `demo/red-with-checkpoint-
 
 - A repo shape emerges that genuinely needs different zones, not just different contract config. That would justify a new shape, not a layout variant.
 
+## 2026-06-02 — `excludes` applies to prSize, not just zone classification
+
+**Decision:** The reporter's prSize check now subtracts files matching `policy.excludes` from both the file count and the line count, so excluded paths (generated code, vendored dependencies, third-party drops) don't trip the size budget. To make this work, the reporter learns a new `--lines-per-file` flag taking a `git diff --numstat` output file. The legacy `--lines-changed` scalar still works as a fallback, but without per-file data only the file count can be excludes-filtered — the line scalar passes through unfiltered.
+
+**Why:**
+
+- A real consumer (Pallium) hit a 514K-line skill drop where `.claude/skills/**` was correctly excluded for zone classification but still counted in prSize, tripping `pr_size: fail` despite no first-party code being in the change.
+- Same shape of asymmetry as the earlier `_reporter.py` round (excludes did one thing in one place, another somewhere else). The pattern says: when excludes is in policy, every consumer of that policy honors it consistently.
+- Per-file line counts come from `git diff --numstat`, which is one line of YAML per workflow. Cheap to add; the alternative (filtering `git diff --shortstat` output by path) is impossible because shortstat doesn't carry per-file breakdown.
+- The verdict's `prSize` object surfaces `excludedFiles` and `excludedLines` and the comment shows them as a transparency suffix (`— N files / M lines excluded by policy`) so users don't re-discover this bug class by being surprised the verdict's numbers don't match `git diff --shortstat`.
+
+**Revisit if:**
+
+- A consumer reports excludes-aware prSize being too aggressive (e.g., a renames-heavy refactor where `git diff --numstat` over-counts).
+- We add per-file size budgets (e.g., per-language-zone caps); those would also need the per-file breakdown.
+
 ## 2026-06-02 — Push-driven CI as a first-class flow mode
 
 **Decision:** Bootstrap proposes one of two CI workflow shapes based on the consuming repo's actual flow: **PR-driven** (`on: pull_request:`, sticky-comment surface, fail on exit 2) or **push-driven** (`on: push: branches: [main]`, `$GITHUB_STEP_SUMMARY` surface, fail the agent-redline workflow on `EXIT != 0` so GitHub's default workflow-failure email fires for both RED and BOUNDARY_VIOLATION). Neither is the "default"; bootstrap detects the dominant flow during Phase 1 and proposes the matching shape. The reporter is invoked with `--flow-mode push` so checkpoint text reads as a review obligation on the commit (no CODEOWNER / label phrasing — neither applies on a direct push).

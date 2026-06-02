@@ -13,6 +13,8 @@
   "checkpoints": [],
   "exitCode": 2,
   "prSize": {
+    "excludedFiles": 0,
+    "excludedLines": 0,
     "files": 1,
     "lines": 0,
     "verdict": "ok"

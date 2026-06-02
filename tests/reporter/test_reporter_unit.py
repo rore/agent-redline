@@ -514,6 +514,66 @@ class TestClassifyVerdict:
         assert v.pr_size["verdict"] == "fail"
         assert v.exit_code == 2
 
+    def test_pr_size_excludes_subtract_when_lines_per_file_present(self, base_policy):
+        # Regression for the bug Pallium hit: excludes:** filtered the
+        # zone classification but NOT the size budget, because the
+        # workflow handed the reporter a pre-computed scalar that
+        # already counted excluded files. With --lines-per-file
+        # populated, excluded paths must be subtracted from BOTH file
+        # and line counts.
+        base_policy["prRules"] = {
+            "maxChangedFiles": {"warn": 3, "fail": 6},
+            "maxLinesChanged": {"warn": 100, "fail": 300},
+        }
+        base_policy["excludes"] = ["**/generated/**"]
+        diff = Diff(
+            changed_files=[
+                "src/main/foo/Real.java",
+                "src/main/generated/proto/order_pb2.py",
+                "src/main/generated/proto/payment_pb2.py",
+            ],
+            files_changed=3,
+            lines_changed=10005,
+            lines_by_file={
+                "src/main/foo/Real.java": 5,
+                "src/main/generated/proto/order_pb2.py": 6000,
+                "src/main/generated/proto/payment_pb2.py": 4000,
+            },
+        )
+        v = classify(base_policy, diff)
+        # 1 in-scope file / 5 lines should be ok; the 10000-line excluded
+        # files MUST NOT trip fail.
+        assert v.pr_size["files"] == 1
+        assert v.pr_size["lines"] == 5
+        assert v.pr_size["excludedFiles"] == 2
+        assert v.pr_size["excludedLines"] == 10000
+        assert v.pr_size["verdict"] == "ok"
+
+    def test_pr_size_falls_back_to_scalar_without_lines_per_file(self, base_policy):
+        # Without --lines-per-file, the scalar is the only signal
+        # available; we can't subtract excluded lines from it. File
+        # count IS still excludes-aware (changed-files list filtering).
+        base_policy["prRules"] = {
+            "maxChangedFiles": {"warn": 3, "fail": 6},
+            "maxLinesChanged": {"warn": 100, "fail": 300},
+        }
+        base_policy["excludes"] = ["**/generated/**"]
+        diff = Diff(
+            changed_files=[
+                "src/main/foo/Real.java",
+                "src/main/generated/proto/order_pb2.py",
+            ],
+            files_changed=2,
+            lines_changed=500,  # scalar; reporter can't decompose it
+            lines_by_file=None,
+        )
+        v = classify(base_policy, diff)
+        assert v.pr_size["files"] == 1                  # 2 - 1 excluded
+        assert v.pr_size["lines"] == 500                # scalar passes through
+        assert v.pr_size["excludedFiles"] == 1
+        assert v.pr_size["excludedLines"] == 0          # unknowable without per-file
+        assert v.pr_size["verdict"] == "fail"           # 500 > 300 line budget
+
     def test_boundary_violation_in_shadow_mode_no_fail(self, base_policy):
         base_policy["modes"]["perCheck"]["boundary_violation"] = "shadow"
         archunit_xml = """<?xml version="1.0"?>

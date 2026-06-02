@@ -100,6 +100,10 @@ def required_for_mode(mode: str) -> list[tuple[str, str]]:
          "must capture the reporter's exit code in EXIT"),
         ("exit_code=$EXIT",
          "must publish the captured exit code via $GITHUB_OUTPUT for the enforce step"),
+        ("git diff --numstat",
+         "must emit `git diff --numstat` for per-file line counts (passed via --lines-per-file) so policy.excludes applies to prSize"),
+        ("--lines-per-file",
+         "must pass --lines-per-file to the reporter; without it, excluded files (generated/, vendored/, etc.) silently inflate the size budget"),
     ]
     if mode == "pr":
         return common + [

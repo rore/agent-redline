@@ -6,6 +6,8 @@
   "checkpoints": [],
   "exitCode": 1,
   "prSize": {
+    "excludedFiles": 0,
+    "excludedLines": 0,
     "files": 25,
     "lines": 800,
     "verdict": "fail"

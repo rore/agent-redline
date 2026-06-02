@@ -38,8 +38,12 @@ REPORTER="$REPO_ROOT/scripts/agent-redline-report.py"
 
 # Build the changed-files list and line-count from git diff.
 CHANGED_FILES=$(mktemp)
-trap 'rm -f "$CHANGED_FILES"' EXIT
+LINES_PER_FILE=$(mktemp)
+trap 'rm -f "$CHANGED_FILES" "$LINES_PER_FILE"' EXIT
 git diff --name-only "$BASE_SHA"..."$HEAD_SHA" > "$CHANGED_FILES"
+# Per-file line counts (added<TAB>deleted<TAB>path) so the reporter can
+# apply policy.excludes to the prSize budget.
+git diff --numstat "$BASE_SHA"..."$HEAD_SHA" > "$LINES_PER_FILE"
 LINES_CHANGED=$(git diff --shortstat "$BASE_SHA"..."$HEAD_SHA" | grep -oE '[0-9]+ insertion' | head -1 | grep -oE '[0-9]+' || echo 0)
 LINES_CHANGED_DEL=$(git diff --shortstat "$BASE_SHA"..."$HEAD_SHA" | grep -oE '[0-9]+ deletion' | head -1 | grep -oE '[0-9]+' || echo 0)
 LINES_CHANGED=$((${LINES_CHANGED:-0} + ${LINES_CHANGED_DEL:-0}))
@@ -50,7 +54,7 @@ if compgen -G "$REPO_ROOT/build/test-results/test/TEST-*ArchitectureTest*.xml" >
   ARCHUNIT_XML=$(ls "$REPO_ROOT"/build/test-results/test/TEST-*ArchitectureTest*.xml | head -1)
 fi
 
-ARGS=(--policy "$POLICY" --changed-files "$CHANGED_FILES" --lines-changed "$LINES_CHANGED" --mode "${MODE:-shadow}")
+ARGS=(--policy "$POLICY" --changed-files "$CHANGED_FILES" --lines-per-file "$LINES_PER_FILE" --lines-changed "$LINES_CHANGED" --mode "${MODE:-shadow}")
 if [[ -n "$ARCHUNIT_XML" ]]; then
   ARGS+=(--archunit-xml "$ARCHUNIT_XML")
 fi

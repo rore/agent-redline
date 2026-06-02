@@ -1,0 +1,27 @@
+version: 1
+project:
+  name: excludes-size-fixture
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+  blue:
+    - path: src/test/**
+      reason: tests
+excludes:
+  - "**/generated/**"
+  - "**/*_pb2.py"
+prRules:
+  maxChangedFiles:
+    warn: 3
+    fail: 6
+  maxLinesChanged:
+    warn: 100
+    fail: 300
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - label: architecture-reviewed
+modes:
+  default: shadow

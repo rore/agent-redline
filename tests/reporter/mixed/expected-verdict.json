@@ -16,6 +16,8 @@
   ],
   "exitCode": 1,
   "prSize": {
+    "excludedFiles": 0,
+    "excludedLines": 0,
     "files": 3,
     "lines": 0,
     "verdict": "ok"

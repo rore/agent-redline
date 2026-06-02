@@ -1,0 +1,3 @@
+3	2	src/main/java/com/example/orders/domain/Order.java
+6000	0	src/main/generated/proto/order_pb2.py
+4500	0	src/main/generated/proto/payment_pb2.py

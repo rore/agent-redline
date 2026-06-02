@@ -51,6 +51,10 @@ jobs:
           git diff --name-only \
             ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
             > build/changed-files.txt
+          # Per-file line counts so policy.excludes applies to prSize.
+          git diff --numstat \
+            ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
+            > build/lines-per-file.txt
       - name: Run reporter
         id: report
         # Capture the reporter's exit code without failing the step yet —
@@ -63,6 +67,7 @@ jobs:
           python scripts/agent-redline-report.py \
             --policy agent-policy.yaml \
             --changed-files build/changed-files.txt \
+            --lines-per-file build/lines-per-file.txt \
             --boundary-report build/import-linter-report.json \
             --boundary-format json-violations \
             --pr-labels "$LABELS" \

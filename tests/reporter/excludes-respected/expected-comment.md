@@ -12,4 +12,4 @@
 
 **Boundary check:** passed
 **API check:** no changes
-**PR size:** 4 files / 0 lines (ok)
+**PR size:** 2 files / 0 lines (ok) — 2 files / 0 lines excluded by policy

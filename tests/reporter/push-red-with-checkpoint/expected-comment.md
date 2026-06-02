@@ -12,4 +12,4 @@
 
 **Boundary check:** passed
 **API check:** no changes
-**PR size:** 2 files / 120 lines (ok)
+**Change size:** 2 files / 120 lines (ok)

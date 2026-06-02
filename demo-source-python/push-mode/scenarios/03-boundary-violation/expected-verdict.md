@@ -17,7 +17,7 @@ The run summary at the top of github.com/{owner}/{repo}/actions/runs/{id} shows:
 - `Domain stays free of infrastructure` (error): orders.domain is not allowed to import orders.infrastructure (e.g. orders.domain.order -> orders.infrastructure.db.in_memory_orders)
 
 **API check:** no changes
-**PR size:** 1 files / ~3 lines (ok)
+**Change size:** 1 files / ~3 lines (ok)
 ```
 
 - Verdict: BOUNDARY_VIOLATION

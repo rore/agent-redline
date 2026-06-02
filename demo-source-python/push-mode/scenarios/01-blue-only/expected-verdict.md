@@ -14,7 +14,7 @@ The run summary at the top of github.com/{owner}/{repo}/actions/runs/{id} shows:
 | Blue | `tests/test_isolated_helper.py` |
 
 **API check:** no changes
-**PR size:** 1 files / N lines (ok)
+**Change size:** 1 files / N lines (ok)
 ```
 
 - Verdict: BLUE

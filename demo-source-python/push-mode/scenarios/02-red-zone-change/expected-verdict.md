@@ -19,7 +19,7 @@ The run summary at the top of github.com/{owner}/{repo}/actions/runs/{id} shows:
 
 **Boundary check:** passed
 **API check:** no changes
-**PR size:** 2 files / ~12 lines (ok)
+**Change size:** 2 files / ~12 lines (ok)
 ```
 
 - Verdict: RED

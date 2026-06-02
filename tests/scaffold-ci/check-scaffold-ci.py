@@ -103,6 +103,8 @@ def required_for_mode(mode: str) -> list[tuple[str, str]]:
         ]
     # push mode
     return common + [
+        ('>> "$GITHUB_STEP_SUMMARY"',
+         "push-driven flow must append the verdict to $GITHUB_STEP_SUMMARY (`>> \"$GITHUB_STEP_SUMMARY\"`) so it appears on the run summary page (without a PR comment, this is the primary visibility surface)"),
         ('"$EXIT" != "0"',
          "push-driven flow must include an enforce step gating on `\"$EXIT\" != \"0\"` (warnings AND hard fails block CI; without a sticky comment surface, exit 1 is invisible otherwise)"),
     ]

@@ -28,6 +28,7 @@ ADAPTER_SCRIPT="$REPO_ROOT/extensions/python/scripts/run-import-linter.py"
 
 TARGET=""
 WITH_PR_BRANCHES=0
+WITH_PUSH_DEMO=0
 DO_PUSH=0
 FORCE=0
 
@@ -35,6 +36,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="$2"; shift 2 ;;
     --with-pr-branches) WITH_PR_BRANCHES=1; shift ;;
+    --with-push-demo) WITH_PUSH_DEMO=1; shift ;;
     --push) DO_PUSH=1; shift ;;
     --force) FORCE=1; shift ;;
     -h|--help)
@@ -202,6 +204,77 @@ $(<"$scenario/description.md")" >/dev/null
 fi
 
 # ----------------------------------------------------------------------
+# Push-mode demo branches
+#
+# Builds a `push-demo-main` long-lived branch off main with the
+# push-mode workflow (instead of the PR-mode one), plus N scenario
+# branches under push-demo-* that each show one canonical CI run.
+#
+# These exercise the push-driven flow end-to-end on real GitHub: each
+# push event triggers a workflow run; the verdict surfaces in
+# $GITHUB_STEP_SUMMARY at the top of the run page.
+# ----------------------------------------------------------------------
+PUSH_DEMO_DIR="$DEMO_SOURCE/push-mode"
+if [[ $WITH_PUSH_DEMO -eq 1 ]]; then
+  if [[ ! -d "$PUSH_DEMO_DIR" ]]; then
+    echo "error: --with-push-demo requested but $PUSH_DEMO_DIR is missing" >&2
+    exit 1
+  fi
+
+  echo "==> building push-demo-main branch (push-mode workflow)"
+  cd "$TARGET"
+  git checkout main >/dev/null
+  git branch -D push-demo-main 2>/dev/null || true
+  git checkout -b push-demo-main >/dev/null
+
+  # Replace the PR-mode workflow with the push-mode one.
+  cp "$PUSH_DEMO_DIR/.github/workflows/agent-redline.yml" \
+     "$TARGET/.github/workflows/agent-redline.yml"
+
+  git add -A
+  if git diff --cached --quiet; then
+    echo "    (push-demo-main branch already at expected state)"
+  else
+    git commit -m "push-demo: switch to push-mode workflow
+
+This branch demonstrates agent-redline's push-driven CI flow. The
+workflow trigger is `on: push:` instead of pull_request:, the verdict
+appears in \$GITHUB_STEP_SUMMARY (run page) instead of a sticky PR
+comment, and CI fails on EXIT != 0 (warnings + binding hard fails)
+because there's no PR comment surface for non-blocking warnings." >/dev/null
+    echo "    push-demo-main commit: $(git rev-parse --short HEAD)"
+  fi
+
+  for scenario in "$PUSH_DEMO_DIR/scenarios/"*/; do
+    name=$(basename "$scenario")
+    [[ -f "$scenario/branch.txt" ]] || continue
+    branch=$(<"$scenario/branch.txt")
+    branch=$(echo "$branch" | tr -d '[:space:]')
+    [[ -n "$branch" ]] || continue
+
+    echo "==> building push-demo branch: $branch ($name)"
+    cd "$TARGET"
+    git checkout push-demo-main >/dev/null
+    git branch -D "$branch" 2>/dev/null || true
+    git checkout -b "$branch" >/dev/null
+
+    bash "$scenario/apply.sh"
+
+    git add -A
+    if git diff --cached --quiet; then
+      echo "    (no changes — apply.sh produced no diff)"
+    else
+      git commit -m "$name scenario (push-mode demo)
+
+$(<"$scenario/description.md")" >/dev/null
+      echo "    $branch commit: $(git rev-parse --short HEAD)"
+    fi
+  done
+  cd "$TARGET"
+  git checkout main >/dev/null
+fi
+
+# ----------------------------------------------------------------------
 # Push (and open PRs) if requested
 # ----------------------------------------------------------------------
 if [[ $DO_PUSH -eq 1 ]]; then
@@ -262,6 +335,23 @@ if [[ $DO_PUSH -eq 1 ]]; then
         done
       fi
     fi
+  fi
+
+  if [[ $WITH_PUSH_DEMO -eq 1 ]]; then
+    echo "==> pushing push-demo branches"
+    cd "$TARGET"
+    git push -u --force origin push-demo-main
+    for scenario in "$PUSH_DEMO_DIR/scenarios/"*/; do
+      [[ -f "$scenario/branch.txt" ]] || continue
+      branch=$(<"$scenario/branch.txt")
+      branch=$(echo "$branch" | tr -d '[:space:]')
+      [[ -n "$branch" ]] || continue
+      git push -u --force origin "$branch"
+    done
+    # No PR creation for push-mode — the push event itself triggers CI;
+    # the verdict surfaces in the run summary at github.com/<slug>/actions.
+    echo "    push-mode demo runs surface at: https://github.com/$(git config --get remote.origin.url \
+      | sed -E 's#.*github.com[:/]([^/]+/[^/.]+)(\.git)?$#\1#')/actions"
   fi
 fi
 

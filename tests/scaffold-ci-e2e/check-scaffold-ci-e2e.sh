@@ -46,7 +46,7 @@ trap 'rm -rf "$TMPDIR"' EXIT
 # Step 1: Extract the push-mode reporter run-block from scaffold.md.
 # ----------------------------------------------------------------------
 
-if ! python "$EXTRACTOR" "$SCAFFOLD" > "$TMPDIR/extracted.sh" 2> "$TMPDIR/extract.err"; then
+if ! python "$EXTRACTOR" "$SCAFFOLD" --reporter > "$TMPDIR/extracted.sh" 2> "$TMPDIR/extract.err"; then
   echo "FAIL: extractor failed:" >&2
   cat "$TMPDIR/extract.err" >&2
   exit 2
@@ -58,7 +58,16 @@ if [[ ! -s "$TMPDIR/extracted.sh" ]]; then
   exit 2
 fi
 
-echo "==> step 1: extracted run-block from scaffold.md push-mode example"
+# Also extract the summary step — separate `run: |` block in the same
+# yaml block, executed by the workflow as its own step. We run it
+# after the reporter step to verify the visibility surface works.
+if ! python "$EXTRACTOR" "$SCAFFOLD" --summary > "$TMPDIR/extracted-summary.sh" 2> "$TMPDIR/summary-extract.err"; then
+  echo "FAIL: summary-step extractor failed:" >&2
+  cat "$TMPDIR/summary-extract.err" >&2
+  exit 2
+fi
+
+echo "==> step 1: extracted reporter + summary run-blocks from scaffold.md"
 
 # ----------------------------------------------------------------------
 # Step 2: Build a minimal fixture.
@@ -120,6 +129,12 @@ sed -i \
 
 export GITHUB_OUTPUT="$TMPDIR/github_output"
 : > "$GITHUB_OUTPUT"
+# GITHUB_STEP_SUMMARY: the run-block's "Write verdict to job summary"
+# step appends comment.md here. We assert below that this file ends up
+# containing the verdict, since it's the primary visibility surface in
+# push-mode (no PR sticky comment).
+export GITHUB_STEP_SUMMARY="$TMPDIR/github_step_summary.md"
+: > "$GITHUB_STEP_SUMMARY"
 export GH_BEFORE="$BEFORE_SHA"
 export GH_AFTER="$AFTER_SHA"
 
@@ -136,6 +151,21 @@ RC=$?
 set -e
 
 echo "==> step 4: run-block executed (exit $RC)"
+
+# Execute the summary step in the same fixture (mirrors what GitHub
+# Actions does: run each step in order, sharing the GITHUB_STEP_SUMMARY
+# env var that points at a per-job append-only file).
+set +e
+bash "$TMPDIR/extracted-summary.sh" > "$TMPDIR/summary-run.log" 2>&1
+SUMMARY_RC=$?
+set -e
+if [[ "$SUMMARY_RC" -ne 0 ]]; then
+  echo "FAIL: summary step exited $SUMMARY_RC" >&2
+  cat "$TMPDIR/summary-run.log" >&2
+  exit 2
+fi
+
+echo "==> step 4b: summary step executed (exit $SUMMARY_RC)"
 
 # ----------------------------------------------------------------------
 # Step 5: Assertions.
@@ -187,9 +217,28 @@ if [[ "$RC" -ne 0 ]]; then
   exit 2
 fi
 
+# (f) The summary step must have appended the verdict to
+# $GITHUB_STEP_SUMMARY. Without this, push-mode has no human-visible
+# surface for the verdict — the artifact is download-only.
+if [[ ! -s "$GITHUB_STEP_SUMMARY" ]]; then
+  echo "FAIL: \$GITHUB_STEP_SUMMARY is empty after the summary step" >&2
+  echo "(push-mode needs the verdict to surface on the run page; the artifact alone is invisible to a developer scrolling past CI)" >&2
+  exit 2
+fi
+# Verify the appended content has the actual verdict body, not just
+# the heading. The reporter's comment.md always contains the verdict
+# emoji + a "Required checkpoints:" or zone-summary line.
+if ! grep -qE "(Red-zone files changed|All changes in blue zones|boundary violation|Required checkpoints)" "$GITHUB_STEP_SUMMARY"; then
+  echo "FAIL: \$GITHUB_STEP_SUMMARY content doesn't look like a reporter verdict" >&2
+  echo "--- \$GITHUB_STEP_SUMMARY contents ---" >&2
+  cat "$GITHUB_STEP_SUMMARY" >&2
+  exit 2
+fi
+
 echo "ok: push-mode workflow run-block runs end-to-end"
-echo "  - extracted run-block from scaffold.md"
+echo "  - extracted reporter + summary run-blocks from scaffold.md"
 echo "  - executed against a 2-commit fixture (BEFORE/AFTER diff)"
 echo "  - reporter produced build/verdict.json with verdict=RED"
 echo "  - GITHUB_OUTPUT got exit_code=$CAPTURED_EXIT (the enforce step's input)"
 echo "  - run-block exited 0 (canonical: subsequent steps run; enforce gates on exit_code)"
+echo "  - \$GITHUB_STEP_SUMMARY received the verdict ($(wc -c < "$GITHUB_STEP_SUMMARY") bytes; this is what surfaces on the run page)"

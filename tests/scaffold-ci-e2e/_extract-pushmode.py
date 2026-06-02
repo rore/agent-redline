@@ -2,17 +2,22 @@
 """
 tests/scaffold-ci-e2e/_extract-pushmode.py
 
-Extract the push-mode reporter `run: |` shell block from
-extensions/python/scaffold.md. Print the bash to stdout. Used by
-check-scaffold-ci-e2e.sh.
+Extract executable bash from the push-mode workflow in
+extensions/python/scaffold.md so check-scaffold-ci-e2e.sh can run it
+against a fixture.
+
+Two extraction modes:
+  --reporter (default) — the `run: |` of the "Run reporter" step
+  --summary             — the `run: |` of the "Write verdict to job
+                          summary" step
 
 Strategy: find the yaml fenced block that mentions both
 `agent-redline-report.py` AND `github.event.before` (the push-mode
-diff signal). Then pull the bash from the `run: |` step that contains
-the reporter call.
+diff signal). Then pull the bash from the relevant `run: |` step.
 
 Args:
     scaffold-path
+    [--reporter | --summary]
 """
 from __future__ import annotations
 
@@ -21,45 +26,30 @@ import sys
 from pathlib import Path
 
 
-def main() -> int:
-    if len(sys.argv) != 2:
-        print(f"usage: {sys.argv[0]} <scaffold.md>", file=sys.stderr)
-        return 1
-    scaffold = Path(sys.argv[1])
-    text = scaffold.read_text(encoding="utf-8")
-
-    # Find every yaml fenced block.
+def find_push_block(text: str) -> str | None:
     blocks = re.findall(
         r"^```yaml\s*\n(.*?)\n```\s*$",
         text,
         flags=re.DOTALL | re.MULTILINE,
     )
-
-    push_block = None
     for b in blocks:
         if "agent-redline-report.py" in b and "github.event.before" in b:
-            push_block = b
-            break
+            return b
+    return None
 
-    if push_block is None:
-        print("ERROR: no push-mode block (must contain both 'agent-redline-report.py' and 'github.event.before')", file=sys.stderr)
-        return 1
 
-    # Pull the body of the `run: |` step that contains the reporter.
-    # The pattern: an indented `name:` or `run: |` line, then continuation
-    # lines indented strictly further than the `run:` line.
+def extract_run_body(yaml_block: str, needle: str) -> str | None:
+    """Find the `run: |` step whose body contains `needle`. Return the
+    body with the leading indent stripped."""
     runs = list(re.finditer(
         r"^( {6,8})run: \|\s*\n((?:\1  .*\n|\s*\n)+)",
-        push_block,
+        yaml_block,
         flags=re.MULTILINE,
     ))
-
-    chosen_body: str | None = None
     for m in runs:
         body = m.group(2)
-        if "agent-redline-report.py" in body:
+        if needle in body:
             indent = m.group(1) + "  "
-            # Strip the indent prefix from each line.
             lines: list[str] = []
             for line in body.splitlines():
                 if line.startswith(indent):
@@ -67,18 +57,44 @@ def main() -> int:
                 elif line.strip() == "":
                     lines.append("")
                 else:
-                    # Should not happen given regex, but safe.
                     break
-            chosen_body = "\n".join(lines).rstrip() + "\n"
-            break
+            return "\n".join(lines).rstrip() + "\n"
+    return None
 
-    if chosen_body is None:
-        print("ERROR: no `run: |` step in push-mode block contains the reporter call", file=sys.stderr)
+
+def main() -> int:
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
+        print(f"usage: {sys.argv[0]} <scaffold.md> [--reporter|--summary]", file=sys.stderr)
+        return 1
+    scaffold = Path(sys.argv[1])
+    mode = sys.argv[2] if len(sys.argv) == 3 else "--reporter"
+
+    text = scaffold.read_text(encoding="utf-8")
+    push_block = find_push_block(text)
+    if push_block is None:
+        print("ERROR: no push-mode block (must contain both 'agent-redline-report.py' and 'github.event.before')", file=sys.stderr)
         return 1
 
-    print(chosen_body, end="")
+    if mode == "--reporter":
+        # The reporter run-block is identified by the reporter call.
+        body = extract_run_body(push_block, "agent-redline-report.py")
+        if body is None:
+            print("ERROR: no `run: |` step in push-mode block contains the reporter call", file=sys.stderr)
+            return 1
+    elif mode == "--summary":
+        # The summary step writes to $GITHUB_STEP_SUMMARY.
+        body = extract_run_body(push_block, '$GITHUB_STEP_SUMMARY')
+        if body is None:
+            print("ERROR: no `run: |` step in push-mode block writes to $GITHUB_STEP_SUMMARY", file=sys.stderr)
+            return 1
+    else:
+        print(f"ERROR: unknown mode {mode!r}; expected --reporter or --summary", file=sys.stderr)
+        return 1
+
+    print(body, end="")
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
+

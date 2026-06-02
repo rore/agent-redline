@@ -62,13 +62,15 @@ ceilings:
       import-linter knob notes (allow_indirect_imports for forbidden
       contracts in multi-package; ancestors field for acyclic_siblings).
   - path: extensions/*/scaffold.md
-    max_tokens: 2800
+    max_tokens: 2900
     why: loaded during scaffold phase of bootstrap. Carries the
       complete CI-workflow report-step pattern (set +e, capture exit,
-      sticky-comment action, enforce-on-exit-2 step) AND the parallel
-      push-driven flow (no sticky comment, BEFORE/AFTER diff with
-      merge-base fallback, fail-on-1-or-2 enforcement). The agent loads
-      whichever subsection matches the flow mode picked in Phase 1.
+      sticky-comment action OR step-summary append, enforce step) for
+      both PR-driven and push-driven flow modes. Without the full
+      pattern, bash -e on the run block masks subsequent steps and
+      shadow-mode signal silently breaks; without the visibility step
+      ($GITHUB_STEP_SUMMARY append in push-mode), the verdict reaches
+      no human eyes even when CI fails.
   - path: extensions/*/operating.md
     max_tokens: 600
     why: loaded during operating mode if the extension provides one

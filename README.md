@@ -103,9 +103,15 @@ See the live demo PRs for the three canonical states. Each sync rotates the PR n
 
 **Python/FastAPI** — [`agent-redline-python-demo`](https://github.com/rore/agent-redline-python-demo):
 
+PR-driven flow (sticky comment + label-satisfied checkpoints):
 - [`demo/blue-only-pr`](https://github.com/rore/agent-redline-python-demo/pulls?q=is%3Apr+head%3Ademo%2Fblue-only-pr) — BLUE
 - [`demo/red-with-checkpoint-pr`](https://github.com/rore/agent-redline-python-demo/pulls?q=is%3Apr+head%3Ademo%2Fred-with-checkpoint-pr) — RED with checkpoint satisfied
 - [`demo/boundary-violation-pr`](https://github.com/rore/agent-redline-python-demo/pulls?q=is%3Apr+head%3Ademo%2Fboundary-violation-pr) — BOUNDARY_VIOLATION
+
+Push-driven flow (verdict in run-page `$GITHUB_STEP_SUMMARY`, CI red on `EXIT != 0`):
+- [`push-demo-blue-only`](https://github.com/rore/agent-redline-python-demo/actions?query=branch%3Apush-demo-blue-only) — BLUE, CI green
+- [`push-demo-red-zone-change`](https://github.com/rore/agent-redline-python-demo/actions?query=branch%3Apush-demo-red-zone-change) — RED, CI red (no PR-label mechanism)
+- [`push-demo-boundary-violation`](https://github.com/rore/agent-redline-python-demo/actions?query=branch%3Apush-demo-boundary-violation) — BOUNDARY_VIOLATION, CI red
 
 ## Supported stacks
 

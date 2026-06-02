@@ -1,0 +1,144 @@
+name: agent-redline
+
+# Push-driven flow: this branch demonstrates the push-mode CI shape.
+# - Trigger fires on `push: branches: [main]` rather than `pull_request:`.
+# - The verdict surfaces in $GITHUB_STEP_SUMMARY (visible at the top of
+#   the run page on github.com — one click from the commit) rather than
+#   a sticky PR comment. The same comment.md is also uploaded as a
+#   build artifact for machine-readable access.
+# - Enforce step fails CI on EXIT != 0 (warnings + hard fails both
+#   block) since there's no PR comment surface to absorb exit-1
+#   warnings non-blockingly.
+
+on:
+  # Push-driven flow demo: fires on push to the long-lived branch
+  # (push-demo-main) AND on push to any push-demo-* scenario branch.
+  # In a real push-driven repo, this would be `branches: [main]` only —
+  # the multi-branch trigger here is a demo affordance so each scenario
+  # branch (push-demo-blue-only, push-demo-red-zone-change, etc.) can
+  # produce its own independent CI run when pushed.
+  push:
+    branches:
+      - push-demo-main
+      - 'push-demo-*'
+
+permissions:
+  contents: read
+
+jobs:
+  boundary:
+    name: Boundary check (import-linter)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install package + dev deps
+        run: pip install -e ".[dev]"
+      - name: Run import-linter via adapter
+        run: |
+          mkdir -p build
+          python scripts/run-import-linter.py --out build/import-linter-report.json
+        # Exits 1 on violations; reporter step surfaces them. Drop this
+        # once shadow window is done.
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boundary-report
+          path: build/import-linter-report.json
+          if-no-files-found: error
+
+  report:
+    name: agent-redline report
+    needs: boundary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: boundary-report
+          path: build/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pyyaml jsonschema
+
+      - name: Run reporter
+        id: report
+        # See extensions/python/scaffold.md §5b for the full rationale
+        # behind the canonical pattern (set +e + EXIT capture + GITHUB_OUTPUT
+        # publish + summary surface + enforce-on-non-zero).
+        #
+        # Push-mode-specific: BEFORE/AFTER diff handles "first push to a
+        # branch" (BEFORE is all-zeros) and force-push (BEFORE may be a
+        # SHA the runner doesn't have) by falling back to merge-base
+        # against the default branch.
+        run: |
+          set +e
+          mkdir -p build
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+          # In a real push-mode setup, the long-lived branch is "main" and the
+          # fallback would be `origin/main`. This demo lives alongside the PR-
+          # mode demo on the same repo, so its long-lived branch is named
+          # `push-demo-main` instead — the fallback chases that, then degrades
+          # to AFTER^ if even that ref is not present.
+          BASE_REF="origin/push-demo-main"
+          if [[ "$BEFORE" == "0000000000000000000000000000000000000000" || -z "$BEFORE" ]] || \
+             ! git rev-parse --verify "$BEFORE^{commit}" >/dev/null 2>&1; then
+            BEFORE="$(git merge-base "$BASE_REF" "$AFTER" 2>/dev/null || echo "$AFTER^")"
+          fi
+          git diff --name-only "$BEFORE"..."$AFTER" > build/changed-files.txt
+          LINES_CHANGED=$(git diff --shortstat "$BEFORE"..."$AFTER" \
+            | awk '{for (i=1;i<=NF;i++) if ($i ~ /insertions?|deletions?/) s+=$(i-1)} END{print s+0}')
+          python scripts/agent-redline-report.py \
+            --policy agent-policy.yaml \
+            --changed-files build/changed-files.txt \
+            --lines-changed "${LINES_CHANGED:-0}" \
+            --json-out build/verdict.json \
+            --comment-out build/comment.md
+          EXIT=$?
+          echo "exit_code=$EXIT" >> "$GITHUB_OUTPUT"
+          echo "--- verdict.json ---" && cat build/verdict.json
+          echo "--- comment.md ---" && cat build/comment.md
+          echo "reporter exit code: $EXIT"
+
+      - name: Write verdict to job summary
+        # Without a PR sticky comment, the run page's summary is the
+        # primary visibility surface. Appending comment.md to
+        # $GITHUB_STEP_SUMMARY makes the verdict show up at the top of
+        # the workflow run on github.com — one click from the commit,
+        # no artifact download required.
+        if: always()
+        run: |
+          {
+            echo "## agent-redline verdict"
+            echo
+            cat build/comment.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload verdict artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-redline-verdict
+          path: |
+            build/verdict.json
+            build/comment.md
+
+      - name: Enforce reporter exit code
+        # Push-mode: fail on EXIT != 0 (warnings + hard fails both block).
+        # Without a PR comment surface, CI red is the only signal channel
+        # for exit-1 warnings — silencing them silences shadow-mode entirely.
+        run: |
+          EXIT="${{ steps.report.outputs.exit_code }}"
+          if [[ "$EXIT" != "0" ]]; then
+            echo "Reporter exited $EXIT. Failing the check."
+            echo "See the run summary above (or the agent-redline-verdict artifact) for the full verdict."
+            exit 1
+          fi
+          echo "Reporter exited 0 — clean."

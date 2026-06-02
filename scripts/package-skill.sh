@@ -190,8 +190,19 @@ chmod +x "$DEST/scripts/agent-redline-report.py"
 # (PR-history calibration). It runs against the consuming repo via `gh`
 # and writes nothing into the repo; bootstrap calls it from the skill's
 # own scripts/ directory rather than vendoring it.
+#
+# The tuner imports classification logic from the reporter via
+# `from core.reporter.reporter import ...`. In the source repo that
+# resolves to core/reporter/reporter.py; in the packaged skill, core/
+# doesn't ship. We solve this by ALSO shipping the reporter at
+# scripts/_reporter.py — a private importable copy with a name that
+# is a valid Python identifier (the user-facing copy is
+# scripts/agent-redline-report.py, which has hyphens and can't be
+# imported). The tuner has a try/except that imports from _reporter
+# in the dist and from core.reporter in the source repo.
 cp "$REPO_ROOT/scripts/agent-redline-tune.py" "$DEST/scripts/agent-redline-tune.py"
 chmod +x "$DEST/scripts/agent-redline-tune.py"
+cp "$REPO_ROOT/core/reporter/reporter.py" "$DEST/scripts/_reporter.py"
 
 # ----------------------------------------------------------------------
 # 7. Extensions. Each extension is a self-contained folder of markdown +

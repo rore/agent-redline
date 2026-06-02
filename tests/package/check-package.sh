@@ -22,9 +22,10 @@ trap 'rm -rf "$TMP"' EXIT
 
 bash "$REPO_ROOT/scripts/package-skill.sh" --dest "$TMP/agent-redline" >/dev/null
 
-# Compare every file. Ignore .package-source-rev (it's just a HEAD marker
-# and will differ during rebuilds).
-DIFF_OUTPUT=$(diff -r --exclude='.package-source-rev' --strip-trailing-cr "$DIST" "$TMP/agent-redline" 2>&1 || true)
+# Compare every file. Ignore .package-source-rev (just a HEAD marker;
+# differs during rebuilds) and __pycache__ (created when the
+# skill-scripts-runnable test imports the private _reporter helper).
+DIFF_OUTPUT=$(diff -r --exclude='.package-source-rev' --exclude='__pycache__' --strip-trailing-cr "$DIST" "$TMP/agent-redline" 2>&1 || true)
 
 if [[ -n "$DIFF_OUTPUT" ]]; then
   echo "FAIL: dist/agent-redline/ is out of sync with sources." >&2

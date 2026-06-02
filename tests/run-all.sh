@@ -50,6 +50,7 @@ layers=(
   "schema|python tests/schema/check-schema.py|REQUIRES_PYTHON"
   "skill-yaml|python tests/skill-yaml/check-skill-yaml.py|REQUIRES_PYTHON"
   "skill-refs|python tests/skill-refs/check-skill-refs.py|REQUIRES_PYTHON"
+  "skill-scripts-runnable|bash tests/skill-scripts-runnable/check-skill-scripts-runnable.sh|REQUIRES_PYTHON"
   "skill-toml|python tests/skill-toml/check-skill-toml.py|OPTIONAL_IMPORTLINTER"
   "scaffold-ci|python tests/scaffold-ci/check-scaffold-ci.py|REQUIRES_PYTHON"
   "scaffold-ci-e2e|bash tests/scaffold-ci-e2e/check-scaffold-ci-e2e.sh|REQUIRES_PYTHON"

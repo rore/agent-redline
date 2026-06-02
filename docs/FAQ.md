@@ -101,7 +101,7 @@ Neither is bulletproof against a determined bad actor. agent-redline is not a se
 
 ## Do I have to use pull requests?
 
-No. agent-redline supports two CI flow modes: **PR-driven** (`on: pull_request:`, sticky-comment surface, fail CI on exit 2) and **push-driven** (`on: push: branches: [main]`, run-page summary surface plus a Check Run posted via the Checks API — orange `action_required` icon for exit 1, red `failure` for exit 2 — and the workflow itself fails only on exit 2). Bootstrap detects which fits your repo from Phase 1 inspection — if the dominant flow is `git push` to a long-lived branch and PRs are rare or absent, push-driven is what gets proposed.
+No. agent-redline supports two CI flow modes: **PR-driven** (`on: pull_request:`, sticky-comment surface, fail CI on exit 2) and **push-driven** (`on: push: branches: [main]`, run-page summary surface, fail the agent-redline workflow on `EXIT != 0` so GitHub's default workflow-failure email fires for the user who triggered the run). agent-redline ships as its own `.github/workflows/` file in either mode — its failure does not affect other workflows in the repo. Bootstrap detects which fits your repo from Phase 1 inspection — if the dominant flow is `git push` to a long-lived branch and PRs are rare or absent, push-driven is what gets proposed.
 
 The agent-side discipline (read the policy before editing, classify the change, refuse boundary shortcuts) is flow-agnostic. The local pre-push check (`scripts/agent-redline-check.sh`) runs the same reporter regardless of CI shape — solo developers and trunk-based teams get verdict signal at edit time without depending on PR review.
 

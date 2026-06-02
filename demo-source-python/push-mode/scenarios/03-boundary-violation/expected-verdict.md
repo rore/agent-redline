@@ -22,7 +22,7 @@ The run summary at the top of github.com/{owner}/{repo}/actions/runs/{id} shows:
 
 - Verdict: BOUNDARY_VIOLATION
 - Reporter exit code: 2 (binding-mode hard fail per `modes.perCheck.boundary_violation: binding`)
-- Workflow job: **red** (push-mode enforce step fails on EXIT == 2)
-- agent-redline Check Run conclusion: `failure` (🔴 red X in the commit list — signals a hard fail distinct from the orange `action_required` for warnings)
-- Run-summary visible on the run page; the offending import chain is named precisely
-- The push cannot be considered safe to merge until the structure is fixed (or the violation is explicitly baselined via `ignore_imports` in `pyproject.toml`, which is itself a red-zone change).
+- Workflow conclusion: **failure** — agent-redline workflow itself is red. Other workflows in the repo run independently.
+- GitHub's default email-on-failure notification fires.
+- Run-summary visible on the run page; the offending import chain is named precisely.
+- The red badge persists on this commit's agent-redline run as the historical record. The architectural rule was violated; the structure should be fixed (or the violation explicitly baselined via `ignore_imports` in `pyproject.toml`, which is itself a red-zone change).

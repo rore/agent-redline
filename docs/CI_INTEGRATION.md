@@ -15,7 +15,7 @@ agent-redline supports two CI flow modes; bootstrap picks one based on Phase 1 i
 | Flow mode | When | Trigger | Verdict surface | Workflow gate |
 |---|---|---|---|---|
 | **PR-driven** | Team flow with PR review | `on: pull_request:` | Sticky comment on the PR | Fails on exit 2 (binding-mode hard fail) |
-| **Push-driven** | Solo / trunk-based / no PR review | `on: push: branches: [main]` | `$GITHUB_STEP_SUMMARY` on the run page **+ a Check Run** posted via the Checks API (orange `action_required` icon for exit 1, red `failure` icon for exit 2 — distinct triage in the commit list) | Fails on exit 2; exit 1 surfaces via the orange Check Run icon and run summary without blocking the workflow |
+| **Push-driven** | Solo / trunk-based / no PR review | `on: push: branches: [main]` | `$GITHUB_STEP_SUMMARY` on the run page; the workflow-failure email lands the reviewer there in one click | Fails on `EXIT != 0` (both RED warnings and BOUNDARY_VIOLATION hard fails) so GitHub's default workflow-failure email fires. agent-redline ships as its own `.github/workflows/` file — its failure does not affect other workflows in the repo. |
 
 The reporter exit-code contract is the same in both modes: `0` clean, `1` warnings (gray-zone, watch-list touched, unmet checkpoint in shadow, PR-size warn), `2` binding-mode hard fail (boundary violation, unsatisfied checkpoint under binding, PR-size fail under binding). The two modes differ only in trigger, in how they compute the changed-files diff, and in how the enforce step gates CI.
 
@@ -132,7 +132,6 @@ on:
 
 permissions:
   contents: read
-  checks: write   # required to post the agent-redline Check Run
 
 jobs:
   boundary:
@@ -159,7 +158,9 @@ jobs:
         id: report
         # BEFORE/AFTER diff with merge-base fallback for first-push and
         # force-push edge cases (where github.event.before is all-zeros
-        # or a SHA the runner doesn't have).
+        # or a SHA the runner doesn't have). --flow-mode push tells the
+        # reporter to render checkpoint text as a review obligation on
+        # the commit (CODEOWNER / label phrasing doesn't apply on push).
         run: |
           set +e
           mkdir -p build
@@ -174,6 +175,7 @@ jobs:
             | awk '{for (i=1;i<=NF;i++) if ($i ~ /insertions?|deletions?/) s+=$(i-1)} END{print s+0}')
           python scripts/agent-redline-report.py \
             --policy agent-policy.yaml \
+            --flow-mode push \
             --changed-files build/changed-files.txt \
             --lines-changed "${LINES_CHANGED:-0}" \
             --json-out build/verdict.json \
@@ -188,34 +190,36 @@ jobs:
             build/verdict.json
             build/comment.md
 
-      # Append the verdict to $GITHUB_STEP_SUMMARY (run-page surface) and
-      # post a Check Run via the Checks API (commit-list surface, with
-      # action_required → orange icon distinct from a red failure).
-      # See extensions/python/scaffold.md §5b for the full canonical pattern.
+      # Append the verdict to $GITHUB_STEP_SUMMARY so it surfaces at
+      # the top of the run page (one click from the workflow-failure
+      # email). See extensions/python/scaffold.md §5b for the full
+      # canonical pattern.
 
       - name: Enforce reporter exit code
-        # Push-mode: fail only on exit 2 (binding-mode hard fail). Exit 1
-        # (warnings, red-zone touch) is surfaced via the orange
-        # action_required Check Run + the run summary; the workflow stays
-        # green so unrelated downstream jobs aren't blocked by an
-        # informational signal.
+        # Push-mode: fail the agent-redline workflow on EXIT != 0 (both
+        # RED warnings and BOUNDARY_VIOLATION hard fails). The red badge
+        # on this commit's agent-redline run is the audit record;
+        # GitHub's default email-on-failure summons the reviewer; other
+        # workflows in this repo run independently and are unaffected.
         run: |
           EXIT="${{ steps.report.outputs.exit_code }}"
-          if [[ "$EXIT" == "2" ]]; then
-            echo "Reporter exited 2 (binding-mode hard fail). Failing the check."
+          if [[ "$EXIT" != "0" ]]; then
+            echo "Reporter exited $EXIT. Failing the agent-redline workflow."
             exit 1
           fi
-          echo "Reporter exited $EXIT — non-blocking."
+          echo "Reporter exited 0 — clean."
 ```
 
 The differences from PR-driven, summarized:
 - Trigger: `on: push:` instead of `on: pull_request:`
-- `checks: write` permission (to post the agent-redline Check Run) instead of `pull-requests: write`
+- No `pull-requests: write` permission (no PR to comment on)
 - Diff: `${{ github.event.before }}...${{ github.sha }}` with merge-base fallback
+- `--flow-mode push` flag so the reporter renders checkpoint text as a review obligation (no CODEOWNER / label phrasing)
 - No `--pr-labels` (no PR has labels)
-- No sticky-comment step; verdict surfaces via `$GITHUB_STEP_SUMMARY` (run page) + a Check Run posted via `gh api .../check-runs`
-- Verdict also uploaded as a CI artifact for machine-readable access
-- Enforce step gates on `EXIT == 2`; exit 1 surfaces via the action_required Check Run icon (orange) and run summary without blocking the workflow
+- No sticky-comment step; verdict surfaces via `$GITHUB_STEP_SUMMARY` on the run page
+- Verdict also uploaded as a CI artifact
+- Enforce step gates on `EXIT != 0`, so GitHub's default workflow-failure email fires for both RED and BOUNDARY_VIOLATION
+- agent-redline ships as its own `.github/workflows/` file; failing it does not affect other workflows in the repo
 
 ## Boundary-backend baseline
 

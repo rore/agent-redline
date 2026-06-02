@@ -19,7 +19,7 @@ The run summary at the top of github.com/{owner}/{repo}/actions/runs/{id} shows:
 
 - Verdict: BLUE
 - Reporter exit code: 0
-- Workflow job: green
-- agent-redline Check Run conclusion: `success` (🟢 green check in the commit list)
+- Workflow conclusion: success (green)
 - Run-summary visible at the top of the workflow run page on GitHub
 - No checkpoints required
+- No email notification fires (GitHub only emails on failure by default)

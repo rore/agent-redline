@@ -257,15 +257,9 @@ jobs:
 
 ### 5b. Push-driven flow — `on: push:`
 
-For solo developers and trunk-based teams. No PR comment surface, so the verdict surfaces via the run-page summary AND a dedicated **Check Run** posted via the Checks API. The check icon in the commit list triages:
+For solo developers and trunk-based teams. No PR comment surface, so the verdict surfaces via the run-page summary; the workflow itself fails on `EXIT != 0` (both RED warnings and BOUNDARY_VIOLATION hard fails) so GitHub's default email-on-failure notification fires for the user who triggered the run.
 
-| Reporter exit | Check conclusion | Icon | Meaning |
-|---|---|---|---|
-| 0 | `success` | 🟢 | Clean |
-| 1 | `action_required` | 🟠 | Look at the run summary — red-zone touch / unsatisfied checkpoint / warning |
-| 2 | `failure` | 🔴 | Stop — boundary violation or hard fail |
-
-The workflow job stays green on exit 1 (so unrelated downstream jobs aren't blocked by an informational signal) and fails on exit 2.
+**The agent-redline workflow is its own file in `.github/workflows/`. It runs independently of the repo's other CI workflows (tests, builds, linters). A red agent-redline run does not fail those workflows; it produces an independent red badge + email. Branch protection (if used) can require agent-redline to be green for merge, or treat it as informational, per repo policy.**
 
 ```yaml
 on:
@@ -274,7 +268,6 @@ on:
 
 permissions:
   contents: read
-  checks: write        # required to post the agent-redline Check Run
 
 jobs:
   # boundary: ... (see §4)
@@ -299,10 +292,15 @@ jobs:
         # Same exit-code contract as PR mode (0/1/2). See PR-mode comment
         # block for full description.
         #
-        # Push-mode-specific: BEFORE/AFTER diff handles "first push to a
-        # branch" (BEFORE is all-zeros) and force-push (BEFORE may be a
-        # SHA the runner doesn't have) by falling back to merge-base
-        # against the default branch.
+        # Push-mode-specific:
+        # - BEFORE/AFTER diff handles "first push to a branch" (BEFORE
+        #   is all-zeros) and force-push (BEFORE may be a SHA the runner
+        #   doesn't have) by falling back to merge-base against the
+        #   default branch.
+        # - --flow-mode push tells the reporter to render checkpoint
+        #   satisfier text as a review obligation on the commit, NOT as
+        #   "Satisfy by: CODEOWNER approval or label X" (neither
+        #   mechanism exists on a direct push).
         run: |
           set +e
           mkdir -p build
@@ -317,6 +315,7 @@ jobs:
             | awk '{for (i=1;i<=NF;i++) if ($i ~ /insertions?|deletions?/) s+=$(i-1)} END{print s+0}')
           python scripts/agent-redline-report.py \
             --policy agent-policy.yaml \
+            --flow-mode push \
             --changed-files build/changed-files.txt \
             --lines-changed "${LINES_CHANGED:-0}" \
             --json-out build/verdict.json \
@@ -329,7 +328,7 @@ jobs:
 
       - name: Write verdict to job summary
         # Run-page summary is the human-readable surface; one click from
-        # the commit, no artifact download.
+        # the failure-notification email, no artifact download.
         if: always()
         run: |
           {
@@ -347,51 +346,23 @@ jobs:
             build/verdict.json
             build/comment.md
 
-      - name: Post agent-redline Check Run
-        # Posts a Check Run keyed to the commit SHA. Conclusion -> icon
-        # in the commit-list/branch view: success (green), action_required
-        # (orange — distinct from a red failure; surfaces in the commit
-        # list and triggers notifications), failure (red).
-        # "Details" link points at this run's summary.
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          EXIT="${{ steps.report.outputs.exit_code }}"
-          case "$EXIT" in
-            0) CONCLUSION="success"          ;;
-            1) CONCLUSION="action_required"  ;;
-            *) CONCLUSION="failure"          ;;
-          esac
-          SUMMARY_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          # head -c is a safety belt for Check Run's 65535-byte text limit
-          BODY="$(head -c 60000 build/comment.md)"
-          jq -n \
-            --arg name      "agent-redline" \
-            --arg head_sha  "${{ github.sha }}" \
-            --arg conclusion "$CONCLUSION" \
-            --arg details_url "$SUMMARY_URL" \
-            --arg title     "agent-redline: $(jq -r .verdict build/verdict.json)" \
-            --arg summary   "$BODY" \
-            '{name:$name, head_sha:$head_sha, status:"completed",
-              conclusion:$conclusion, details_url:$details_url,
-              output:{title:$title, summary:$summary}}' \
-            > build/check-run.json
-          gh api --method POST \
-            -H "Accept: application/vnd.github+json" \
-            "/repos/${{ github.repository }}/check-runs" \
-            --input build/check-run.json
-
       - name: Enforce reporter exit code
-        # Fail only on exit 2. Exit 1 is already surfaced via the
-        # action_required Check Run + run summary.
+        # Push-mode: fail the workflow on EXIT != 0 (both RED warnings
+        # and BOUNDARY_VIOLATION hard fails). The red badge on this
+        # commit's agent-redline run is the audit record that the change
+        # required human review; the next push that touches no red zone
+        # produces a green run. GitHub's default workflow-failure email
+        # notification fires for the user who triggered this run, which
+        # is the "summon reviewer" channel for push-driven flow. Other
+        # workflows in this repo are unaffected.
         run: |
           EXIT="${{ steps.report.outputs.exit_code }}"
-          if [[ "$EXIT" == "2" ]]; then
-            echo "Reporter exited 2 (binding-mode hard fail). Failing the report check."
+          if [[ "$EXIT" != "0" ]]; then
+            echo "Reporter exited $EXIT. Failing the agent-redline workflow."
+            echo "See the run summary above for the full verdict."
             exit 1
           fi
-          echo "Reporter exited $EXIT — non-blocking."
+          echo "Reporter exited 0 — clean."
 ```
 
 (The reporter dispatches on `policy.boundaryAdapter`, which declares `outputFormat: json-violations` and `outputPath: build/import-linter-report.json` — the file the boundary job uploaded.)

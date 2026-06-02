@@ -75,6 +75,17 @@ def run_fixture(fixture: Path) -> tuple[dict, str]:
     pr_labels = read_lines(fixture / "pr-labels.txt")
     approvals = read_lines(fixture / "codeowners.txt")
 
+    # Optional flow-mode signal — affects render_markdown's checkpoint
+    # satisfier text (push-mode drops the CODEOWNER/label phrasing since
+    # neither mechanism applies on a direct push). Default 'pr' preserves
+    # existing fixtures unchanged.
+    flow_mode = "pr"
+    flow_path = fixture / "flow-mode.txt"
+    if flow_path.exists():
+        candidate = flow_path.read_text(encoding="utf-8").strip()
+        if candidate in ("pr", "push"):
+            flow_mode = candidate
+
     # New (v0.2): a fixture may carry a boundary-violations.json file to exercise
     # the json-violations format end-to-end. Mutually exclusive with archunit.xml.
     boundary_report = None
@@ -106,7 +117,7 @@ def run_fixture(fixture: Path) -> tuple[dict, str]:
         pr_labels=pr_labels,
         codeowner_approvals=approvals,
     )
-    return verdict.to_dict(), render_markdown(verdict)
+    return verdict.to_dict(), render_markdown(verdict, flow_mode=flow_mode)
 
 
 def normalize_json(s: str) -> str:

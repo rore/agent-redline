@@ -15,7 +15,7 @@ The run summary at the top of github.com/{owner}/{repo}/actions/runs/{id} shows:
 | Watch | `src/orders/infrastructure/db/in_memory_orders.py` |
 
 **Required checkpoints:**
-- [ ] `architecture-review` — red-zone change: src/orders/domain/repositories/orders_repository.py. Satisfy by: CODEOWNER approval or label `architecture-reviewed`
+- [ ] `architecture-review` — red-zone change: src/orders/domain/repositories/orders_repository.py. Action: review the commit; revert if unintended, otherwise the red CI run on this commit is the audit record.
 
 **Boundary check:** passed
 **API check:** no changes
@@ -24,7 +24,7 @@ The run summary at the top of github.com/{owner}/{repo}/actions/runs/{id} shows:
 
 - Verdict: RED
 - Reporter exit code: 1
-- Workflow job: **green** (push-mode fails the workflow only on EXIT == 2)
-- agent-redline Check Run conclusion: `action_required` (🟠 orange warning in the commit list — distinct from a red failure; surfaces on the commit list and triggers GitHub notifications without blocking unrelated jobs)
-- Run-summary visible on the run page
-- The "Satisfy by: CODEOWNER approval or label" note is from the policy. **In push-mode there's no PR to label**; the developer sees the orange icon on the commit, opens the run summary, and acknowledges by reviewing the change in place. The signal is delivered; there is no flag to flip.
+- Workflow conclusion: **failure** — agent-redline workflow itself is red. Other workflows in the repo (tests, builds) run independently and are not affected.
+- GitHub's default email-on-failure notification fires for the user who pushed the commit. The email links to the run page where the verdict is rendered above.
+- The red badge on this commit's agent-redline run is the audit trail that this change required human review. No "approve" mechanism exists in push-mode (and isn't needed) — the next push that touches no red zone produces a green agent-redline run going forward.
+- Push-mode checkpoint text reads as a review obligation on the commit. CODEOWNER approval / `architecture-reviewed` label phrasing is intentionally omitted because neither mechanism exists on a direct push (no PR to label, no CODEOWNER review request).

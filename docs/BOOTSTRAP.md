@@ -62,7 +62,7 @@ The agent also **picks a CI flow mode** based on Phase 1 inspection:
 | Solo developer, no PRs (or PRs only for meta-changes), trunk-based | push-driven |
 | Mixed | dominant signal wins; ask the developer |
 
-PR-driven proposes a workflow on `pull_request:` with a sticky comment surface; CI fails only on exit 2. Push-driven proposes `on: push:` with the verdict in `$GITHUB_STEP_SUMMARY` plus a Check Run posted via the Checks API (orange `action_required` icon for exit 1, red `failure` for exit 2 — distinct triage in the commit list); the workflow itself fails only on exit 2. Both reference the matching extension scaffold for the YAML.
+PR-driven proposes a workflow on `pull_request:` with a sticky comment surface; CI fails only on exit 2. Push-driven proposes `on: push:` with the verdict in `$GITHUB_STEP_SUMMARY`; the workflow fails on `EXIT != 0` (both RED warnings and BOUNDARY_VIOLATION hard fails) so GitHub's default workflow-failure email fires for the user who triggered the run. agent-redline ships as its own `.github/workflows/` file — its failure does not affect other workflows in the repo. Both reference the matching extension scaffold for the YAML.
 
 The agent does **not** modify anything yet. It produces a written summary of what it found, the proposed extension, and the proposed flow mode.
 

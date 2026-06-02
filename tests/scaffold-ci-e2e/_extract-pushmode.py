@@ -10,8 +10,6 @@ Two extraction modes:
   --reporter (default) — the `run: |` of the "Run reporter" step
   --summary             — the `run: |` of the "Write verdict to job
                           summary" step
-  --check-run           — the `run: |` of the "Post agent-redline
-                          Check Run" step
 
 Strategy: find the yaml fenced block that mentions both
 `agent-redline-report.py` AND `github.event.before` (the push-mode
@@ -89,14 +87,8 @@ def main() -> int:
         if body is None:
             print("ERROR: no `run: |` step in push-mode block writes to $GITHUB_STEP_SUMMARY", file=sys.stderr)
             return 1
-    elif mode == "--check-run":
-        # The Check Run step posts to /check-runs via gh api.
-        body = extract_run_body(push_block, "/check-runs")
-        if body is None:
-            print("ERROR: no `run: |` step in push-mode block posts to /check-runs", file=sys.stderr)
-            return 1
     else:
-        print(f"ERROR: unknown mode {mode!r}; expected --reporter, --summary, or --check-run", file=sys.stderr)
+        print(f"ERROR: unknown mode {mode!r}; expected --reporter or --summary", file=sys.stderr)
         return 1
 
     print(body, end="")

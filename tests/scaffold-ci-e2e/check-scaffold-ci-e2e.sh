@@ -159,8 +159,9 @@ if v["verdict"] != "RED":
     sys.exit(2)
 ASSERT_EOF
 
-if ! grep -q "^exit_code=" "$GITHUB_OUTPUT"; then
-  echo "FAIL: GITHUB_OUTPUT missing exit_code=N (the enforce step needs this)" >&2
+if ! grep -qE "^exit_code=[0-9]+$" "$GITHUB_OUTPUT"; then
+  echo "FAIL: GITHUB_OUTPUT must contain exit_code=<numeric value>" >&2
+  echo "(empty exit_code= means the upstream EXIT=\$? capture was lost)" >&2
   cat "$GITHUB_OUTPUT" >&2
   exit 2
 fi

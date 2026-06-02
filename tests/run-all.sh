@@ -53,6 +53,7 @@ layers=(
   "skill-toml|python tests/skill-toml/check-skill-toml.py|OPTIONAL_IMPORTLINTER"
   "scaffold-ci|python tests/scaffold-ci/check-scaffold-ci.py|REQUIRES_PYTHON"
   "scaffold-ci-e2e|bash tests/scaffold-ci-e2e/check-scaffold-ci-e2e.sh|REQUIRES_PYTHON"
+  "scaffold-spring-e2e|bash tests/scaffold-ci-e2e/check-spring-ci-e2e.sh|REQUIRES_PYTHON"
   "bootstrap-detect|python tests/bootstrap-detect/check-bootstrap-detect.py|REQUIRES_PYTHON"
   "tuner|bash tests/tuner/check-tuner.sh|REQUIRES_PYTHON"
   "pre-push|bash tests/pre-push/check-pre-push.sh|"

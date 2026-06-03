@@ -561,7 +561,7 @@ def _is_satisfied(
 # --------------------------------------------------------------------------
 
 ARCHITECTURE_TEST_GLOBS = (
-    # The standard glob the spring-archunit profile uses; agent-redline
+    # The standard glob the jvm-archunit profile uses; agent-redline
     # treats architecture-test files as red regardless of policy.
     "src/test/java/**/architecture/**",
     # Common alternates for other ecosystems

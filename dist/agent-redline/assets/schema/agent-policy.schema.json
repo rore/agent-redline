@@ -22,7 +22,7 @@
         "name": { "type": "string", "minLength": 1 },
         "extension": {
           "type": "string",
-          "description": "Names the language extension, e.g. spring-archunit."
+          "description": "Names the language extension, e.g. jvm-archunit."
         }
       }
     },

@@ -11,7 +11,7 @@ version: 1
 
 project:
   name: <repo-name>
-  extension: <extension-name>           # e.g. spring-archunit; or omit for zone-only
+  extension: <extension-name>           # e.g. jvm-archunit; or omit for zone-only
 
 zones:
   red:

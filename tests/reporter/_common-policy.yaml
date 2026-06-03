@@ -3,7 +3,7 @@ version: 1
 
 project:
   name: fixture-service
-  extension: spring-archunit
+  extension: jvm-archunit
 
 zones:
   red:

@@ -1,4 +1,5 @@
 {
+  "language": "python",
   "shape": "zone-only-fallback",
   "has_django": false,
   "web_deps": [],

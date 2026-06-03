@@ -42,8 +42,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Skill files whose TOML contract examples must be schema-valid.
 SKILL_FILES = [
-    "extensions/spring-archunit/profile.md",
-    "extensions/spring-archunit/scaffold.md",
+    "extensions/jvm-archunit/profile.md",
+    "extensions/jvm-archunit/scaffold.md",
     "extensions/python/profile.md",
     "extensions/python/scaffold.md",
 ]

@@ -57,7 +57,7 @@ required_paths=(
   "core/templates/pre-push-check.sh"
   "core/schema/agent-policy.schema.json"
   "core/reporter/reporter.py"
-  "extensions/spring-archunit"
+  "extensions/jvm-archunit"
 )
 for p in "${required_paths[@]}"; do
   [[ -e "$REPO_ROOT/$p" ]] || { echo "error: missing source $p" >&2; exit 1; }
@@ -275,7 +275,7 @@ agent-redline/
 ├── assets/schema/                      # agent-policy.yaml + boundary-violations.json schemas
 ├── scripts/agent-redline-report.py     # the reporter (vendored into consuming repos)
 └── extensions/
-    ├── spring-archunit/                # JVM/Spring + ArchUnit (junit-xml output)
+    ├── jvm-archunit/                # JVM (Java, Kotlin) + ArchUnit (junit-xml output)
     └── python/                         # Python services + libraries + import-linter
                                         # (json-violations output via scripts/run-import-linter.py)
 ```

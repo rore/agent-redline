@@ -4,7 +4,7 @@ version: 1
 
 project:
   name: fixture-boundary-shadow
-  extension: spring-archunit
+  extension: jvm-archunit
 
 zones:
   red:

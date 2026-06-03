@@ -1,6 +1,6 @@
 # agent-policy.yaml for the agent-redline-demo repo.
 #
-# Generated from agent-redline's spring-archunit extension defaults,
+# Generated from agent-redline's jvm-archunit extension defaults (Spring addendum),
 # adapted to this demo's actual package layout (com.example.orders).
 #
 # Source of truth: agent-redline:demo-source/agent-policy.yaml.
@@ -9,15 +9,15 @@
 # Note on red zones in this demo: the demo has exactly one domain class
 # (Order.java), so "src/main/java/**/domain/**" as red is reasonable here
 # — the entire domain layer IS the structural surface. Real services with
-# many entities should use the narrower spring-archunit defaults
+# many entities should use the narrower jvm-archunit defaults
 # (domain/repository/*.java, domain/gateway/*.java) and put entities in
-# the `watch` list. See extensions/spring-archunit/profile.md and SPEC §4.3.
+# the `watch` list. See extensions/jvm-archunit/profile.md and SPEC §4.3.
 
 version: 1
 
 project:
   name: agent-redline-demo
-  extension: spring-archunit
+  extension: jvm-archunit
 
 zones:
   red:

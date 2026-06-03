@@ -65,7 +65,7 @@ layers=(
   "gitignore|bash tests/gitignore/check-gitignore.sh|"
   "package|bash tests/package/check-package.sh|REQUIRES_PYTHON"
   "sync-demo|bash tests/sync/test-sync-demo.sh|"
-  "extension-spring|bash tests/extensions/spring-archunit/check-extension.sh|OPTIONAL_GRADLE"
+  "extension-jvm|bash tests/extensions/jvm-archunit/check-extension.sh|OPTIONAL_GRADLE"
   "extension-python|bash tests/extensions/python/check-extension.sh|OPTIONAL_IMPORTLINTER"
 )
 

@@ -31,6 +31,7 @@ Each phase ends with a developer review or confirmation. Do not skip ahead.
 Read what's in the repo:
 - Build files (`build.gradle`, `pom.xml`, `package.json`, `pyproject.toml`, `setup.py`, `setup.cfg`, `go.mod`, `Cargo.toml`)
 - Source layout. For Python: `src/<pkg>/` vs flat `<pkg>/` vs multi-package (multiple top-level `__init__.py` dirs, none matching the project name). For Django: `manage.py` at root.
+- JVM dependency signals (when `build.gradle` / `build.gradle.kts` / `pom.xml` present): grep for `spring-boot-starter`, `org.springframework.boot`, `jakarta.ws.rs`, `javalin`, `ktor`, `helidon`, `dropwizard`, `org.eclipse.jetty`, `com.android`, `apache.spark`, `apache.beam`, `apache.flink`, `apache.hadoop`. Determines layered-service vs library vs zone-only.
 - Existing agent-instruction file: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `copilot-instructions.md`, or any `*-instructions.md` at repo root
 - Existing CI (`.github/workflows/`, `.gitlab-ci.yml`) — note the trigger (`pull_request:` vs `push:`)
 - Recent flow signal: `gh pr list --state merged --limit 30 --json number` count vs `git log --since="3 months ago" --pretty=format:%h | wc -l`. Compare to gauge dominant flow (PR-driven vs push-driven)
@@ -45,7 +46,7 @@ Read what's in the repo:
 - Security/auth code locations
 
 Propose a language extension:
-- Spring Boot + Gradle/Maven → `spring-archunit`
+- JVM (Java, Kotlin) — Gradle or Maven → `jvm-archunit` — see "JVM shape selection" below
 - Python (web service, library, or pipeline) → `python` — see "Python shape selection" below
 - Other stacks → see [agent-redline EXTENSIONS docs](https://github.com/rore/agent-redline/blob/main/docs/EXTENSIONS.md); ask developer to pick a third-party one or proceed without one
 - No extension available → offer zone-only governance (no boundary backend)
@@ -69,6 +70,20 @@ Don't modify anything yet. Produce a written summary; wait for developer confirm
 
 Confirm before loading `profile.md` details. If two shapes could fire, present both. Layout (src-layout / flat / multi-package) is bootstrap-derived, not a separate shape.
 
+### JVM shape selection
+
+`jvm-archunit` covers three shapes plus a Spring addendum — `profile.md` enumerates them. Quick triage:
+
+| Signal | Shape |
+|---|---|
+| `spring-boot-starter-*` or `org.springframework.boot:*` in `build.gradle` / `pom.xml` | layered service + Spring addendum |
+| Web framework dep (`jakarta.ws.rs`, `javalin`, `ktor`, `helidon`, `dropwizard`, `jetty`) or layer dirs (`controller/`, `domain/`, `application/`, `adapter/`, `infrastructure/`, `core/`, `port/`) | layered service |
+| `maven-publish` / `nexus-publish` / `org.gradle.api.publish` artifact, `module-info.java` present, no web framework | library / SDK |
+| `com.android.{application,library}`, Spark / Beam / Flink / Hadoop deps | zone-only fallback |
+| None match | zone-only fallback |
+
+Confirm before loading `profile.md` details. If two shapes could fire (e.g., a Spring Boot library), present both. Layout (single-module / multi-module / mixed Java+Kotlin) is bootstrap-derived, not a separate shape.
+
 ### Flow mode (CI shape)
 
 Pick one. Affects Phase 5's CI proposal — not the policy, not the skill discipline.
@@ -80,7 +95,7 @@ Pick one. Affects Phase 5's CI proposal — not the policy, not the skill discip
 | Solo developer, no PRs (or PRs only for meta-changes), trunk-based | push-driven |
 | Mixed (some PR work, some direct push) | dominant signal wins; ask the developer |
 
-PR-driven proposes a workflow on `pull_request:` with a sticky comment surfacing the verdict; CI fails only on exit 2 (binding-mode hard fail). Push-driven proposes `on: push:` with the verdict in `$GITHUB_STEP_SUMMARY`; the workflow fails on `EXIT != 0` (both RED warnings and BOUNDARY_VIOLATION hard fails) so GitHub's default workflow-failure email fires for the user who triggered the run. The reporter is invoked with `--flow-mode push` so checkpoint text reads as a review obligation on the commit (no CODEOWNER / label phrasing — neither applies on a direct push). agent-redline ships as its own `.github/workflows/` file in both modes; its failure does not affect other workflows in the repo. Both reference `extensions/<name>/scaffold.md` §5 (Python) or §6 (Spring) for the specific YAML.
+PR-driven proposes a workflow on `pull_request:` with a sticky comment surfacing the verdict; CI fails only on exit 2 (binding-mode hard fail). Push-driven proposes `on: push:` with the verdict in `$GITHUB_STEP_SUMMARY`; the workflow fails on `EXIT != 0` (both RED warnings and BOUNDARY_VIOLATION hard fails) so GitHub's default workflow-failure email fires for the user who triggered the run. The reporter is invoked with `--flow-mode push` so checkpoint text reads as a review obligation on the commit (no CODEOWNER / label phrasing — neither applies on a direct push). agent-redline ships as its own `.github/workflows/` file in both modes; its failure does not affect other workflows in the repo. Both reference `extensions/<name>/scaffold.md` §5 (Python) or Spring addendum §6 (jvm-archunit) for the specific YAML.
 
 Ask the developer for confirmation before drafting the CI proposal in Phase 5.
 

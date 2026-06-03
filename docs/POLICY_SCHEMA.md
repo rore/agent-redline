@@ -11,7 +11,7 @@ version: 1                            # required; integer; current version is 1
 
 project:                              # required
   name: <string>                      # required
-  extension: <string>                 # optional; names the language extension, e.g. "spring-archunit"
+  extension: <string>                 # optional; names the language extension, e.g. "jvm-archunit"
 
 zones:                                # required; at least one of red or blue must be non-empty
   red:                                # paths whose changes need human attention
@@ -119,7 +119,7 @@ Files not matched by any zone are treated as gray.
 | `openapi-spec-file` | `specPath` | Path-glob detection. If a file matching `specPath` is in the diff, api change is flagged. The reporter does not parse the spec — the file changing is the signal. |
 | `graphql` | `specPath` | Same as `openapi-spec-file` for the schema file. |
 | `proto` | `specPath` | Same; for `.proto` files. |
-| `openapi-from-controllers` | `generationCommand` | The CI workflow runs `generationCommand` at base SHA and head SHA (typically via `git worktree`), then passes both specs to the reporter via `--api-spec-base` / `--api-spec-head`. The reporter computes a structural diff (paths added / removed, methods added / removed / modified). The local pre-push check does not run the generation; it falls back to red-zone path classification. See `extensions/spring-archunit/scaffold.md` §6 for the worktree pattern. |
+| `openapi-from-controllers` | `generationCommand` | The CI workflow runs `generationCommand` at base SHA and head SHA (typically via `git worktree`), then passes both specs to the reporter via `--api-spec-base` / `--api-spec-head`. The reporter computes a structural diff (paths added / removed, methods added / removed / modified). The local pre-push check does not run the generation; it falls back to red-zone path classification. See `extensions/jvm-archunit/scaffold.md` §6 for the worktree pattern. |
 
 The structural diff is descriptive, not classificatory: it reports what surface changed, not whether the change is breaking. Reviewers (human or agent) judge severity.
 

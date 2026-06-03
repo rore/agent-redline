@@ -25,7 +25,7 @@ agent-redline/
 ├── assets/schema/                      # agent-policy.yaml + boundary-violations.json schemas
 ├── scripts/agent-redline-report.py     # the reporter (vendored into consuming repos)
 └── extensions/
-    ├── spring-archunit/                # JVM/Spring + ArchUnit (junit-xml output)
+    ├── jvm-archunit/                # JVM (Java, Kotlin) + ArchUnit (junit-xml output)
     └── python/                         # Python services + libraries + import-linter
                                         # (json-violations output via scripts/run-import-linter.py)
 ```

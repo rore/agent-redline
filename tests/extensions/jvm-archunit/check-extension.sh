@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# tests/extensions/spring-archunit/check-extension.sh
+# tests/extensions/jvm-archunit/check-extension.sh
 #
-# Layer 3 dry-run for the spring-archunit extension.
+# Layer 3 dry-run for the jvm-archunit extension.
 #
 # Verifies that:
 #   1. The example fixture (examples/spring-hexagonal/) builds and the

@@ -447,7 +447,7 @@ boundaries:
 | Run all tests | `./gradlew test` |
 | Run only architecture tests | `./gradlew test --tests '*ArchitectureTest'` |
 | Run local agent-redline check | `./scripts/agent-redline-check.sh` |
-| Generate OpenAPI (if plugin present) | `./gradlew generateOpenApi` |
+| Generate OpenAPI (SpringDoc plugin) | `./gradlew generateOpenApiDocs` |
 
 ## JVM-specific behavior
 

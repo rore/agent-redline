@@ -136,7 +136,7 @@ checkpoints:
 
 modes:
   default: shadow
-  perCheck: { boundary_violation: binding }
+  perCheck: { boundary_violation: binding }    # rule-name sentinels: boundary_violation, report, pr_size
 ```
 
 Comments terse.

@@ -1,0 +1,24 @@
+# Invalid: unknown perCheck rule-name (typo of boundary_violation)
+# perCheck keys are fixed sentinel rule names (boundary_violation, report, pr_size).
+# Unknown keys must fail schema validation; previously they silently no-op'd.
+version: 1
+
+project:
+  name: bad-percheck
+  extension: jvm-archunit
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+
+modes:
+  default: shadow
+  perCheck:
+    boundary-violation: binding   # kebab-case is wrong; reporter sentinel uses underscore

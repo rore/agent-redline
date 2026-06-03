@@ -117,7 +117,7 @@ Push-driven flow (verdict in run-page `$GITHUB_STEP_SUMMARY`; agent-redline work
 
 | Stack | Extension | Boundary backend | Demo |
 |---|---|---|---|
-| JVM (Java, Kotlin), Spring Boot | [`spring-archunit`](extensions/spring-archunit/) | [ArchUnit](https://www.archunit.org/) (JUnit XML) | [agent-redline-demo](https://github.com/rore/agent-redline-demo) |
+| JVM (Java, Kotlin) — generic + Spring addendum | [`jvm-archunit`](extensions/jvm-archunit/) | [ArchUnit](https://www.archunit.org/) (JUnit XML) | [agent-redline-demo](https://github.com/rore/agent-redline-demo) |
 | Python services and libraries (incl. Django) | [`python`](extensions/python/) | [import-linter](https://import-linter.readthedocs.io/) (json-violations) | [agent-redline-python-demo](https://github.com/rore/agent-redline-python-demo) |
 
 The framework's stack-neutral pieces — zone classification, checkpoints, PR-size checks, the agent-side discipline — work on **any** repo. The boundary-rule backend is the ecosystem-specific piece, and is what each language extension brings.

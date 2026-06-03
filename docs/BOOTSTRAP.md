@@ -10,7 +10,7 @@ It is a one-time setup conversation, not an automated install.
 
 - The repo as it exists (any branch / commit)
 - The developer's intent (what risks they care about, what teams own what, what CI they have)
-- The matching language extension from `extensions/` (e.g., `spring-archunit`). For stacks without a built-in extension, the developer points the agent at a third-party extension or the agent works without one.
+- The matching language extension from `extensions/` (e.g., `jvm-archunit`). For stacks without a built-in extension, the developer points the agent at a third-party extension or the agent works without one.
 
 ## Outputs
 
@@ -47,7 +47,7 @@ The agent reads:
 
 Based on what it finds, the agent **proposes a language extension** for the developer to confirm:
 
-- For Spring Boot + Gradle/Maven, the agent suggests `spring-archunit`.
+- For JVM (Java/Kotlin) repos — Gradle or Maven — the agent suggests `jvm-archunit`; Spring is detected separately and switches on the addendum.
 - For Python, the agent suggests `python` and triages the shape (layered service / library / zone-only fallback) and layout (src-layout / flat / multi-package).
 - For other stacks, the agent surfaces the recommended backends listed in [EXTENSIONS.md](EXTENSIONS.md) and asks the developer to pick a third-party extension or proceed without one.
 
@@ -76,7 +76,7 @@ The agent loads the matching language extension's `profile.md` and proposes:
 - Persistence path
 - Security path
 - Initial PR-size thresholds
-- The boundary-rule backend the extension prescribes (e.g., ArchUnit for `spring-archunit`)
+- The boundary-rule backend the extension prescribes (e.g., ArchUnit for `jvm-archunit`)
 
 This is presented as a draft `agent-policy.yaml` with explanatory comments. The developer reviews it.
 

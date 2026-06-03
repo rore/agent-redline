@@ -6,7 +6,7 @@ version: 1
 
 project:
   name: api-from-controllers-fixture
-  extension: spring-archunit
+  extension: jvm-archunit
 
 zones:
   red:

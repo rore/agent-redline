@@ -18,7 +18,7 @@ A small reporter script exists for CI use. It's a supporting component, not the 
 
 ## Does this require my repo to be hexagonal?
 
-No. The `spring-archunit` extension uses hexagonal package names because it's a clean reference layout, but bootstrap adapts to the actual layout. A flat or layered repo gets a flatter zone definition. A monorepo gets per-module policies (or one root policy with module-aware globs).
+No. The `jvm-archunit` extension uses hexagonal package names because it's a clean reference layout, but bootstrap adapts to the actual layout. A flat or layered repo gets a flatter zone definition. A monorepo gets per-module policies (or one root policy with module-aware globs).
 
 agent-redline works best when the codebase has *some* recognizable structure to protect. If the codebase has no boundaries, agent-redline can't invent them. It can highlight where boundaries are missing, but it won't impose a model that isn't there.
 
@@ -75,7 +75,7 @@ Architecture tools enforce dependency rules in tests or CI. They tell you *after
 
 agent-redline tells the agent which rules matter *before* it edits, refuses agent shortcuts that would weaken them (modifying the architecture-test files, suppressing a rule, laundering the import through another package), and adds zone-aware PR routing for non-rule risk that those tools don't model — red-zone path touches, persistence migrations, API surface diff, PR-size limits.
 
-Use them together. agent-redline's `spring-archunit` extension *generates and depends on* ArchUnit tests; it doesn't replace them. The deterministic boundary check in the PR verdict is fed by the same JUnit XML the architecture tests produce.
+Use them together. agent-redline's `jvm-archunit` extension *generates and depends on* ArchUnit tests; it doesn't replace them. The deterministic boundary check in the PR verdict is fed by the same JUnit XML the architecture tests produce.
 
 ## How does this differ from CodeRabbit / Qodo / PR-Agent / generic AI code review?
 
@@ -128,7 +128,7 @@ You'll typically declare both. Zones tell the skill where to slow down. Boundary
 
 No. If the repo has no public API surface, set `api.type: none`. If the repo has API surface but doesn't use OpenAPI, treat the API contract files (proto, GraphQL schema, etc.) as red-zone paths and skip the diff step.
 
-If the repo uses SpringDoc (or another runtime spec generator) without committing the spec, set `api.type: openapi-from-controllers` with `generationCommand:`. The CI workflow generates the spec at base SHA and head SHA via a worktree, the reporter computes a structural diff, and the PR comment lists changed surface points. The local pre-push check does not run the generation (too slow); it relies on red-zone path classification — touched controllers fire api-review. See `extensions/spring-archunit/scaffold.md` §6 for the worktree pattern.
+If the repo uses SpringDoc (or another runtime spec generator) without committing the spec, set `api.type: openapi-from-controllers` with `generationCommand:`. The CI workflow generates the spec at base SHA and head SHA via a worktree, the reporter computes a structural diff, and the PR comment lists changed surface points. The local pre-push check does not run the generation (too slow); it relies on red-zone path classification — touched controllers fire api-review. See `extensions/jvm-archunit/scaffold.md` §6 for the worktree pattern.
 
 ## Does agent-redline distinguish per-tenant from global migrations?
 

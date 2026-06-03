@@ -60,9 +60,9 @@ SCHEMA_PATH = REPO_ROOT / "core" / "schema" / "agent-policy.schema.json"
 # Skill markdown files whose ```yaml blocks should be checked. These are
 # the files an agent actually reads during bootstrap or operating mode.
 SKILL_FILES = [
-    "extensions/spring-archunit/profile.md",
-    "extensions/spring-archunit/scaffold.md",
-    "extensions/spring-archunit/operating.md",
+    "extensions/jvm-archunit/profile.md",
+    "extensions/jvm-archunit/scaffold.md",
+    "extensions/jvm-archunit/operating.md",
     "extensions/python/profile.md",
     "extensions/python/scaffold.md",
     "extensions/python/operating.md",

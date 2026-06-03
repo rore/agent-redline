@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 jobs:
-  spring-archunit:
+  jvm-archunit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,5 +25,5 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Spring/ArchUnit extension dry-run
-        run: bash tests/extensions/spring-archunit/check-extension.sh
+      - name: jvm-archunit extension dry-run
+        run: bash tests/extensions/jvm-archunit/check-extension.sh

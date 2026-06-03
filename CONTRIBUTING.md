@@ -4,7 +4,7 @@ Thanks for thinking about contributing. agent-redline is small enough that the b
 
 ## What's most welcome
 
-- **A new language extension.** `extensions/spring-archunit/` is the reference. The shape is documented in [`docs/EXTENSIONS.md`](docs/EXTENSIONS.md). Node + dependency-cruiser, Python + import-linter, and Go + go-arch-lint are the most-requested.
+- **A new language extension.** `extensions/jvm-archunit/` is the reference. The shape is documented in [`docs/EXTENSIONS.md`](docs/EXTENSIONS.md). Node + dependency-cruiser, Python + import-linter, and Go + go-arch-lint are the most-requested.
 - **Bug reports** with a minimal reproducible example. Open an issue.
 - **Polish on the docs.** If something in [`docs/`](docs/) reads as overconfident, vague, or wrong, fix it.
 - **Telling us a real-world repo this skill helped (or didn't help) on.** Even a one-line note on an issue is useful. We're tuning defaults on a small sample.

@@ -41,7 +41,7 @@ Four markdown files, one small YAML file, and — only when the backend forces i
 
 ## Building a new extension — practical steps
 
-1. **Copy an existing extension to `extensions/<your-stack>/`.** Use `extensions/spring-archunit/` as the JUnit-XML reference, or `extensions/python/` as the JSON-violations + adapter-script reference. Pick whichever is closer to your backend.
+1. **Copy an existing extension to `extensions/<your-stack>/`.** Use `extensions/jvm-archunit/` as the JUnit-XML reference, or `extensions/python/` as the JSON-violations + adapter-script reference. Pick whichever is closer to your backend.
 2. **Rewrite `README.md`** — what stack this is for, when to pick it.
 3. **Rewrite `profile.md`** — zones (red/blue) and watch-list entries for your stack, recommended boundary rules, API contract location, persistence paths, security conventions, gotchas. Keep the same structure; replace stack-specific paths with yours.
 4. **Rewrite `scaffold.md`** — how the agent installs the boundary-rule backend (`pip install`, `npm install`, `cargo add`, etc.), generates the config/test files, and adds the CI step.
@@ -140,7 +140,7 @@ And the reporter skips the boundary-violation section of the verdict.
 
 For v0.1 there's no central registry. Extensions live in:
 
-- This repo (`extensions/spring-archunit/` and `extensions/python/` are the references)
+- This repo (`extensions/jvm-archunit/` and `extensions/python/` are the references)
 - A separate repo or directory you publish (point users at it; they install it alongside agent-redline as another skill)
 - A consuming repo's local copy (vendored)
 

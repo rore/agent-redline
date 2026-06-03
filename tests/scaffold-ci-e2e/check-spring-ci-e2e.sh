@@ -2,7 +2,7 @@
 # tests/scaffold-ci-e2e/check-spring-ci-e2e.sh
 #
 # End-to-end check: extract the openapi-from-controllers reporter
-# run-block from extensions/spring-archunit/scaffold.md (§6), execute
+# run-block from extensions/jvm-archunit/scaffold.md (§6), execute
 # it against a Spring-shaped fixture with hand-crafted spec files, and
 # assert the reporter produces the expected verdict.
 #
@@ -36,7 +36,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SCAFFOLD="$REPO_ROOT/extensions/spring-archunit/scaffold.md"
+SCAFFOLD="$REPO_ROOT/extensions/jvm-archunit/scaffold.md"
 REPORTER="$REPO_ROOT/core/reporter/reporter.py"
 EXTRACTOR="$(dirname "${BASH_SOURCE[0]}")/_extract-spring.py"
 
@@ -90,7 +90,7 @@ cat > agent-policy.yaml <<'POLICY_EOF'
 version: 1
 project:
   name: spring-e2e-fixture
-  extension: spring-archunit
+  extension: jvm-archunit
 zones:
   red:
     - path: "src/main/java/**/controller/**"
@@ -302,7 +302,7 @@ fi
 
 CAPTURED_EXIT=$(grep "^exit_code=" "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)
 echo "ok: Spring reporter run-block runs end-to-end"
-echo "  - extracted run-block from spring-archunit/scaffold.md §6"
+echo "  - extracted run-block from jvm-archunit/scaffold.md §6"
 echo "  - executed against a 2-commit Spring fixture (controller modified)"
 echo "  - reporter consumed --api-spec-base / --api-spec-head + diffed them"
 echo "  - reporter produced build/verdict.json with apiChanges.detected=true"

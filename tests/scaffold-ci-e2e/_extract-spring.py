@@ -3,7 +3,7 @@
 tests/scaffold-ci-e2e/_extract-spring.py
 
 Extract the reporter `run: |` shell block from
-extensions/spring-archunit/scaffold.md (the §6 OpenAPI block — that's
+extensions/jvm-archunit/scaffold.md (the §6 OpenAPI block — that's
 where the canonical reporter step lives in the Spring scaffold). Print
 the bash to stdout. Used by check-spring-ci-e2e.sh.
 

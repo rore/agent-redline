@@ -52,7 +52,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 SCAFFOLDS = [
-    "extensions/spring-archunit/scaffold.md",
+    "extensions/jvm-archunit/scaffold.md",
     "extensions/python/scaffold.md",
 ]
 

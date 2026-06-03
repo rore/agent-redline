@@ -42,6 +42,8 @@ Generate one `@ArchTest` method per `boundaries[]` entry in the policy. Test met
 
 Substitute the actual base package and the actual layer package names from inspection. The example below uses placeholders (`domain`, `application`, `adapter`, `controller`); a repo using `core` / `infra` / `web` needs correspondingly different `resideInAPackage` arguments.
 
+**Translating `boundaries:` to ArchUnit.** The policy uses path-globs (e.g., `from: src/main/java/**/domain/**`); ArchUnit uses package-name patterns (e.g., `resideInAPackage("..domain..")`). For each `boundaries[]` entry: the `from:` glob's last meaningful segment becomes the `resideInAPackage` argument, and each `forbidImports:` entry becomes a `resideInAnyPackage` argument. The path prefix (`src/main/java/**/`) is dropped — ArchUnit operates on the imported package tree, not file paths.
+
 ```java
 // src/test/java/<base-package>/architecture/DependencyArchitectureTest.java
 

@@ -4,7 +4,10 @@
 # Shell scripts must stay LF — CRLF breaks on Linux/macOS.
 *.sh text eol=lf
 
-# YAML and markdown: text, but explicit is fine.
-*.yaml text
-*.yml text
+# YAML stays LF too. The budget-manifest parser is line-oriented and
+# CRLF on Windows checkouts silently broke the regex match (Codex
+# review caught it). Forcing LF everywhere keeps the same checkout
+# working across platforms.
+*.yaml text eol=lf
+*.yml text eol=lf
 *.md text

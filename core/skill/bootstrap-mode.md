@@ -103,9 +103,9 @@ Ask the developer for confirmation before drafting the CI proposal in Phase 5.
 
 Load the chosen extension's `profile.md`. Adapt its defaults to the actual repo:
 - Substitute placeholder package names with the actual ones from inspection. If the repo uses `core` instead of `domain`, translate the patterns.
-- Skip zones that don't apply (no Terraform → omit the Terraform red entry).
+- **Verify each default's path or directory exists before keeping it.** Profile defaults assume common conventions (`domain/repository/`, `**/security/**`, `terraform/**`, etc.). For each red/watch/blue entry: if the directory or file pattern matches nothing in the repo, omit the entry. Don't keep phantom entries "for future use" — they bloat the policy and mislead reviewers.
 - **Use the extension's PR-size thresholds verbatim.** The extension's `profile.md` has a "Default PR-size thresholds" section. Copy those numbers into the draft policy as-is. Don't invent values; the developer can adjust them in Phase 3.
-- Don't fabricate.
+- Don't fabricate. Don't add boundary rules, zones, or checkpoints the codebase doesn't justify.
 
 Present a draft `agent-policy.yaml` with terse one-line comments. Show it for review before writing.
 
@@ -136,7 +136,7 @@ checkpoints:
 
 modes:
   default: shadow
-  perCheck: { boundary_violation: binding }
+  perCheck: { boundary_violation: binding }    # rule-name sentinels: boundary_violation, report, pr_size
 ```
 
 Comments terse.

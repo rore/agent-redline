@@ -8,8 +8,6 @@
 
 Repo instructions (`AGENTS.md`, `CLAUDE.md`) are passive — agents drift. CI checks (ArchUnit, dependency rules) fire after the fact. agent-redline makes architectural risk *binding for the agent before it edits*, then checks it deterministically at PR time.
 
-agent-redline helps teams:
-
 - Let agents move fast on low-risk code
 - Catch dependency-boundary violations before they become architecture drift
 - Flag PRs that touch APIs, persistence, security, or structural contracts

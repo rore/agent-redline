@@ -56,8 +56,7 @@ This is the practical starting list for anyone building an extension:
 
 | Ecosystem | Recommended backend | Native output | Notes |
 |---|---|---|---|
-| JVM (Java, Kotlin) — Spring | **ArchUnit** | junit-xml | Open source, JUnit-friendly, bytecode-aware. Reference extension. |
-| JVM (Java, Kotlin) — non-Spring | **ArchUnit** | junit-xml | Same backend, different zones/scaffolding. |
+| JVM (Java, Kotlin) | **ArchUnit** | junit-xml | Open source, JUnit-friendly, bytecode-aware. Reference extension (`jvm-archunit`); Spring Boot covered by the Spring addendum. |
 | Python | **import-linter** | (none — adapter script) | Designed for layer/contract import rules. Reference extension. |
 | Node / TypeScript | **dependency-cruiser** | json-violations (via converter) | Built specifically for Node forbid-import rules. |
 | Go | **go-arch-lint** | (depends on tool) | Closest equivalent to ArchUnit in the Go ecosystem. |

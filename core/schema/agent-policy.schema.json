@@ -179,7 +179,13 @@
         "default": { "enum": ["shadow", "binding"] },
         "perCheck": {
           "type": "object",
-          "additionalProperties": { "enum": ["shadow", "binding"] }
+          "additionalProperties": false,
+          "description": "Per-rule mode overrides. Keys are fixed reporter rule names (sentinels), not user-defined checkpoint names. See docs/POLICY_SCHEMA.md \"Mode semantics\".",
+          "properties": {
+            "boundary_violation": { "enum": ["shadow", "binding"] },
+            "report": { "enum": ["shadow", "binding"] },
+            "pr_size": { "enum": ["shadow", "binding"] }
+          }
         }
       }
     },

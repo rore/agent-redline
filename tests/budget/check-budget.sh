@@ -60,6 +60,10 @@ parse_manifest() {
   local cur_path=""
   local cur_max=""
   while IFS= read -r line; do
+    # Strip trailing \r so CRLF-on-Windows checkouts don't make every regex
+    # below fail silently. Without this, the script "passes" by parsing zero
+    # ceilings — silent under-checking is worse than failing loudly.
+    line="${line%$'\r'}"
     if [[ "$line" =~ ^ceilings:[[:space:]]*$ ]]; then
       in_ceilings=1
       continue
@@ -86,11 +90,13 @@ parse_manifest() {
 
 failed=0
 checked=0
+ceilings_seen=0
 
 while IFS='|' read -r pattern ceiling; do
   if [[ -z "$pattern" || -z "$ceiling" ]]; then
     continue
   fi
+  ceilings_seen=$(( ceilings_seen + 1 ))
 
   # Expand the glob relative to repo root using bash native globbing.
   # Use nullglob locally so an unmatched pattern produces an empty array
@@ -132,6 +138,15 @@ while IFS='|' read -r pattern ceiling; do
 done < <(parse_manifest)
 
 echo
+if (( ceilings_seen == 0 )); then
+  echo "FAIL: parsed zero ceilings from $MANIFEST." >&2
+  echo "(Did the manifest line endings change? The parser strips \\r already; if you still see this, check the file format with \`file $MANIFEST\`.)" >&2
+  exit 1
+fi
+if (( checked == 0 )); then
+  echo "FAIL: parsed $ceilings_seen ceiling(s) but matched zero files. Check the budget manifest globs." >&2
+  exit 1
+fi
 if (( failed > 0 )); then
   echo "$failed of $checked file(s) over budget."
   exit 2

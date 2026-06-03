@@ -50,6 +50,7 @@ The classification is one of:
 | `API_CHANGE` | Touched API contract surface. Requires `api-review`. |
 | `SCHEMA_CHANGE` | Touched migration or persistence model. Requires `persistence-review`. |
 | `SECURITY_CHANGE` | Touched security/auth code. Requires `security-review`. |
+| `CONFIG_CHANGE` | Touched a runtime-config path. Requires `ops-review` (or whichever `runtimeConfig.checkpoint` the policy declares). |
 | `MIXED` | Combination of the above. Resolve to the most-restrictive applicable. |
 
 The `watch` list is a separate, additive concern — independent of the classification above. A file can be `red+watch`, `blue+watch`, or `gray+watch`. Watch on its own never produces a verdict, but each watched-and-changed file gets a row in the PR comment so the reviewer sees it. Mention any `watch` files in your PR description briefly: "Touched `*Configuration.java`; affects bean wiring globally; verified beans still resolve."

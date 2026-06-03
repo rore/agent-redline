@@ -69,7 +69,7 @@ These are observed, not asserted. Findings are written to a per-run notes file (
 
 ### Layer 5 — End-to-end demo repos
 
-Two paired GitHub repos exercise the whole loop against real GitHub Actions, real branch protection, real CODEOWNERS, real PR comment posting / artifact uploading.
+Two paired GitHub repos exercise the whole loop against real GitHub Actions, CODEOWNERS, PR comment posting, and artifact uploading. The Spring demo (`agent-redline-demo`) also has real branch protection on `main` with `archunit` / `report` / `generate-specs` as required status checks; the Python demo (`agent-redline-python-demo`) does not yet have branch protection configured.
 
 **`agent-redline-demo`** (Spring/JVM, PR-driven):
 - `greenfield` — bare Spring service, no agent-redline artifacts. Use to exercise bootstrap mode.

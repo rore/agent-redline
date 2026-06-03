@@ -60,7 +60,7 @@ class CheckpointStatus:
 
 @dataclass
 class Verdict:
-    verdict: str   # BLUE | RED | GRAY | BOUNDARY_VIOLATION | MIXED | API_CHANGE | SCHEMA_CHANGE | SECURITY_CHANGE
+    verdict: str   # BLUE | RED | GRAY | BOUNDARY_VIOLATION | MIXED | API_CHANGE | SCHEMA_CHANGE | SECURITY_CHANGE | CONFIG_CHANGE
     summary: str
     zones: dict[str, list[str]]
     checkpoints: list[CheckpointStatus]
@@ -68,6 +68,7 @@ class Verdict:
     api_changes: dict[str, Any]
     schema_changes: dict[str, Any]
     security_changes: dict[str, Any]
+    runtime_config_changes: dict[str, Any]
     pr_size: dict[str, Any]
     exit_code: int
     recommended_action: str
@@ -82,6 +83,7 @@ class Verdict:
             "apiChanges": self.api_changes,
             "schemaChanges": self.schema_changes,
             "securityChanges": self.security_changes,
+            "runtimeConfigChanges": self.runtime_config_changes,
             "prSize": self.pr_size,
             "exitCode": self.exit_code,
             "recommendedAction": self.recommended_action,
@@ -733,6 +735,9 @@ def classify(
     elif security_changed:
         verdict = "SECURITY_CHANGE"
         summary = "Security-sensitive code changed."
+    elif runtime_changed:
+        verdict = "CONFIG_CHANGE"
+        summary = "Runtime configuration changed."
     elif classification["red"]:
         verdict = "RED"
         summary = "Red-zone files changed."
@@ -785,6 +790,7 @@ def classify(
         api_changes=_build_api_changes(api_changed, api_spec_diff),
         schema_changes={"detected": schema_changed},
         security_changes={"detected": security_changed},
+        runtime_config_changes={"detected": runtime_changed},
         pr_size=pr_size,
         exit_code=exit_code,
         recommended_action=recommended,
@@ -889,6 +895,8 @@ def render_markdown(verdict: Verdict, flow_mode: str = "pr") -> str:
         lines.append("**Schema check:** changes detected")
     if verdict.security_changes.get("detected"):
         lines.append("**Security check:** changes detected")
+    if verdict.runtime_config_changes.get("detected"):
+        lines.append("**Runtime config check:** changes detected")
 
     # Change-size line. PR-mode calls it "PR size" (matches the surface
     # the reviewer sees — a pull request); push-mode calls it "Change
@@ -987,23 +995,45 @@ def resolve_boundary_input(
       3. policy.boundaryAdapter (when present and outputFormat != 'none').
       4. Nothing — boundary parsing is skipped.
 
-    Returns (report_text, format) or (None, None).
+    Raises FileNotFoundError when a boundary report is configured but absent.
+    Silent fallthrough would let a misconfigured CI run produce a clean
+    BLUE verdict despite policy declaring a backend — that hides the
+    deterministic boundary check the policy promised. Set
+    boundaryAdapter.outputFormat: none to opt out explicitly.
+
+    Returns (report_text, format) or (None, None) only when no source is
+    configured at all.
     """
     if explicit_path is not None:
         text = load_boundary_report(explicit_path)
+        if text is None:
+            raise FileNotFoundError(
+                f"--boundary-report path does not exist: {explicit_path}. "
+                f"The boundary backend must produce this file before the reporter runs."
+            )
         return text, (explicit_format or "junit-xml")
     if legacy_archunit_path is not None:
         text = load_archunit_xml(legacy_archunit_path)
-        if text is not None:
-            return text, "junit-xml"
+        if text is None:
+            raise FileNotFoundError(
+                f"--archunit-xml path does not exist: {legacy_archunit_path}. "
+                f"The boundary backend must produce this file before the reporter runs."
+            )
+        return text, "junit-xml"
     adapter = (policy.get("boundaryAdapter") or {}) if isinstance(policy, dict) else {}
     fmt = adapter.get("outputFormat")
     out_path = adapter.get("outputPath")
     if fmt and fmt != "none" and out_path:
         # Resolve glob first match (mirrors Spring's TEST-*ArchitectureTest.xml pattern).
         matches = sorted(Path(".").glob(out_path))
-        if matches:
-            return matches[0].read_text(encoding="utf-8"), fmt
+        if not matches:
+            raise FileNotFoundError(
+                f"policy.boundaryAdapter.outputPath matched no file: {out_path!r}. "
+                f"The boundary backend ({fmt}) must produce a report at this path "
+                f"before the reporter runs. Set boundaryAdapter.outputFormat: none "
+                f"to opt out of boundary enforcement explicitly."
+            )
+        return matches[0].read_text(encoding="utf-8"), fmt
     return None, None
 
 

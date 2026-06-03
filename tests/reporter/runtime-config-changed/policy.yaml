@@ -1,0 +1,37 @@
+# Fixture: runtime config change in a blue zone
+# Exercises the CONFIG_CHANGE verdict (was previously a contradictory
+# BLUE verdict next to an unsatisfied ops-review checkpoint).
+version: 1
+
+project:
+  name: fixture-runtime-config
+  extension: jvm-archunit
+
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+  blue:
+    - path: src/test/**
+      reason: tests
+    - path: src/main/resources/application.yml
+      reason: default-profile runtime config; visible, not a checkpoint
+
+runtimeConfig:
+  paths:
+    - src/main/resources/application*.yml
+  checkpoint: ops-review
+
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+      - label: architecture-reviewed
+  ops-review:
+    satisfiedBy:
+      - codeownerApproval
+      - label: ops-reviewed
+
+modes:
+  default: shadow

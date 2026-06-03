@@ -174,7 +174,7 @@ agent-redline introduces a small, stable vocabulary. Consuming repos use these t
 | **Language extension** | A folder of markdown plus one small config file (plus an optional `scripts/` for backends without machine-readable output) that binds the core to a stack. Carries the stack's typical zones, recommended boundary rules, backend choice, and the adapter config telling the reporter how to read backend output. agent-redline ships two reference extensions (`jvm-archunit`, `python`); others are community-built. |
 | **Adapter config** | The single small YAML file in a language extension that tells the reporter where the backend writes its output and what format it's in. |
 | **Checkpoint** | A required human attention point triggered by structural risk. Satisfied by reviewer approval, label, or both. |
-| **Change classification** | The result for a PR/diff: `BLUE`, `RED`, `GRAY`, `BOUNDARY_VIOLATION`, `API_CHANGE`, `SCHEMA_CHANGE`, etc. |
+| **Change classification** | The result for a PR/diff: `BLUE`, `RED`, `GRAY`, `BOUNDARY_VIOLATION`, `API_CHANGE`, `SCHEMA_CHANGE`, `SECURITY_CHANGE`, `CONFIG_CHANGE`, `MIXED`. |
 | **Bootstrap mode** | The skill operating on a fresh repo to set up governance artifacts. |
 | **Operating mode** | The skill operating in a configured repo, classifying intended changes before editing. |
 | **Shadow mode** | A check runs and reports, but does not block CI. |
@@ -437,7 +437,7 @@ The agent classifies changes during operating mode, before editing. The reporter
 
 ```json
 {
-  "verdict": "RED" | "BLUE" | "GRAY" | "BOUNDARY_VIOLATION" | "MIXED",
+  "verdict": "RED" | "BLUE" | "GRAY" | "BOUNDARY_VIOLATION" | "API_CHANGE" | "SCHEMA_CHANGE" | "SECURITY_CHANGE" | "CONFIG_CHANGE" | "MIXED",
   "summary": "...",
   "zones": {
     "red": ["src/main/java/.../OrderService.java"],

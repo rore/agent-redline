@@ -20,6 +20,9 @@
     "verdict": "ok"
   },
   "recommendedAction": "review-shadow-warnings",
+  "runtimeConfigChanges": {
+    "detected": false
+  },
   "schemaChanges": {
     "detected": false
   },

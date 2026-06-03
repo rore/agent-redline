@@ -38,7 +38,7 @@ The skill should be honest about this during bootstrap rather than fabricate zon
 
 Less work. Bootstrap detects existing boundary-backend setups (ArchUnit tests on JVM, dependency-cruiser configs on Node, etc.), existing CODEOWNERS rules, existing CI checks. Where they exist, agent-redline composes with them rather than duplicating them.
 
-(The reporter ingests boundary results in two formats today: JUnit XML, used by Spring/ArchUnit and other JVM-style architecture testers; and `json-violations`, used by Python's `import-linter` via the extension's adapter script. New extensions can target either format directly or ship a small adapter to convert; see [EXTENSIONS.md](EXTENSIONS.md) § "Backends without machine-readable output".)
+(The reporter ingests boundary results in two formats today: JUnit XML, used by JVM/ArchUnit and other JVM-style architecture testers; and `json-violations`, used by Python's `import-linter` via the extension's adapter script. New extensions can target either format directly or ship a small adapter to convert; see [EXTENSIONS.md](EXTENSIONS.md) § "Backends without machine-readable output".)
 
 ## What if my team has no architecture rules?
 
@@ -85,7 +85,7 @@ It is not a reviewer; it is a router. It says "a human with architecture context
 
 ## Will agents actually follow the operating-mode rules?
 
-Some will, some won't. The skill teaches; CI enforces. If an agent ignores the skill and produces a boundary-violating PR, the boundary-rule backend (when one is wired up — Spring/ArchUnit in v0.1) fails CI in binding mode. If an agent ignores the skill and modifies a red-zone file, the reporter flags it; whether the missing checkpoint blocks merge depends on whether `report` is set to `binding` (shadow by default — see [CI_INTEGRATION.md](CI_INTEGRATION.md)).
+Some will, some won't. The skill teaches; CI enforces. If an agent ignores the skill and produces a boundary-violating PR, the boundary-rule backend (when one is wired up — ArchUnit via `jvm-archunit`, or import-linter via `python`) fails CI in binding mode. If an agent ignores the skill and modifies a red-zone file, the reporter flags it; whether the missing checkpoint blocks merge depends on whether `report` is set to `binding` (shadow by default — see [CI_INTEGRATION.md](CI_INTEGRATION.md)).
 
 The skill is for cooperative cases. CI is for the rest. Neither alone is sufficient.
 

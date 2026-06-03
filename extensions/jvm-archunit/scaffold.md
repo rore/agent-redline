@@ -1,4 +1,4 @@
-# spring-archunit — scaffold
+# jvm-archunit — scaffold
 
 What bootstrap generates and how. Each section maps to one artifact.
 
@@ -14,7 +14,7 @@ By the time you reach this scaffold, `bootstrap-mode.md` Phase 3b has already tu
 
 ## 1. ArchUnit dependency
 
-Add the JUnit 5 module to the build if absent. Pin to a known stable version.
+Add the JUnit 5 module to the build if absent. Pin to a known stable version. Same dependency for Java and Kotlin — ArchUnit operates on bytecode.
 
 **Gradle (Kotlin DSL):**
 ```kotlin
@@ -91,7 +91,7 @@ ArchUnit produces JUnit XML through Gradle's default test reporting. Verify noth
 
 Two flow modes — bootstrap-mode.md Phase 1 picks one:
 
-- **PR-driven flow** — `on: pull_request:`; verdict surfaces via a sticky PR comment; enforce step fails CI on exit 2 only. The §6 OpenAPI block below shows this in full.
+- **PR-driven flow** — `on: pull_request:`; verdict surfaces via a sticky PR comment; enforce step fails CI on exit 2 only. The Spring addendum §6 below shows this in full for the OpenAPI path.
 - **Push-driven flow** — `on: push: branches: [main]`; no sticky comment (no PR to comment on); verdict surfaces in `$GITHUB_STEP_SUMMARY` (run page, one click from the workflow-failure email); the workflow fails on `EXIT != 0` so GitHub's default email-on-failure notification fires. The agent-redline workflow ships as its own file in `.github/workflows/`, separate from the repo's other CI — a red agent-redline run does not fail other workflows. Pass `--flow-mode push` to the reporter so checkpoint text reads as a review obligation on the commit (CODEOWNER / label phrasing doesn't apply on a direct push). The structural shape matches Python's scaffold.md §5b — adapt the install step for Gradle/Maven; the reporter call is identical.
 
 The boundary job runs the same way in either mode:
@@ -114,7 +114,11 @@ For Maven: replace the `run:` line with `mvn -B test -Dtest='*ArchitectureTest'`
 
 Run `./gradlew test --tests '*ArchitectureTest'` during Phase 1 inspection. If it fails on `main`, the rules will need the baseline pattern (capture existing violations, fail CI for new ones only). See [docs/CI_INTEGRATION.md](../../docs/CI_INTEGRATION.md) for the pattern; flag the affected rules in the CI proposal.
 
-## 6. OpenAPI generation (optional)
+## Spring addendum
+
+The sections below apply only when the layered-service shape activated the Spring addendum (Spring Boot detected in `build.gradle` / `pom.xml`).
+
+### 6. OpenAPI generation (optional)
 
 If the repo uses SpringDoc with a generation plugin (`org.springdoc.openapi-gradle-plugin`), set `api.type: openapi-from-controllers` in the policy and add an `api` job to the CI proposal that produces the spec at base SHA and head SHA, then passes both to the reporter:
 

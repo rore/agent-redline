@@ -6,7 +6,7 @@ The packaged skill lives at [`dist/agent-redline/`](dist/agent-redline/) in this
 
 ## Before you install
 
-agent-redline is at **v0.1**. Two reference extensions ship end-to-end: `jvm-archunit` (Java and Kotlin, with a Spring addendum) and `python` (layered services and libraries, with a Django addendum). Other ecosystems get zone classification, checkpoints, and PR-size checks but no boundary-rule enforcement. See [README.md](README.md) for the full surface.
+agent-redline is at **v0.2**. Two reference extensions ship end-to-end: `jvm-archunit` (Java and Kotlin, with a Spring addendum) and `python` (layered services and libraries, with a Django addendum). Other ecosystems get zone classification, checkpoints, and PR-size checks but no boundary-rule enforcement. See [README.md](README.md) for the full surface.
 
 If you're trying it out: start with the demo repo at <https://github.com/rore/agent-redline-demo>. That gives you a working bootstrap and a working operating-mode session without committing to a real codebase.
 

@@ -169,7 +169,7 @@ Other tools and project-scope installs: see [`INSTALL.md`](INSTALL.md).
 
 ## Status
 
-**v0.1.** Early. Things will change.
+**v0.2.** Early. Interfaces stable but not guaranteed across versions.
 
 Two flow modes for CI integration: PR-driven (sticky-comment surface, fail CI on exit 2) and push-driven (run-page `$GITHUB_STEP_SUMMARY` surface, fail the agent-redline workflow on `EXIT != 0` so GitHub's default email-on-failure fires for both RED warnings and BOUNDARY_VIOLATION hard fails). The agent-redline workflow ships as its own `.github/workflows/` file in either mode — its failure does not affect other workflows in the repo. Bootstrap picks the flow mode based on the repo's actual flow.
 

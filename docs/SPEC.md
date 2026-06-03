@@ -823,6 +823,20 @@ agent-redline v0.1 is not "done" until all of the following are in place. See [V
 
 The CI for agent-redline itself runs Layers 0–3 mechanically. Layer 4 (operator-driven) and Layer 5 (live demo repo) are gated by manual sign-off before each tag.
 
+### 15.5 What v0.2 adds
+
+Sections 15.1–15.4 capture the v0.1 shape. v0.2 layers the following on top; everything in 15.1–15.4 still ships.
+
+- **Second reference extension** (`extensions/python/`) — Python services and libraries via [import-linter](https://import-linter.readthedocs.io/). Three shapes (layered service with Django addendum, library/package, zone-only fallback). Adapter script `extensions/python/scripts/run-import-linter.py` because import-linter has no machine-readable output. Demo at `agent-redline-python-demo` covers PR-driven and push-driven flows on the same repo.
+- **`spring-archunit` renamed to `jvm-archunit`** with Spring as an addendum, mirroring the Python extension's shape-plus-addendum structure. Three shapes (layered service with Spring addendum, library/SDK, zone-only fallback). The Spring addendum activates on `spring-boot-starter-*` detection. Calibration data from v0.1 still applies. See [DECISIONS.md](DECISIONS.md) "spring-archunit becomes jvm-archunit with Spring as an addendum."
+- **Push-driven flow mode** as a first-class CI shape alongside PR-driven. Verdict surfaces in `$GITHUB_STEP_SUMMARY`; the agent-redline workflow fails on `EXIT != 0` so GitHub's default email-on-failure fires for both RED warnings and BOUNDARY_VIOLATION hard fails. Bootstrap detects flow mode from existing CI + recent PR-vs-commit ratio.
+- **Bootstrap-time calibration** (Phase 3b) — when ≥30 merged PRs (or push commits) exist, the bootstrap skill runs `scripts/agent-redline-tune.py` against history and proposes downgrades for high-firing rules before the policy is written. Solves the "first experience is alert fatigue" failure mode of inheriting raw defaults.
+- **`CONFIG_CHANGE` verdict** for runtime-config path changes. Runtime-config touches no longer headline as BLUE while requiring an `ops-review` checkpoint. Verdict ladder: BOUNDARY_VIOLATION > RED (arch-test) > API_CHANGE > SCHEMA_CHANGE > SECURITY_CHANGE > **CONFIG_CHANGE** > red-zone > gray > blue.
+- **Schema tightenings:**
+  - `modes.perCheck` is now an enum-restricted object — keys must be `boundary_violation`, `report`, or `pr_size` (the reporter's three rule-name sentinels). Previously, unknown keys silently no-op'd.
+  - `boundaryAdapter.outputPath` is now load-bearing — when the policy declares a backend (`outputFormat` != `none`) and the report file is missing, the reporter raises `FileNotFoundError` instead of silently producing a clean BLUE. Set `outputFormat: none` to opt out explicitly.
+- **Bootstrap-detect harness** (`tests/bootstrap-detect/`) — fixture-based tests for shape detection. Eight fixtures cover both Python (layered/flat/multi-package + Django + library + zone-only) and JVM (Spring + library) repos.
+
 ---
 
 ## 16. Pilot plan

@@ -350,7 +350,7 @@ stage('agent-redline') {
 }
 ```
 
-The reusable GitHub Action wrapping the reporter is on the roadmap; it does not exist in v0.1. CI invocations call the standalone script directly.
+The reusable GitHub Action wrapping the reporter is on the roadmap; it does not exist yet. CI invocations call the standalone script directly.
 
 ## What the proposal does NOT do
 

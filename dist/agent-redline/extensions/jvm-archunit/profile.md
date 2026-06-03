@@ -335,6 +335,20 @@ prRules:
   maxLinesChanged: { warn: 500, fail: 1000 }
 ```
 
+### API contract handling
+
+Libraries don't have an HTTP/RPC surface; the public API is the published artifact's exported packages and types. Two options:
+
+```yaml
+# Default — omit the api: block entirely. Equivalent to:
+api:
+  type: none
+```
+
+Detection of API breakage in libraries belongs to a binary-diff tool — `japicmp`, `revapi`, or the language ecosystem's equivalent — run as a Gradle/Maven task. agent-redline doesn't replicate that tool; it triggers the `api-review` checkpoint via the red-zone path classification (`module-info.java`, `package-info.java`, public-API package source). The binary-diff tool runs in CI alongside agent-redline; the two are independent signals on the same PR.
+
+If a binary-diff task is already configured (e.g., `me.champeau.gradle.japicmp`), document it in the consuming repo's `AGENTS.md` so reviewers see both signals together. Don't try to embed binary-diff invocation in the agent-redline workflow.
+
 ## Shape: zone-only fallback
 
 For Android apps, batch / streaming pipelines (Spark, Beam, Flink), Hadoop, mixed monorepos. ArchUnit either doesn't fit the build (Android variants) or doesn't carry useful structural rules (data pipelines).

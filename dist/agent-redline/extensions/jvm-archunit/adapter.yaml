@@ -1,4 +1,4 @@
-# spring-archunit adapter config
+# jvm-archunit adapter config
 #
 # Tells the agent-redline reporter where to find ArchUnit's output and what
 # format it's in. ArchUnit produces standard JUnit XML through Gradle's

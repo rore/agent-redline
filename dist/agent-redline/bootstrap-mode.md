@@ -78,7 +78,7 @@ Confirm before loading `profile.md` details. If two shapes could fire, present b
 |---|---|
 | `spring-boot-starter-*` or `org.springframework.boot:*` in `build.gradle` / `pom.xml` | layered service + Spring addendum |
 | Web framework dep (`jakarta.ws.rs`, `javalin`, `ktor`, `helidon`, `dropwizard`, `jetty`) or layer dirs (`controller/`, `domain/`, `application/`, `adapter/`, `infrastructure/`, `core/`, `port/`) | layered service |
-| `maven-publish` / `nexus-publish` artifact, `module-info.java` present, no web framework | library / SDK |
+| `maven-publish` / `nexus-publish` / `org.gradle.api.publish` artifact, `module-info.java` present, no web framework | library / SDK |
 | `com.android.{application,library}`, Spark / Beam / Flink / Hadoop deps | zone-only fallback |
 | None match | zone-only fallback |
 

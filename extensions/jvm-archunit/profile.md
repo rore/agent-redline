@@ -10,7 +10,7 @@ Globs use `**/...` form so they match both standard `src/main/java/**` and Maven
 
 | Signal | Implies shape |
 |---|---|
-| `spring-boot-starter-*` or `org.springframework.boot:spring-boot` in `build.gradle` / `pom.xml` | layered service + Spring addendum |
+| `spring-boot-starter-*` or `org.springframework.boot:*` in `build.gradle` / `pom.xml` | layered service + Spring addendum |
 | Web framework dep (`jakarta.ws.rs:*`, `io.javalin:javalin`, `io.ktor:*`, `io.helidon:*`, `io.dropwizard:*`, `org.eclipse.jetty:*`); or layer dirs `controller/`, `domain/`, `application/`, `adapter/`, `infrastructure/`, `core/`, `port/` | layered service |
 | Build artifact is `jar` for distribution (`maven-publish`, `nexus-publish`, `org.gradle.api.publish`); `module-info.java` present; no web framework dep | library / SDK |
 | `com.android.application` / `com.android.library` plugin, OR Spark / Beam / Flink deps, OR Hadoop deps | zone-only fallback |

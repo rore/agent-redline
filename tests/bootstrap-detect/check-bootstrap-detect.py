@@ -68,7 +68,7 @@ JVM_PIPELINE_DEPS = {
 JVM_ANDROID_PLUGINS = {"com.android.application", "com.android.library"}
 
 # JVM library-shape Gradle plugins.
-JVM_LIBRARY_PLUGINS = {"maven-publish", "nexus-publish"}
+JVM_LIBRARY_PLUGINS = {"maven-publish", "nexus-publish", "org.gradle.api.publish"}
 
 # JVM layer dirs the profile lists as layered-service signals.
 JVM_LAYER_DIRS = {

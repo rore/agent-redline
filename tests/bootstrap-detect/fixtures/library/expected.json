@@ -1,4 +1,5 @@
 {
+  "language": "python",
   "shape": "library",
   "layout": "flat",
   "web_deps": [],

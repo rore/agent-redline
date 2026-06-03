@@ -2,10 +2,11 @@
 """
 tests/bootstrap-detect/check-bootstrap-detect.py
 
-Validates the Python extension's shape + layout detection logic against
+Validates the Python and JVM extensions' shape + layout detection logic against
 a small set of fixture repos. Each fixture represents one canonical
 shape; the test asserts the detection signals from
-extensions/python/profile.md fire as expected.
+extensions/python/profile.md and extensions/jvm-archunit/profile.md
+fire as expected.
 
 This is the first test of bootstrap-mode behavior that doesn't require
 running an actual agent. We can't test the conversational layer
@@ -14,7 +15,7 @@ detection layer ("given this repo shape, which signals match?").
 
 Each fixture under fixtures/<name>/ has:
   - a minimal repo skeleton (pyproject.toml, top-level dirs with
-    __init__.py, etc.)
+    __init__.py, etc. for Python; build.gradle / pom.xml etc. for JVM)
   - a `expected.json` file: the expected detection result, per the
     profile's documented signal table
 
@@ -51,6 +52,30 @@ LAYER_DIRS = {
     "core", "services", "usecases", "ports",
 }
 
+# JVM web frameworks the profile lists as layered-service signals.
+JVM_WEB_FRAMEWORKS = {
+    "spring-boot-starter", "org.springframework.boot",
+    "jakarta.ws.rs", "io.javalin", "io.ktor",
+    "io.helidon", "io.dropwizard", "org.eclipse.jetty",
+}
+
+# JVM pipeline / data-flow deps that signal zone-only fallback.
+JVM_PIPELINE_DEPS = {
+    "apache.spark", "apache.beam", "apache.flink", "apache.hadoop",
+}
+
+# JVM Android plugin IDs that signal zone-only fallback.
+JVM_ANDROID_PLUGINS = {"com.android.application", "com.android.library"}
+
+# JVM library-shape Gradle plugins.
+JVM_LIBRARY_PLUGINS = {"maven-publish", "nexus-publish"}
+
+# JVM layer dirs the profile lists as layered-service signals.
+JVM_LAYER_DIRS = {
+    "controller", "domain", "application", "adapter",
+    "infrastructure", "core", "port",
+}
+
 
 def read_pyproject_deps(pyproject: Path) -> set[str]:
     """Pull the top-level dependency names from a pyproject.toml.
@@ -82,7 +107,110 @@ def read_pyproject_name(pyproject: Path) -> str | None:
     return None
 
 
+def read_gradle_or_pom_text(repo: Path) -> str:
+    """Return concatenated text of build.gradle / build.gradle.kts / pom.xml at repo root.
+
+    The harness only needs textual signal-match (substring grep), not full parsing.
+    Returns empty string if no JVM build file is present.
+    """
+    pieces: list[str] = []
+    for name in ("build.gradle", "build.gradle.kts", "pom.xml"):
+        p = repo / name
+        if p.exists():
+            pieces.append(p.read_text(encoding="utf-8"))
+    return "\n".join(pieces)
+
+
+def find_module_info(repo: Path) -> bool:
+    """Check for `module-info.java` anywhere under src/main/java."""
+    src_main_java = repo / "src" / "main" / "java"
+    if not src_main_java.is_dir():
+        return False
+    return any(src_main_java.rglob("module-info.java"))
+
+
+def jvm_signals_present(text: str, signals: set) -> list[str]:
+    """Return sorted list of signal substrings found in the text. Case-insensitive substring match."""
+    text_lower = text.lower()
+    found = sorted(s for s in signals if s.lower() in text_lower)
+    return found
+
+
+def jvm_layer_dirs_found(repo: Path) -> set[str]:
+    """Return JVM layer directory names present under src/main/java/<base-package>/.
+
+    Walks no deeper than 4 levels under src/main/java to find layer-named subdirectories.
+    """
+    src_main_java = repo / "src" / "main" / "java"
+    if not src_main_java.is_dir():
+        return set()
+    found: set[str] = set()
+    # Walk a few levels deep; layer dirs are typically src/main/java/com/example/<layer>/
+    for path in src_main_java.rglob("*"):
+        if path.is_dir() and path.name in JVM_LAYER_DIRS:
+            try:
+                depth = len(path.relative_to(src_main_java).parts)
+            except ValueError:
+                continue
+            # Typical layout: src/main/java/<org>/<pkg>/<layer> = depth 3.
+            # Cap at 4 to allow one extra level for sub-packages.
+            if depth <= 4:
+                found.add(path.name)
+    return found
+
+
 def detect(repo: Path) -> dict:
+    """Apply detection rules from extensions/jvm-archunit/profile.md (JVM)
+    or extensions/python/profile.md (Python). Dispatches on build files."""
+    has_jvm_build = any((repo / f).exists() for f in ("build.gradle", "build.gradle.kts", "pom.xml"))
+    has_python_build = (repo / "pyproject.toml").exists() or (repo / "setup.py").exists() or (repo / "setup.cfg").exists()
+
+    if has_jvm_build and not has_python_build:
+        return detect_jvm(repo)
+    # Fallback: pure Python repos AND polyglot repos (both JVM + Python build files) AND
+    # repos with no build files at all. No fixture exercises the polyglot case yet;
+    # revisit if a real polyglot repo lands.
+    return detect_python(repo)
+
+
+def detect_jvm(repo: Path) -> dict:
+    """Apply detection rules from extensions/jvm-archunit/profile.md."""
+    text = read_gradle_or_pom_text(repo)
+    web = jvm_signals_present(text, JVM_WEB_FRAMEWORKS)
+    pipeline = jvm_signals_present(text, JVM_PIPELINE_DEPS)
+    android = jvm_signals_present(text, JVM_ANDROID_PLUGINS)
+    library_plugins = jvm_signals_present(text, JVM_LIBRARY_PLUGINS)
+    has_module_info = find_module_info(repo)
+    layer_dirs = sorted(jvm_layer_dirs_found(repo))
+    has_spring = any("spring-boot-starter" in s or "springframework.boot" in s for s in web)
+
+    # Shape decision (mirrors profile.md's Shape detection table priority)
+    if has_spring:
+        shape = "layered-service-spring"
+    elif web or layer_dirs:
+        shape = "layered-service"
+    elif android or pipeline:
+        shape = "zone-only-fallback"
+    elif library_plugins or has_module_info:
+        shape = "library"
+    else:
+        shape = "zone-only-fallback"
+
+    return {
+        "language": "jvm",
+        "layout": "-",  # JVM detection doesn't compute layout; src/main/java is the convention
+        "shape": shape,
+        "spring_addendum": has_spring,
+        "web_deps": web,
+        "pipeline_deps": pipeline,
+        "android_plugins": android,
+        "library_plugins": library_plugins,
+        "has_module_info": has_module_info,
+        "layer_dirs_found": layer_dirs,
+    }
+
+
+def detect_python(repo: Path) -> dict:
     """Apply the detection rules from extensions/python/profile.md.
 
     Returns a dict with the signals that fired, organized so it can be
@@ -171,6 +299,7 @@ def detect(repo: Path) -> dict:
         shape = "zone-only-fallback"
 
     return {
+        "language": "python",
         "layout": layout,
         "shape": shape,
         "web_deps": web_deps,
@@ -210,7 +339,10 @@ def main() -> int:
                     f"FAIL  {fixture_dir.name}.{k}: expected {v!r}, got {actual.get(k)!r}"
                 )
         if not any(f.startswith(f"FAIL  {fixture_dir.name}.") for f in failures):
-            print(f"ok    {fixture_dir.name} -> shape={actual['shape']} layout={actual['layout']}")
+            lang = actual.get("language", "?")
+            shape = actual["shape"]
+            layout = actual.get("layout", "-")
+            print(f"ok    {fixture_dir.name} -> language={lang} shape={shape} layout={layout}")
 
     print()
     if failures:

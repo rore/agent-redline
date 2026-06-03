@@ -1,4 +1,5 @@
 {
+  "language": "python",
   "shape": "layered-service-django",
   "has_django": true,
   "has_manage_py": true,

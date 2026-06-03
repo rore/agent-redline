@@ -1,0 +1,5 @@
+{
+  "language": "jvm",
+  "shape": "layered-service-spring",
+  "spring_addendum": true
+}

@@ -1,4 +1,5 @@
 {
+  "language": "python",
   "shape": "layered-service",
   "layout": "multi-package",
   "web_deps": ["fastapi"],

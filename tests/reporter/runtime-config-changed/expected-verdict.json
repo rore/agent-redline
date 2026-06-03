@@ -5,12 +5,12 @@
   "boundaryViolations": [],
   "checkpoints": [
     {
-      "id": "architecture-review",
-      "reason": "red-zone change: src/main/java/com/example/orders/domain/Order.java",
+      "id": "ops-review",
+      "reason": "Runtime configuration changed",
       "satisfied": false,
       "satisfy_by": [
         "CODEOWNER approval",
-        "label `architecture-reviewed`"
+        "label `ops-reviewed`"
       ]
     }
   ],
@@ -24,7 +24,7 @@
   },
   "recommendedAction": "review-shadow-warnings",
   "runtimeConfigChanges": {
-    "detected": false
+    "detected": true
   },
   "schemaChanges": {
     "detected": false
@@ -32,14 +32,14 @@
   "securityChanges": {
     "detected": false
   },
-  "summary": "Red-zone files changed.",
-  "verdict": "RED",
+  "summary": "Runtime configuration changed.",
+  "verdict": "CONFIG_CHANGE",
   "zones": {
-    "blue": [],
-    "gray": [],
-    "red": [
-      "src/main/java/com/example/orders/domain/Order.java"
+    "blue": [
+      "src/main/resources/application.yml"
     ],
+    "gray": [],
+    "red": [],
     "watch": []
   }
 }

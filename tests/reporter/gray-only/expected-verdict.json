@@ -13,6 +13,9 @@
     "verdict": "ok"
   },
   "recommendedAction": "review-warnings",
+  "runtimeConfigChanges": {
+    "detected": false
+  },
   "schemaChanges": {
     "detected": false
   },

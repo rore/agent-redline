@@ -13,6 +13,9 @@
     "verdict": "fail"
   },
   "recommendedAction": "review-shadow-warnings",
+  "runtimeConfigChanges": {
+    "detected": false
+  },
   "schemaChanges": {
     "detected": false
   },

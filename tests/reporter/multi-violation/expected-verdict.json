@@ -26,6 +26,9 @@
     "verdict": "ok"
   },
   "recommendedAction": "fix-boundary-violation",
+  "runtimeConfigChanges": {
+    "detected": false
+  },
   "schemaChanges": {
     "detected": false
   },

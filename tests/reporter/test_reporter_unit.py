@@ -38,6 +38,7 @@ from core.reporter.reporter import (  # noqa: E402
     detect_runtime_config_change,
     diff_openapi_specs,
     openapi_diff_is_empty,
+    resolve_boundary_input,
 )
 
 
@@ -710,3 +711,60 @@ paths:
         v = classify(policy, diff, api_spec_diff={"pathsAdded": ["/x"], "pathsRemoved": [], "pathsModified": []})
         assert v.api_changes["detected"] is True
         assert v.api_changes["specDiff"]["pathsAdded"] == ["/x"]
+
+
+# --------------------------------------------------------------------------
+# resolve_boundary_input — fail loudly when configured backend output is missing
+#
+# Silent fallthrough used to let a misconfigured CI run produce a clean BLUE
+# verdict despite policy declaring boundaryAdapter. These regressions cover
+# the three configured paths: explicit --boundary-report, legacy --archunit-xml,
+# and policy.boundaryAdapter glob.
+# --------------------------------------------------------------------------
+
+class TestResolveBoundaryInputMissingFile:
+    def test_no_source_configured_returns_none(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        text, fmt = resolve_boundary_input(None, None, None, {})
+        assert text is None and fmt is None
+
+    def test_explicit_report_missing_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError, match="--boundary-report path does not exist"):
+            resolve_boundary_input(tmp_path / "missing.json", "json-violations", None, {})
+
+    def test_legacy_archunit_missing_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError, match="--archunit-xml path does not exist"):
+            resolve_boundary_input(None, None, tmp_path / "missing.xml", {})
+
+    def test_policy_adapter_no_match_raises(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        policy = {
+            "boundaryAdapter": {
+                "outputFormat": "json-violations",
+                "outputPath": "build/import-linter-report.json",
+            }
+        }
+        with pytest.raises(FileNotFoundError, match="boundaryAdapter.outputPath matched no file"):
+            resolve_boundary_input(None, None, None, policy)
+
+    def test_policy_adapter_outputformat_none_skips_silently(self, tmp_path, monkeypatch):
+        """outputFormat: none is the explicit opt-out; do not raise."""
+        monkeypatch.chdir(tmp_path)
+        policy = {"boundaryAdapter": {"outputFormat": "none"}}
+        text, fmt = resolve_boundary_input(None, None, None, policy)
+        assert text is None and fmt is None
+
+    def test_policy_adapter_match_returns_text(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "build").mkdir()
+        report = tmp_path / "build" / "out.json"
+        report.write_text('{"version":1,"source":"test","violations":[]}', encoding="utf-8")
+        policy = {
+            "boundaryAdapter": {
+                "outputFormat": "json-violations",
+                "outputPath": "build/out.json",
+            }
+        }
+        text, fmt = resolve_boundary_input(None, None, None, policy)
+        assert fmt == "json-violations"
+        assert "violations" in text

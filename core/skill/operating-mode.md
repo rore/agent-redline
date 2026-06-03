@@ -34,7 +34,7 @@ Answer:
 - Am I touching API, schema, security, or runtime-config paths?
 
 Priority:
-1. **Red wins.** One red file → the change is RED (or higher: API_CHANGE, SCHEMA_CHANGE, SECURITY_CHANGE).
+1. **Red wins.** One red file → the change is RED (or higher: API_CHANGE, SCHEMA_CHANGE, SECURITY_CHANGE, CONFIG_CHANGE).
 2. **Boundary risk wins** over zone classification.
 3. **Blue + gray** → GRAY.
 4. **All blue** → BLUE.
@@ -45,7 +45,7 @@ Priority:
 | `RED` | At least one red-zone file. Stop. Plan a checkpoint. |
 | `GRAY` | At least one gray file (none red). Proceed cautiously. |
 | `BOUNDARY_RISK` | Intended change would create a forbidden dependency. Do not proceed. |
-| `API_CHANGE` / `SCHEMA_CHANGE` / `SECURITY_CHANGE` | Touched the corresponding contract surface. |
+| `API_CHANGE` / `SCHEMA_CHANGE` / `SECURITY_CHANGE` / `CONFIG_CHANGE` | Touched the corresponding contract surface. |
 | `MIXED` | Combination — resolve to the most-restrictive. |
 
 ## Step 3 — Branch
@@ -53,7 +53,7 @@ Priority:
 ### BLUE
 Proceed.
 
-### RED / API_CHANGE / SCHEMA_CHANGE / SECURITY_CHANGE
+### RED / API_CHANGE / SCHEMA_CHANGE / SECURITY_CHANGE / CONFIG_CHANGE
 Stop. Produce a checkpoint note:
 
 ```

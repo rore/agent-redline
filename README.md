@@ -4,7 +4,7 @@
 [![Agent Skills](https://img.shields.io/badge/agent--skills-compliant-blue)](https://agentskills.io)
 [![Demo](https://img.shields.io/badge/demo-agent--redline--demo-purple)](https://github.com/rore/agent-redline-demo)
 
-**The missing layer between repo instructions and CI.** agent-redline teaches coding agents when to slow down, then verifies the same structural-risk policy in the PR.
+agent-redline is a skill plus CI reporter that makes coding agents classify architectural risk before editing, then verifies the same policy on PRs.
 
 Repo instructions (`AGENTS.md`, `CLAUDE.md`) are passive — agents drift. CI checks (ArchUnit, dependency rules) fire after the fact. agent-redline makes architectural risk *binding for the agent before it edits*, then checks it deterministically at PR time.
 
@@ -16,6 +16,16 @@ Repo instructions (`AGENTS.md`, `CLAUDE.md`) are passive — agents drift. CI ch
 It does **not** review every line of generated code. It does **not** enforce style. It does **not** replace tests.
 
 It identifies the small set of changes — modeling, contracts, boundaries, persistence, security — where local correctness is not enough, and makes those changes deterministically visible to humans.
+
+## Try it
+
+Install the packaged skill, open a repo in your agent harness, and ask:
+
+> Use agent-redline to set up governance for this repo.
+
+The agent should inspect the repo, draft `agent-policy.yaml`, compose with existing instruction files, scaffold the matching boundary backend, and propose CI, branch-protection, and CODEOWNERS changes for review. It should not commit governance changes for you.
+
+The JVM/Spring and Python/FastAPI demo repos exercise the reference paths end to end. Bootstrap has also been run against a real Python codebase outside the demos.
 
 ## How
 
@@ -91,7 +101,7 @@ After CI runs, the reporter posts a single sticky comment summarizing the verdic
 
 A boundary violation looks the same shape but with the `Boundary check` line listing the violated rule and the failing class — and CI exits non-zero so the PR cannot merge.
 
-See the live demo PRs for the three canonical states. Each sync rotates the PR numbers; the latest open PR for each branch is what to look at.
+The live demo PRs are executable examples. Each sync rotates the PR numbers; the latest open PR for each branch is what to look at.
 
 **JVM/Spring** — [`agent-redline-demo`](https://github.com/rore/agent-redline-demo):
 

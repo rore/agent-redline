@@ -22,6 +22,28 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+PYTHON_SHIM_DIR=""
+
+setup_python_command() {
+  if command -v python >/dev/null 2>&1; then
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    PYTHON_SHIM_DIR="$(mktemp -d)"
+    ln -s "$(command -v python3)" "$PYTHON_SHIM_DIR/python"
+    export PATH="$PYTHON_SHIM_DIR:$PATH"
+    return 0
+  fi
+  return 1
+}
+
+cleanup_python_shim() {
+  if [[ -n "$PYTHON_SHIM_DIR" && -d "$PYTHON_SHIM_DIR" ]]; then
+    rm -rf "$PYTHON_SHIM_DIR"
+  fi
+}
+trap cleanup_python_shim EXIT
+
 SKIP=()
 ONLY=""
 VERBOSE=0
@@ -47,8 +69,8 @@ done
 
 layers=(
   "budget|bash tests/budget/check-budget.sh|"
-  "schema|python tests/schema/check-schema.py|REQUIRES_PYTHON"
-  "skill-yaml|python tests/skill-yaml/check-skill-yaml.py|REQUIRES_PYTHON"
+  "schema|python tests/schema/check-schema.py|REQUIRES_SCHEMA_DEPS"
+  "skill-yaml|python tests/skill-yaml/check-skill-yaml.py|REQUIRES_SCHEMA_DEPS"
   "skill-refs|python tests/skill-refs/check-skill-refs.py|REQUIRES_PYTHON"
   "skill-scripts-runnable|bash tests/skill-scripts-runnable/check-skill-scripts-runnable.sh|REQUIRES_PYTHON"
   "skill-toml|python tests/skill-toml/check-skill-toml.py|OPTIONAL_IMPORTLINTER"
@@ -73,15 +95,25 @@ layers=(
 # Prereq detection
 # ----------------------------------------------------------------------
 
-has_python() { command -v python >/dev/null 2>&1 || command -v python3 >/dev/null 2>&1; }
-has_pytest() { python -m pytest --version >/dev/null 2>&1; }
+has_python() { setup_python_command; }
+has_pytest() { setup_python_command && python -m pytest --version >/dev/null 2>&1; }
+has_schema_deps() { setup_python_command && python -c "import yaml, jsonschema" >/dev/null 2>&1; }
 has_gradle() { command -v gradle >/dev/null 2>&1; }
-has_importlinter() { python -c "import importlinter" >/dev/null 2>&1; }
+has_importlinter() { setup_python_command && python -c "import importlinter" >/dev/null 2>&1; }
+
+python_prereq_message() {
+  if grep -qi microsoft /proc/version 2>/dev/null; then
+    echo "python not on PATH inside WSL; install WSL Python (for example: sudo apt install python3 python3-pytest) or run from an environment where python/python3 is available"
+  else
+    echo "python not on PATH"
+  fi
+}
 
 prereq_ok() {
   case "$1" in
     "") return 0 ;;
     REQUIRES_PYTHON) has_python ;;
+    REQUIRES_SCHEMA_DEPS) has_schema_deps ;;
     REQUIRES_PYTEST) has_pytest ;;
     OPTIONAL_GRADLE) has_gradle ;;
     OPTIONAL_IMPORTLINTER) has_importlinter ;;
@@ -91,7 +123,8 @@ prereq_ok() {
 
 prereq_msg() {
   case "$1" in
-    REQUIRES_PYTHON) echo "python not on PATH" ;;
+    REQUIRES_PYTHON) python_prereq_message ;;
+    REQUIRES_SCHEMA_DEPS) echo "python packages missing: install PyYAML and jsonschema" ;;
     REQUIRES_PYTEST) echo "pytest not installed (pip install pytest)" ;;
     OPTIONAL_GRADLE) echo "gradle not on PATH (Java toolchain required); skipping" ;;
     OPTIONAL_IMPORTLINTER) echo "import-linter not installed (pip install 'import-linter>=2.0,<3'); skipping" ;;

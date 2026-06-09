@@ -1,7 +1,7 @@
 # agent-redline — Detailed Specification
 
-**Status:** v0.1
-**Last updated:** 2026-05-31
+**Status:** v0.2
+**Last updated:** 2026-06-09
 
 ---
 
@@ -59,12 +59,12 @@ Each artifact has a declared ceiling. Files that approach a ceiling need scrutin
 | Project-root `AGENTS.md` | 1000 tokens | Auto-loaded by harnesses when an agent works on this project |
 | `core/skill/agent-redline.md` (entry point) | 800 tokens | Loaded on every session in an agent-redline-aware repo |
 | `core/skill/operating-mode.md` | 1500 tokens | Loaded on every operating-mode turn |
-| `core/skill/bootstrap-mode.md` | 2000 tokens | Loaded only during bootstrap (rare event) |
+| `core/skill/bootstrap-mode.md` | 3400 tokens | Loaded only during bootstrap (rare event). Carries calibration, shape selection, and flow-mode triage. |
 | Each per-checkpoint skill doc (`red-zone-change.md`, etc.) | 600 tokens | Loaded only when the relevant checkpoint is triggered |
 | Generated `agent-policy.yaml` | 1500 tokens | Read every operating-mode turn |
 | Generated `AGENTS.md` (in a consuming repo) | 1000 tokens | Read on session start |
-| Extension `profile.md` | 2500 tokens | Loaded during bootstrap |
-| Extension `scaffold.md` | 2000 tokens | Loaded during scaffold phase of bootstrap |
+| Extension `profile.md` | 2700 tokens | Loaded during bootstrap |
+| Extension `scaffold.md` | 3100 tokens | Loaded during scaffold phase of bootstrap |
 | Extension `operating.md` | 600 tokens | Loaded during operating mode if the extension provides one |
 | Reporter PR comment | 400 tokens | Appears in agent context on next turn |
 
@@ -620,11 +620,11 @@ boundaryAdapter:
     matchTestNamePattern: "(?i).*depend.*|.*should_not.*"
 ```
 
-The reporter natively reads a small set of formats (initially: JUnit XML; SARIF and JSON-violations are roadmap candidates). Extensions cannot ship custom parsers. If a backend doesn't natively produce a supported format, the extension's `scaffold.md` instructs the build to convert the backend's output to one that is supported.
+The reporter natively reads a small set of formats: JUnit XML and `json-violations`. SARIF is a roadmap candidate. Extensions cannot ship custom parsers. If a backend doesn't natively produce a supported format, the extension's `scaffold.md` instructs the build to convert the backend's output to one that is supported.
 
-This is what keeps the extension contract honest: extensions are markdown plus one small declarative config. No code execution from extensions.
+This is what keeps the extension contract honest: extensions are markdown plus one small declarative config. The Python extension ships a small adapter script because import-linter has no stable first-class JSON boundary report; that script converts backend output into the core `json-violations` format before the reporter reads it.
 
-> **v0.1 status:** the reporter ingests Spring/ArchUnit JUnit XML by convention (testcase classes containing `ArchitectureTest`, with a `<failure>` element). The `adapter.yaml` schema above is the contract; the reporter does not yet dispatch on it. The file lives in the reference extension as the source-of-truth for that contract and so third parties have something to copy. Wiring the reporter to actually consult `adapter.yaml` is roadmap (§15.3) and gates the second language extension.
+> **v0.2 status:** the reporter dispatches on explicit boundary report format (`junit-xml`, `json-violations`, or `none`). `--archunit-xml` remains as a deprecated v0.1-compatible alias for JUnit XML input.
 
 ### 10.5 Building a new extension
 

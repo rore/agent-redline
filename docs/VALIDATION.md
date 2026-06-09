@@ -19,7 +19,7 @@ This is a doc about *testing the project itself*, not about how a consuming repo
 | 7 | **scaffold-ci** | Every reporter run-block in scaffold.md follows the canonical pattern (set +e + EXIT capture + GITHUB_OUTPUT publish + sticky-comment OR enforce-on-non-zero, depending on flow mode) | python |
 | 8 | **scaffold-ci-e2e** | Python push-mode scaffold's reporter run-block extracted, executed against a 2-commit fixture, asserts verdict.json shape | python |
 | 9 | **scaffold-spring-e2e** | Spring scaffold §6 reporter run-block extracted, executed against a Spring fixture with hand-crafted base+head OpenAPI specs, asserts apiChanges.specDiff.pathsAdded contains the expected path | python |
-| 10 | **bootstrap-detect** | Six fixture repos (layered-src-fastapi, layered-flat-flask, multi-package, library, django-mysite, zone-only-airflow) each detect to the expected shape + layout per profile.md | python |
+| 10 | **bootstrap-detect** | Eight fixture repos (Python service/library/fallback shapes plus JVM service/library shapes) each detect to the expected shape + layout per profile.md | python |
 | 11 | **tuner** | Five cases: happy path (5 commits, known firing rates), empty repo, missing branch, empty commit (skipped), `--limit > available` | python |
 | 12 | **pre-push** | `core/templates/pre-push-check.sh`: bash syntax, awk pipeline produces `0` on empty input, `LINES_CHANGED=${LINES_CHANGED:-0}` defensive fallback present | — |
 | 13 | **reporter-goldens** | Reporter produces correct verdicts + comments for known fixtures (`tests/reporter/<scenario>/`) | python |
@@ -29,7 +29,7 @@ This is a doc about *testing the project itself*, not about how a consuming repo
 | 17 | **gitignore** | Build artifacts and known-transient files are gitignored | — |
 | 18 | **package** | `dist/agent-redline/` matches a freshly-built package (catches drift when sources change without re-running `package-skill.sh`) | python |
 | 19 | **sync-demo** | `scripts/sync-demo.sh` produces the expected branch shape from `demo-source/` + `examples/spring-hexagonal/` | — |
-| 20 | **extension-spring** | Spring extension's Layer-3 dry-run: gradle test on the fixture, inject a violation, confirm the right rule fails, restore | gradle |
+| 20 | **extension-jvm** | JVM/ArchUnit extension's Layer-3 dry-run: gradle test on the fixture, inject a violation, confirm the right rule fails, restore | gradle |
 | 21 | **extension-python** | Python extension's Layer-3 dry-run: import-linter against fixture, inject a forbidden import, confirm adapter emits the right violation, reporter ingests JSON, BOUNDARY_VIOLATION verdict, restore | import-linter |
 
 The layers cluster into four kinds:

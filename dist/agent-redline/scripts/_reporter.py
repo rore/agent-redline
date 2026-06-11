@@ -621,6 +621,115 @@ def resolve_suppressions_config(
 
 
 # --------------------------------------------------------------------------
+# Suppression scanner (spec §2.2 — naive added-line scan)
+# --------------------------------------------------------------------------
+
+@dataclass
+class SuppressionMatch:
+    file: str
+    line: int
+    marker: str
+    category: str         # "inlineComment" | "annotation" | "configEdit"
+    zone: str             # "red" | "blue" | "gray"
+    context: str          # the added-line content, truncated
+
+
+_ANNOTATION_TOKEN_RE_CACHE: dict[str, re.Pattern] = {}
+
+
+def _annotation_token_re(marker: str) -> re.Pattern:
+    """Word-boundary regex for an annotation token (e.g. @SuppressWarnings).
+
+    `@` is not a word character, so a leading boundary isn't useful; we
+    anchor on the literal `@<Name>` and require a non-word character (or
+    end-of-string) after the name to prevent `@SuppressWarningsExt` from
+    matching `@SuppressWarnings`.
+    """
+    if marker not in _ANNOTATION_TOKEN_RE_CACHE:
+        _ANNOTATION_TOKEN_RE_CACHE[marker] = re.compile(
+            re.escape(marker) + r"(?![A-Za-z0-9_])"
+        )
+    return _ANNOTATION_TOKEN_RE_CACHE[marker]
+
+
+def _is_config_key_assignment(line: str, key: str) -> bool:
+    """Structural key match for configEdits.
+
+    `ignore_imports = [...]`           → True
+    `[tool.x.ignore_imports]`          → True (TOML table header)
+    `"ignore_imports": [...]`          → True (JSON-ish)
+    `# ignore_imports stuff`           → False (comment)
+    `// ignore_imports`                → False (comment)
+    """
+    stripped = line.lstrip()
+    if not stripped or stripped[0] == "#" or stripped.startswith("//"):
+        return False
+    pattern = re.compile(
+        r"(?:^|[\s\[\"'])"
+        + re.escape(key)
+        + r"\s*[=:\[\]]"
+    )
+    return bool(pattern.search(line))
+
+
+def scan_suppressions(
+    added_by_file: dict[str, list[tuple[int, str]]] | None,
+    config: SuppressionsConfig | None,
+    classification: dict[str, list[str]],
+) -> list[SuppressionMatch]:
+    """
+    Naive added-line scanner. Spec §2.2 — deliberately no hunk parsing,
+    no removed-line tracking, no equivalence by marker family. Reformat
+    false positives are visible-and-cheap by design (see spec §6).
+    """
+    if config is None or added_by_file is None:
+        return []
+
+    file_zone: dict[str, str] = {}
+    for f in classification.get("red", []):
+        file_zone[f] = "red"
+    for f in classification.get("gray", []):
+        file_zone.setdefault(f, "gray")
+    for f in classification.get("blue", []):
+        file_zone.setdefault(f, "blue")
+
+    matches: list[SuppressionMatch] = []
+    for path, lines in added_by_file.items():
+        if config.exempt_paths and matches_any(path, config.exempt_paths):
+            continue
+        zone = file_zone.get(path, "gray")
+        is_config_file = (
+            bool(config.config_files)
+            and matches_any(path, config.config_files)
+        )
+
+        for line_no, content in lines:
+            for marker in config.inline_comments:
+                if marker in content:
+                    matches.append(SuppressionMatch(
+                        file=path, line=line_no, marker=marker,
+                        category="inlineComment", zone=zone,
+                        context=content[:200],
+                    ))
+            for marker in config.annotations:
+                if _annotation_token_re(marker).search(content):
+                    matches.append(SuppressionMatch(
+                        file=path, line=line_no, marker=marker,
+                        category="annotation", zone=zone,
+                        context=content[:200],
+                    ))
+            if is_config_file:
+                for key in config.config_keys:
+                    if _is_config_key_assignment(content, key):
+                        matches.append(SuppressionMatch(
+                            file=path, line=line_no, marker=key,
+                            category="configEdit", zone=zone,
+                            context=content[:200],
+                        ))
+    return matches
+
+
+# --------------------------------------------------------------------------
 # Checkpoint satisfaction
 # --------------------------------------------------------------------------
 

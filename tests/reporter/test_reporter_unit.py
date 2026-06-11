@@ -905,3 +905,132 @@ class TestSuppressionsResolution:
         }}
         cfg = resolve_suppressions_config(policy=policy, repo_root=tmp_path)
         assert cfg.exempt_paths == ["**/tests/**", "vendor/**"]
+
+
+class TestScanSuppressions:
+    def test_inline_comment_substring_match(self):
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(inline_comments=["# noqa"])
+        added = {"src/example/orders.py": [(42, "from pkg.x import y  # noqa: F401")]}
+        classification = {"red": ["src/example/orders.py"], "blue": [], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert len(matches) == 1
+        m = matches[0]
+        assert m.file == "src/example/orders.py"
+        assert m.line == 42
+        assert m.marker == "# noqa"
+        assert m.category == "inlineComment"
+        assert m.zone == "red"
+        assert "# noqa" in m.context
+
+    def test_multiple_markers_one_line_produce_multiple_matches(self):
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(inline_comments=["# noqa", "# type: ignore"])
+        added = {"a.py": [(1, "x = y  # noqa: F401  # type: ignore[misc]")]}
+        classification = {"red": [], "blue": ["a.py"], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert len(matches) == 2
+        markers = [m.marker for m in matches]
+        # Order = order of inline_comments list (deterministic)
+        assert markers == ["# noqa", "# type: ignore"]
+
+    def test_annotation_token_match_word_bounded(self):
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(annotations=["@SuppressWarnings"])
+        # Real annotation matches.
+        added = {"X.java": [(10, '@SuppressWarnings("ArchUnit")')]}
+        classification = {"red": ["X.java"], "blue": [], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert len(matches) == 1
+        assert matches[0].category == "annotation"
+        assert matches[0].marker == "@SuppressWarnings"
+
+    def test_annotation_no_match_on_extended_name(self):
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(annotations=["@SuppressWarnings"])
+        added = {"X.java": [(10, '@SuppressWarningsExt("foo")')]}
+        classification = {"red": ["X.java"], "blue": [], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert matches == []
+
+    def test_config_edits_structural_key_match(self):
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(
+            config_files=["pyproject.toml"],
+            config_keys=["ignore_imports"],
+        )
+        added = {"pyproject.toml": [(20, 'ignore_imports = ["pkg.a -> pkg.b"]')]}
+        classification = {"red": ["pyproject.toml"], "blue": [], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert len(matches) == 1
+        assert matches[0].category == "configEdit"
+        assert matches[0].marker == "ignore_imports"
+
+    def test_config_edits_ignores_comment_lines(self):
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(
+            config_files=["pyproject.toml"],
+            config_keys=["ignore_imports"],
+        )
+        # A line that mentions the key only inside a comment must NOT match.
+        added = {"pyproject.toml": [(20, "# ignore_imports does cool stuff")]}
+        classification = {"red": ["pyproject.toml"], "blue": [], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert matches == []
+
+    def test_exempt_paths_skips_file(self):
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(
+            inline_comments=["# noqa"],
+            exempt_paths=["**/tests/**"],
+        )
+        added = {"tests/conftest.py": [(5, "import x  # noqa: E402")]}
+        classification = {"red": [], "blue": ["tests/conftest.py"], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert matches == []
+
+    def test_reformat_fires_known_fp(self):
+        """Spec §6 — accepted v1 false positive. Naive added-line scanning."""
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(inline_comments=["# noqa"])
+        # `foo()  # noqa` was removed; `bar()  # noqa` was added (rename-on-line reformat).
+        # The naive algorithm fires on the added line. By design.
+        added = {"a.py": [(10, "bar()  # noqa: E501")]}
+        classification = {"red": ["a.py"], "blue": [], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert len(matches) == 1
+        assert matches[0].marker == "# noqa"
+
+    def test_no_config_returns_empty(self):
+        """Compatibility path: no suppressions config → no matches."""
+        from core.reporter.reporter import scan_suppressions
+        added = {"a.py": [(1, "import x  # noqa")]}
+        classification = {"red": ["a.py"], "blue": [], "gray": [], "watch": []}
+        matches = scan_suppressions(added, None, classification)
+        assert matches == []
+
+    def test_no_diff_returns_empty(self):
+        """No `--diff-unified` provided → no matches."""
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(inline_comments=["# noqa"])
+        classification = {"red": [], "blue": [], "gray": [], "watch": []}
+        assert scan_suppressions(None, config, classification) == []
+
+    def test_zone_classification_from_classify_files(self):
+        """Match's zone = file's primary zone (red > gray > blue residual)."""
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(inline_comments=["# noqa"])
+        added = {
+            "red.py":   [(1, "x  # noqa")],
+            "blue.py":  [(1, "y  # noqa")],
+            "gray.py":  [(1, "z  # noqa")],
+        }
+        classification = {
+            "red":   ["red.py"],
+            "blue":  ["blue.py"],
+            "gray":  ["gray.py"],
+            "watch": [],
+        }
+        matches = scan_suppressions(added, config, classification)
+        zones = {m.file: m.zone for m in matches}
+        assert zones == {"red.py": "red", "blue.py": "blue", "gray.py": "gray"}

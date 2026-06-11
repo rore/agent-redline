@@ -33,6 +33,7 @@
     "detected": false
   },
   "summary": "Runtime configuration changed.",
+  "suppressions": [],
   "verdict": "CONFIG_CHANGE",
   "zones": {
     "blue": [

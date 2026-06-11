@@ -23,6 +23,7 @@
     "detected": false
   },
   "summary": "All changes in blue zones.",
+  "suppressions": [],
   "verdict": "BLUE",
   "zones": {
     "blue": [

@@ -33,6 +33,7 @@
     "detected": false
   },
   "summary": "Red-zone files changed.",
+  "suppressions": [],
   "verdict": "RED",
   "zones": {
     "blue": [

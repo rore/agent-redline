@@ -50,6 +50,7 @@
     "detected": false
   },
   "summary": "Public API contract changed.",
+  "suppressions": [],
   "verdict": "API_CHANGE",
   "zones": {
     "blue": [

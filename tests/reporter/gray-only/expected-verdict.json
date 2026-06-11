@@ -23,6 +23,7 @@
     "detected": false
   },
   "summary": "Gray-zone files changed; cautious review.",
+  "suppressions": [],
   "verdict": "GRAY",
   "zones": {
     "blue": [],

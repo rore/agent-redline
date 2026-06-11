@@ -79,6 +79,7 @@ class Verdict:
     pr_size: dict[str, Any]
     exit_code: int
     recommended_action: str
+    suppressions: list["SuppressionMatch"] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -94,6 +95,7 @@ class Verdict:
             "prSize": self.pr_size,
             "exitCode": self.exit_code,
             "recommendedAction": self.recommended_action,
+            "suppressions": [asdict(s) for s in self.suppressions],
         }
 
 
@@ -902,6 +904,7 @@ def classify(
     api_spec_diff: dict[str, Any] | None = None,
     pr_labels: Iterable[str] = (),
     codeowner_approvals: Iterable[str] = (),
+    suppressions_config: SuppressionsConfig | None = None,
 ) -> Verdict:
     """The single entry point. Pure function.
 
@@ -922,6 +925,10 @@ def classify(
     """
     files = diff.changed_files
     classification = classify_files(files, policy)
+
+    suppression_matches = scan_suppressions(
+        diff.added_by_file, suppressions_config, classification,
+    )
 
     arch_test_modified = any(_is_architecture_test_file(f) for f in files)
 
@@ -1046,6 +1053,7 @@ def classify(
         pr_size=pr_size,
         exit_code=exit_code,
         recommended_action=recommended,
+        suppressions=suppression_matches,
     )
 
 

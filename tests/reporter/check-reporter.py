@@ -46,7 +46,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from core.reporter.reporter import (  # noqa: E402
     classify, load_policy, load_diff_from_files, load_archunit_xml,
-    diff_openapi_specs, render_markdown,
+    diff_openapi_specs, render_markdown, resolve_suppressions_config,
 )
 
 
@@ -132,6 +132,7 @@ def run_fixture(fixture: Path) -> tuple[dict, str]:
         api_spec_diff=api_spec_diff,
         pr_labels=pr_labels,
         codeowner_approvals=approvals,
+        suppressions_config=resolve_suppressions_config(policy, repo_root=fixture),
     )
     return verdict.to_dict(), render_markdown(verdict, flow_mode=flow_mode)
 

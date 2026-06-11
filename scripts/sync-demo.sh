@@ -92,7 +92,7 @@ copy_demo_artifacts() {
   cp "$DEMO_SOURCE/LICENSE" "$dest/"
   cp "$DEMO_SOURCE/CONTRIBUTING.md" "$dest/"
 
-  mkdir -p "$dest/docs/agent" "$dest/scripts" "$dest/.github/workflows"
+  mkdir -p "$dest/docs/agent" "$dest/scripts" "$dest/.github/workflows" "$dest/.agent-redline"
   cp "$DEMO_SOURCE/docs/agent/"*.md "$dest/docs/agent/"
   if [[ -f "$DEMO_SOURCE/docs/agent-redline-ci-proposal.md" ]]; then
     cp "$DEMO_SOURCE/docs/agent-redline-ci-proposal.md" "$dest/docs/"
@@ -101,6 +101,11 @@ copy_demo_artifacts() {
   chmod +x "$dest/scripts/agent-redline-check.sh"
   cp "$DEMO_SOURCE/.github/pull_request_template.md" "$dest/.github/"
   cp "$DEMO_SOURCE/.github/workflows/agent-redline.yml" "$dest/.github/workflows/"
+  # Vendor the suppression-defaults file the policy points at via
+  # useExtensionDefaults: true. Without this the reporter aborts.
+  if [[ -f "$DEMO_SOURCE/.agent-redline/suppressions.yaml" ]]; then
+    cp "$DEMO_SOURCE/.agent-redline/suppressions.yaml" "$dest/.agent-redline/"
+  fi
 
   # Vendor the reporter.
   cp "$REPORTER" "$dest/scripts/agent-redline-report.py"

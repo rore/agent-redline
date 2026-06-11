@@ -768,3 +768,70 @@ class TestResolveBoundaryInputMissingFile:
         text, fmt = resolve_boundary_input(None, None, None, policy)
         assert fmt == "json-violations"
         assert "violations" in text
+
+
+# --------------------------------------------------------------------------
+# Unified-diff parsing (Phase 1 of suppression detection)
+# --------------------------------------------------------------------------
+
+class TestParseUnifiedDiff:
+    def test_extracts_added_lines_per_file(self):
+        from core.reporter.reporter import parse_unified_diff
+        patch = (
+            "diff --git a/a.py b/a.py\n"
+            "--- a/a.py\n+++ b/a.py\n"
+            "@@ -1,0 +2,2 @@\n"
+            "+import os  # noqa: F401\n"
+            "+x = 1\n"
+            "diff --git a/b.py b/b.py\n"
+            "--- a/b.py\n+++ b/b.py\n"
+            "@@ -10,1 +10,1 @@\n"
+            "-old\n"
+            "+new  # type: ignore\n"
+        )
+        added = parse_unified_diff(patch)
+        assert added == {
+            "a.py": [(2, "import os  # noqa: F401"), (3, "x = 1")],
+            "b.py": [(10, "new  # type: ignore")],
+        }
+
+    def test_handles_new_file(self):
+        from core.reporter.reporter import parse_unified_diff
+        patch = (
+            "diff --git a/new.py b/new.py\n"
+            "new file mode 100644\n"
+            "--- /dev/null\n+++ b/new.py\n"
+            "@@ -0,0 +1,2 @@\n"
+            "+# nosec\n"
+            "+pass\n"
+        )
+        assert parse_unified_diff(patch) == {
+            "new.py": [(1, "# nosec"), (2, "pass")],
+        }
+
+    def test_skips_deleted_file(self):
+        from core.reporter.reporter import parse_unified_diff
+        patch = (
+            "diff --git a/gone.py b/gone.py\n"
+            "deleted file mode 100644\n"
+            "--- a/gone.py\n+++ /dev/null\n"
+            "@@ -1,1 +0,0 @@\n"
+            "-x = 1\n"
+        )
+        assert parse_unified_diff(patch) == {}
+
+    def test_renames_use_post_path(self):
+        from core.reporter.reporter import parse_unified_diff
+        patch = (
+            "diff --git a/old.py b/new.py\n"
+            "rename from old.py\nrename to new.py\n"
+            "--- a/old.py\n+++ b/new.py\n"
+            "@@ -1,1 +1,1 @@\n"
+            "-x = 1\n"
+            "+x = 1  # noqa\n"
+        )
+        assert parse_unified_diff(patch) == {"new.py": [(1, "x = 1  # noqa")]}
+
+    def test_empty_patch(self):
+        from core.reporter.reporter import parse_unified_diff
+        assert parse_unified_diff("") == {}

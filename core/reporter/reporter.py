@@ -35,11 +35,18 @@ class Diff:
     budget; without it, the legacy scalar `lines_changed` is used as-is
     and `excludes` does not affect size accounting (PR-mode pre-v0.3
     behavior).
+
+    `added_by_file` (when present) maps each post-image path to a list of
+    `(line_no, content)` tuples for every added line, derived from
+    `git diff --unified=0`. Populated by `parse_unified_diff()` when
+    `--diff-unified` is supplied. Phase-4 suppression detection walks this
+    structure; absent → suppression detection is a no-op.
     """
     changed_files: list[str]
     files_changed: int
     lines_changed: int
     lines_by_file: dict[str, int] | None = None
+    added_by_file: dict[str, list[tuple[int, str]]] | None = None
 
 
 @dataclass
@@ -475,6 +482,58 @@ def _summarize_violation(text: str, max_len: int = 400) -> str:
     # Collapse newlines / extra whitespace.
     one_line = " ".join(line.strip() for line in text.splitlines() if line.strip())
     return one_line[:max_len] + ("…" if len(one_line) > max_len else "")
+
+
+# --------------------------------------------------------------------------
+# Unified-diff parsing (suppression-detection input)
+# --------------------------------------------------------------------------
+
+def parse_unified_diff(patch: str) -> dict[str, list[tuple[int, str]]]:
+    """
+    Parse a unified diff (produced by `git diff --unified=0`).
+
+    Returns: {post_path: [(line_no, added_line_content), ...]}.
+
+    Skips deleted files. For renames, the post-rename path is the key.
+    Tracks the per-hunk new-file line counter so each added line carries
+    its line number in the post-image. Hunk-boundary semantics are NOT
+    used by callers; suppression detection (Phase 4) walks added lines
+    per file regardless of hunk shape (spec §2.2 — naive algorithm).
+    """
+    out: dict[str, list[tuple[int, str]]] = {}
+    current_path: str | None = None
+    new_lineno = 0
+    for raw in patch.splitlines():
+        if raw.startswith("diff --git "):
+            current_path = None  # reset; +++ line below sets it
+            continue
+        if raw.startswith("+++ "):
+            target = raw[4:].strip()
+            if target == "/dev/null":
+                current_path = None
+            else:
+                # `+++ b/path/to/file` → strip the `b/` prefix
+                current_path = target[2:] if target.startswith(("a/", "b/")) else target
+            continue
+        if raw.startswith("@@"):
+            # @@ -<old>[,<n>] +<new>[,<n>] @@
+            # Extract `<new>` and seed the counter.
+            m = re.match(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@", raw)
+            if m and current_path is not None:
+                new_lineno = int(m.group(1))
+            continue
+        if current_path is None:
+            continue
+        if raw.startswith("+") and not raw.startswith("+++"):
+            out.setdefault(current_path, []).append((new_lineno, raw[1:]))
+            new_lineno += 1
+        elif raw.startswith("-") or raw.startswith("---"):
+            # deletion — does not advance new-file lineno
+            pass
+        else:
+            # context line (only present with -U > 0; harmless either way)
+            new_lineno += 1
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -933,6 +992,7 @@ def load_diff_from_files(
     changed_files_path: Path,
     lines_changed: int = 0,
     lines_per_file_path: Path | None = None,
+    diff_unified_path: Path | None = None,
 ) -> Diff:
     files = [line.strip() for line in changed_files_path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
@@ -959,11 +1019,18 @@ def load_diff_from_files(
         if lines_by_file:
             lines_changed = sum(lines_by_file.values())
 
+    added_by_file: dict[str, list[tuple[int, str]]] | None = None
+    if diff_unified_path is not None and diff_unified_path.exists():
+        added_by_file = parse_unified_diff(
+            diff_unified_path.read_text(encoding="utf-8")
+        )
+
     return Diff(
         changed_files=files,
         files_changed=len(files),
         lines_changed=lines_changed,
         lines_by_file=lines_by_file,
+        added_by_file=added_by_file,
     )
 
 
@@ -1073,6 +1140,13 @@ def main(argv: list[str] | None = None) -> int:
                         "check: files matching any excludes glob are subtracted "
                         "from both file and line counts. Without this flag, "
                         "excludes affects only zone classification, not size.")
+    p.add_argument("--diff-unified", type=Path,
+                   help="Path to a unified diff with -U0 (produced by "
+                        "`git diff --unified=0 <base> <head>`). Used by "
+                        "Phase-4 suppression detection to read added-line "
+                        "content. Optional; absent -> suppression detection "
+                        "falls back to no-op (compatible with policies that "
+                        "lack a suppressions block).")
     p.add_argument("--archunit-xml", type=Path,
                    help="(Deprecated) Path to an ArchUnit JUnit XML report. Use "
                         "--boundary-report with --boundary-format=junit-xml instead.")
@@ -1126,6 +1200,7 @@ def main(argv: list[str] | None = None) -> int:
         args.changed_files,
         args.lines_changed,
         lines_per_file_path=args.lines_per_file,
+        diff_unified_path=args.diff_unified,
     )
 
     if args.archunit_xml is not None:

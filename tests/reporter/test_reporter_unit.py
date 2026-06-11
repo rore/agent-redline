@@ -1176,3 +1176,121 @@ class TestSuppressionsCheckpointWiring:
         assert v.suppressions == []
         cp_ids = [c.id for c in v.checkpoints]
         assert "architecture-review" not in cp_ids
+
+
+class TestSuppressionsBindingAndExit:
+    """Phase 4b.3 — _binding hardcode for suppression + headline + exit code.
+
+    Spec §2.4: `suppression` is hardcoded to `binding`. `modes.default: shadow`
+    does NOT downgrade it; only an explicit `modes.perCheck.suppression: shadow`
+    flips it.
+    """
+
+    @staticmethod
+    def _policy(modes: dict | None = None):
+        """Blue-only policy that isolates the suppression code path."""
+        p: dict = {
+            "version": 1,
+            "project": {"name": "t"},
+            "zones": {
+                "blue": [{"path": "src/**", "reason": "x"}],
+            },
+            "checkpoints": {
+                "architecture-review": {
+                    "satisfiedBy": [{"label": "architecture-reviewed"}],
+                },
+            },
+        }
+        if modes is not None:
+            p["modes"] = modes
+        return p
+
+    @staticmethod
+    def _diff(n: int = 1):
+        added = {
+            "src/example/orders.py": [
+                (10 + i, f"x{i}  # noqa: F401") for i in range(n)
+            ],
+        }
+        return Diff(
+            changed_files=["src/example/orders.py"],
+            files_changed=1,
+            lines_changed=n,
+            added_by_file=added,
+        )
+
+    def test_a_default_modes_absent_suppression_red_exit2(self):
+        """(a) modes absent: default binding via §2.4 hardcode → exit 2."""
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        v = classify(self._policy(modes=None), self._diff(1), suppressions_config=cfg)
+        assert len(v.suppressions) == 1
+        assert v.verdict == "RED"
+        assert v.exit_code == 2
+        cp = next(c for c in v.checkpoints if c.id == "architecture-review")
+        assert not cp.satisfied
+        assert v.recommended_action == "satisfy-suppression-checkpoint"
+
+    def test_b_explicit_perCheck_shadow_warns_only(self):
+        """(b) explicit perCheck.suppression: shadow flips the §2.4 hardcode.
+
+        Use modes.default: shadow so the `report` check is NOT binding and
+        cannot itself lift exit to 2. With perCheck.suppression: shadow the
+        suppression lift also does not fire, so exit stays at 1 (shadow warn).
+        Verdict is still RED (headline ladder is mode-independent) and the
+        architecture-review checkpoint is still required + unsatisfied.
+        """
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        modes = {"default": "shadow", "perCheck": {"suppression": "shadow"}}
+        v = classify(self._policy(modes=modes), self._diff(1), suppressions_config=cfg)
+        assert len(v.suppressions) == 1
+        assert v.verdict == "RED"
+        # Exit is shadow (1) — checkpoint is still required and unsatisfied.
+        assert v.exit_code == 1
+        cp = next(c for c in v.checkpoints if c.id == "architecture-review")
+        assert not cp.satisfied
+        # recommended is the shadow-warn flavor, not the suppression lift.
+        assert v.recommended_action != "satisfy-suppression-checkpoint"
+
+    def test_c_modes_default_shadow_does_not_downgrade(self):
+        """(c) modes.default: shadow without perCheck override → still binding (§2.4)."""
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        modes = {"default": "shadow"}  # No perCheck.suppression override.
+        v = classify(self._policy(modes=modes), self._diff(1), suppressions_config=cfg)
+        assert len(v.suppressions) == 1
+        assert v.verdict == "RED"
+        # Hardcoded binding wins over modes.default: shadow.
+        assert v.exit_code == 2
+        assert v.recommended_action == "satisfy-suppression-checkpoint"
+
+    def test_d_checkpoint_satisfied_via_label_exit0(self):
+        """(d) architecture-reviewed label → exit 0; verdict still RED."""
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        v = classify(
+            self._policy(modes=None),
+            self._diff(1),
+            suppressions_config=cfg,
+            pr_labels=["architecture-reviewed"],
+        )
+        assert len(v.suppressions) == 1
+        assert v.verdict == "RED"
+        assert v.summary == "1 suppression marker(s) added on guarded surfaces."
+        cp = next(c for c in v.checkpoints if c.id == "architecture-review")
+        assert cp.satisfied
+        assert v.exit_code == 0
+        assert v.recommended_action == "none"
+
+    def test_e_suppression_only_headline_summary(self):
+        """(e) headline summary names the count for N=1 and N=3."""
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        v1 = classify(self._policy(modes=None), self._diff(1), suppressions_config=cfg)
+        assert v1.verdict == "RED"
+        assert v1.summary == "1 suppression marker(s) added on guarded surfaces."
+
+        v3 = classify(self._policy(modes=None), self._diff(3), suppressions_config=cfg)
+        assert v3.verdict == "RED"
+        assert v3.summary == "3 suppression marker(s) added on guarded surfaces."

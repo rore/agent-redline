@@ -908,10 +908,21 @@ def _pr_size_status(diff: Diff, policy: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# Spec §2.4: checks in this set default to `binding` regardless of
+# `modes.default`. Only an explicit `modes.perCheck.<name>: shadow` flips it.
+# Only `suppression` is hardcoded — `boundary_violation` still respects
+# `modes.default` so existing fixtures/tests remain valid.
+_HARDCODED_BINDING_DEFAULTS = {"suppression"}
+
+
 def _binding(modes: dict[str, Any], check_name: str) -> bool:
     """Whether a given check is binding under the policy's modes config."""
-    default = (modes or {}).get("default", "shadow")
     per_check = (modes or {}).get("perCheck", {}) or {}
+    if check_name in _HARDCODED_BINDING_DEFAULTS:
+        # Hardcoded default is `binding`; modes.default has no effect.
+        # Explicit perCheck override (e.g. shadow) still applies.
+        return per_check.get(check_name, "binding") == "binding"
+    default = (modes or {}).get("default", "shadow")
     return per_check.get(check_name, default) == "binding"
 
 
@@ -1019,6 +1030,14 @@ def classify(
     elif runtime_changed:
         verdict = "CONFIG_CHANGE"
         summary = "Runtime configuration changed."
+    elif suppression_matches:
+        # Spec §2.4: a pure-suppression diff (no higher signal) headlines as RED
+        # with a suppression-flavored summary. Combined cases (e.g. + red zone)
+        # already hit the higher arm above; the suppressions still surface in
+        # Verdict.suppressions and the architecture-review checkpoint.
+        verdict = "RED"
+        n = len(suppression_matches)
+        summary = f"{n} suppression marker(s) added on guarded surfaces."
     elif classification["red"]:
         verdict = "RED"
         summary = "Red-zone files changed."
@@ -1056,6 +1075,21 @@ def classify(
     elif classification["gray"] or classification["watch"] or pr_size_warn:
         exit_code = 1
         recommended = "review-warnings"
+
+    # Spec §2.4: a binding suppression match with an unmet architecture-review
+    # checkpoint lifts the exit code to 2 (never lowers an already-elevated
+    # code). Applied AFTER the chain so it overrides shadow/warn arms when
+    # binding, but does not downgrade a 2 from boundary/report/pr_size.
+    suppression_unmet = bool(suppression_matches) and any(
+        c.id == "architecture-review" and not c.satisfied
+        for c in checkpoint_statuses
+    )
+    if suppression_unmet and _binding(modes, "suppression"):
+        exit_code = max(exit_code, 2)
+        if recommended == "none" or recommended in (
+            "review-shadow-warnings", "review-warnings",
+        ):
+            recommended = "satisfy-suppression-checkpoint"
 
     return Verdict(
         verdict=verdict,

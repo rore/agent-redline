@@ -835,3 +835,67 @@ class TestParseUnifiedDiff:
     def test_empty_patch(self):
         from core.reporter.reporter import parse_unified_diff
         assert parse_unified_diff("") == {}
+
+
+# --------------------------------------------------------------------------
+# Suppressions resolution (Phase 2)
+# --------------------------------------------------------------------------
+
+class TestSuppressionsResolution:
+    def test_absent_block_means_detection_off(self, tmp_path):
+        """Spec §1.4 compatibility — non-negotiable."""
+        from core.reporter.reporter import resolve_suppressions_config
+        cfg = resolve_suppressions_config(policy={}, repo_root=tmp_path)
+        assert cfg is None
+
+    def test_missing_vendored_file_is_silent_when_no_block(self, tmp_path):
+        from core.reporter.reporter import resolve_suppressions_config
+        # Policy has no suppressions block; vendored file absent. No error.
+        cfg = resolve_suppressions_config(policy={"version": 1}, repo_root=tmp_path)
+        assert cfg is None
+
+    def test_missing_vendored_file_errors_only_when_useDefaults_true(self, tmp_path):
+        from core.reporter.reporter import resolve_suppressions_config
+        policy = {"suppressions": {"useExtensionDefaults": True}}
+        # All three conditions met (block + useDefaults + missing file).
+        try:
+            resolve_suppressions_config(policy=policy, repo_root=tmp_path)
+            assert False, "expected FileNotFoundError"
+        except FileNotFoundError as e:
+            assert ".agent-redline/suppressions.yaml" in str(e)
+
+    def test_useDefaults_false_skips_missing_file(self, tmp_path):
+        from core.reporter.reporter import resolve_suppressions_config
+        policy = {"suppressions": {"useExtensionDefaults": False,
+                                   "add": {"inlineComments": ["# nosec"]}}}
+        cfg = resolve_suppressions_config(policy=policy, repo_root=tmp_path)
+        assert cfg.inline_comments == ["# nosec"]
+        assert cfg.annotations == []
+
+    def test_merge_add_then_remove(self, tmp_path):
+        # Vendored: ["# noqa", "# type: ignore"]; add: ["# custom"]; remove: ["# noqa"]
+        (tmp_path / ".agent-redline").mkdir()
+        (tmp_path / ".agent-redline" / "suppressions.yaml").write_text(
+            "suppressions:\n"
+            "  inlineComments:\n"
+            "    - '# noqa'\n"
+            "    - '# type: ignore'\n"
+        )
+        from core.reporter.reporter import resolve_suppressions_config
+        policy = {"suppressions": {
+            "useExtensionDefaults": True,
+            "add": {"inlineComments": ["# custom"]},
+            "remove": {"inlineComments": ["# noqa"]},
+        }}
+        cfg = resolve_suppressions_config(policy=policy, repo_root=tmp_path)
+        assert sorted(cfg.inline_comments) == ["# custom", "# type: ignore"]
+
+    def test_exempt_paths_round_trip(self, tmp_path):
+        from core.reporter.reporter import resolve_suppressions_config
+        policy = {"suppressions": {
+            "useExtensionDefaults": False,
+            "add": {"inlineComments": ["# nosec"]},
+            "exemptPaths": ["**/tests/**", "vendor/**"],
+        }}
+        cfg = resolve_suppressions_config(policy=policy, repo_root=tmp_path)
+        assert cfg.exempt_paths == ["**/tests/**", "vendor/**"]

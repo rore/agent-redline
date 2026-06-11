@@ -179,6 +179,7 @@ chmod +x "$DEST/assets/templates/pre-push-check.sh"
 
 cp "$REPO_ROOT/core/schema/agent-policy.schema.json" "$DEST/assets/schema/"
 cp "$REPO_ROOT/core/schema/boundary-violations.schema.json" "$DEST/assets/schema/"
+cp "$REPO_ROOT/core/schema/suppressions.schema.json" "$DEST/assets/schema/"
 
 # ----------------------------------------------------------------------
 # 6. Reporter.

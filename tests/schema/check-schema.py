@@ -33,10 +33,18 @@ except ImportError:
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCHEMA_PATH = REPO_ROOT / "core" / "schema" / "agent-policy.schema.json"
 BOUNDARY_SCHEMA_PATH = REPO_ROOT / "core" / "schema" / "boundary-violations.schema.json"
+SUPPRESSIONS_SCHEMA_PATH = REPO_ROOT / "core" / "schema" / "suppressions.schema.json"
 VALID_DIR = REPO_ROOT / "tests" / "schema" / "valid"
 INVALID_DIR = REPO_ROOT / "tests" / "schema" / "invalid"
 BOUNDARY_VALID_DIR = REPO_ROOT / "tests" / "schema" / "boundary-valid"
 BOUNDARY_INVALID_DIR = REPO_ROOT / "tests" / "schema" / "boundary-invalid"
+
+# Filename-pattern dispatcher: fixtures whose basename matches one of these
+# prefixes validate against the corresponding schema instead of the default
+# agent-policy schema. Keep this list small — every entry is a contract that
+# the producer of that file (e.g. an extension's vendored suppressions.yaml)
+# adheres to its own schema.
+SUPPRESSIONS_FIXTURE_PREFIX = "vendored-suppressions"
 
 
 def load_schema(path: Path = SCHEMA_PATH) -> dict:
@@ -56,6 +64,9 @@ def main() -> int:
     if not BOUNDARY_SCHEMA_PATH.exists():
         print(f"error: schema not found at {BOUNDARY_SCHEMA_PATH}", file=sys.stderr)
         return 1
+    if not SUPPRESSIONS_SCHEMA_PATH.exists():
+        print(f"error: schema not found at {SUPPRESSIONS_SCHEMA_PATH}", file=sys.stderr)
+        return 1
 
     schema = load_schema()
     validator = Draft202012Validator(schema)
@@ -64,6 +75,16 @@ def main() -> int:
     # Self-check: the boundary schema must itself be a valid JSON Schema document.
     Draft202012Validator.check_schema(boundary_schema)
     boundary_validator = Draft202012Validator(boundary_schema)
+
+    suppressions_schema = load_schema(SUPPRESSIONS_SCHEMA_PATH)
+    Draft202012Validator.check_schema(suppressions_schema)
+    suppressions_validator = Draft202012Validator(suppressions_schema)
+
+    def pick_validator(path: Path) -> tuple[Draft202012Validator, str]:
+        """Dispatch a fixture filename to the right validator + label."""
+        if path.name.startswith(SUPPRESSIONS_FIXTURE_PREFIX):
+            return suppressions_validator, "vendored-suppressions"
+        return validator, "agent-policy"
 
     failures: list[str] = []
 
@@ -82,12 +103,13 @@ def main() -> int:
         except yaml.YAMLError as e:
             failures.append(f"FAIL  {path.relative_to(REPO_ROOT)}: YAML parse error: {e}")
             continue
-        errors = list(validator.iter_errors(policy))
+        v, label = pick_validator(path)
+        errors = list(v.iter_errors(policy))
         if errors:
             err_lines = "; ".join(f"{e.message} (at {list(e.absolute_path)})" for e in errors)
-            failures.append(f"FAIL  {path.relative_to(REPO_ROOT)}: expected valid, got: {err_lines}")
+            failures.append(f"FAIL  {path.relative_to(REPO_ROOT)}: expected valid against {label}, got: {err_lines}")
         else:
-            print(f"ok    {path.relative_to(REPO_ROOT)} (valid)")
+            print(f"ok    {path.relative_to(REPO_ROOT)} (valid; {label})")
 
     # Real policies in the repo: must also validate.
     for path in real_policies:
@@ -114,11 +136,12 @@ def main() -> int:
             # Parse failure counts as schema invalidity for our purposes.
             print(f"ok    {path.relative_to(REPO_ROOT)} (invalid; YAML parse error)")
             continue
-        errors = list(validator.iter_errors(policy))
+        v, label = pick_validator(path)
+        errors = list(v.iter_errors(policy))
         if not errors:
-            failures.append(f"FAIL  {path.relative_to(REPO_ROOT)}: expected invalid, but passed schema")
+            failures.append(f"FAIL  {path.relative_to(REPO_ROOT)}: expected invalid against {label}, but passed schema")
         else:
-            print(f"ok    {path.relative_to(REPO_ROOT)} (invalid; {len(errors)} schema error(s))")
+            print(f"ok    {path.relative_to(REPO_ROOT)} (invalid; {label}; {len(errors)} schema error(s))")
 
     # Boundary-violations schema: self-validity already checked above.
     # Now validate boundary-valid/ (must pass) and boundary-invalid/ (must fail) fixtures.

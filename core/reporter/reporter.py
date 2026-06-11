@@ -537,6 +537,90 @@ def parse_unified_diff(patch: str) -> dict[str, list[tuple[int, str]]]:
 
 
 # --------------------------------------------------------------------------
+# Suppressions resolution (vendored-file contract)
+# --------------------------------------------------------------------------
+
+VENDORED_SUPPRESSIONS_PATH = ".agent-redline/suppressions.yaml"
+
+
+@dataclass
+class SuppressionsConfig:
+    """Effective suppression marker list resolved from vendored defaults + policy overrides."""
+    inline_comments: list[str] = field(default_factory=list)
+    annotations: list[str] = field(default_factory=list)
+    config_files: list[str] = field(default_factory=list)
+    config_keys: list[str] = field(default_factory=list)
+    exempt_paths: list[str] = field(default_factory=list)
+
+
+def load_suppressions_defaults(repo_root: Path) -> dict[str, Any] | None:
+    """Read `.agent-redline/suppressions.yaml` if present. Returns None if absent."""
+    p = repo_root / VENDORED_SUPPRESSIONS_PATH
+    if not p.exists():
+        return None
+    with p.open(encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict):
+        raise SystemExit(f"error: vendored suppressions at {p} is not a mapping")
+    return (data.get("suppressions") or {})
+
+
+def resolve_suppressions_config(
+    policy: dict[str, Any],
+    repo_root: Path,
+) -> SuppressionsConfig | None:
+    """
+    Resolve the active suppression marker list.
+
+    Spec §1.4 compatibility: absent `suppressions:` block in the policy →
+    detection OFF (returns None). The missing-vendored-file error fires
+    only when (1) the policy declares the block AND (2) useExtensionDefaults
+    is true (default) AND (3) `.agent-redline/suppressions.yaml` is absent.
+    """
+    block = policy.get("suppressions")
+    if block is None:
+        return None  # detection OFF — non-negotiable per §1.4
+
+    use_defaults = block.get("useExtensionDefaults", True)
+    add = block.get("add", {}) or {}
+    remove = block.get("remove", {}) or {}
+    exempt_paths = block.get("exemptPaths", []) or []
+
+    defaults: dict[str, Any] = {}
+    if use_defaults:
+        loaded = load_suppressions_defaults(repo_root)
+        if loaded is None:
+            raise FileNotFoundError(
+                f"policy declares a suppressions block with "
+                f"useExtensionDefaults: true, but {VENDORED_SUPPRESSIONS_PATH} "
+                f"is absent. Either re-run bootstrap (which vendors the file), "
+                f"set useExtensionDefaults: false, or remove the suppressions "
+                f"block to disable detection."
+            )
+        defaults = loaded
+
+    def merge_list(category: str) -> list[str]:
+        base = list(defaults.get(category, []) or [])
+        added = list(add.get(category, []) or [])
+        removed = set(remove.get(category, []) or [])
+        return [m for m in base + added if m not in removed]
+
+    def merge_sub(category: str, sub: str) -> list[str]:
+        base = list((defaults.get(category, {}) or {}).get(sub, []) or [])
+        added = list((add.get(category, {}) or {}).get(sub, []) or [])
+        removed = set((remove.get(category, {}) or {}).get(sub, []) or [])
+        return [m for m in base + added if m not in removed]
+
+    return SuppressionsConfig(
+        inline_comments=merge_list("inlineComments"),
+        annotations=merge_list("annotations"),
+        config_files=merge_sub("configEdits", "files"),
+        config_keys=merge_sub("configEdits", "keys"),
+        exempt_paths=list(exempt_paths),
+    )
+
+
+# --------------------------------------------------------------------------
 # Checkpoint satisfaction
 # --------------------------------------------------------------------------
 

@@ -1,0 +1,30 @@
+version: 1
+project:
+  name: example
+  extension: python
+zones:
+  red:
+    - path: src/example/domain/**
+      reason: domain
+      checkpoint: architecture-review
+  blue:
+    - path: tests/**
+      reason: tests
+suppressions:
+  useExtensionDefaults: true
+  add:
+    inlineComments: ["# custom-marker"]
+  remove:
+    inlineComments: ["# pragma: no cover"]
+  exemptPaths:
+    - "**/tests/**"
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+      - label: architecture-reviewed
+modes:
+  default: shadow
+  perCheck:
+    boundary_violation: binding
+    suppression: binding

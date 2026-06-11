@@ -98,11 +98,17 @@ jobs:
           git diff --name-only "$BEFORE"..."$AFTER" > build/changed-files.txt
           # Per-file line counts so policy.excludes applies to prSize.
           git diff --numstat "$BEFORE"..."$AFTER" > build/lines-per-file.txt
+          # `--unified=0` so the reporter can scan only added lines for
+          # suppression markers (noqa, type: ignore, pyright: ignore,
+          # etc.). Without this, suppressions in unchanged context would
+          # be falsely attributed to this push.
+          git diff --unified=0 "$BEFORE"..."$AFTER" > build/diff-unified.patch
           python scripts/agent-redline-report.py \
             --policy agent-policy.yaml \
             --flow-mode push \
             --changed-files build/changed-files.txt \
             --lines-per-file build/lines-per-file.txt \
+            --diff-unified build/diff-unified.patch \
             --json-out build/verdict.json \
             --comment-out build/comment.md
           EXIT=$?

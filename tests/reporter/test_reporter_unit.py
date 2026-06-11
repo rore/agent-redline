@@ -768,3 +768,660 @@ class TestResolveBoundaryInputMissingFile:
         text, fmt = resolve_boundary_input(None, None, None, policy)
         assert fmt == "json-violations"
         assert "violations" in text
+
+
+# --------------------------------------------------------------------------
+# Unified-diff parsing (Phase 1 of suppression detection)
+# --------------------------------------------------------------------------
+
+class TestParseUnifiedDiff:
+    def test_extracts_added_lines_per_file(self):
+        from core.reporter.reporter import parse_unified_diff
+        patch = (
+            "diff --git a/a.py b/a.py\n"
+            "--- a/a.py\n+++ b/a.py\n"
+            "@@ -1,0 +2,2 @@\n"
+            "+import os  # noqa: F401\n"
+            "+x = 1\n"
+            "diff --git a/b.py b/b.py\n"
+            "--- a/b.py\n+++ b/b.py\n"
+            "@@ -10,1 +10,1 @@\n"
+            "-old\n"
+            "+new  # type: ignore\n"
+        )
+        added = parse_unified_diff(patch)
+        assert added == {
+            "a.py": [(2, "import os  # noqa: F401"), (3, "x = 1")],
+            "b.py": [(10, "new  # type: ignore")],
+        }
+
+    def test_handles_new_file(self):
+        from core.reporter.reporter import parse_unified_diff
+        patch = (
+            "diff --git a/new.py b/new.py\n"
+            "new file mode 100644\n"
+            "--- /dev/null\n+++ b/new.py\n"
+            "@@ -0,0 +1,2 @@\n"
+            "+# nosec\n"
+            "+pass\n"
+        )
+        assert parse_unified_diff(patch) == {
+            "new.py": [(1, "# nosec"), (2, "pass")],
+        }
+
+    def test_skips_deleted_file(self):
+        from core.reporter.reporter import parse_unified_diff
+        patch = (
+            "diff --git a/gone.py b/gone.py\n"
+            "deleted file mode 100644\n"
+            "--- a/gone.py\n+++ /dev/null\n"
+            "@@ -1,1 +0,0 @@\n"
+            "-x = 1\n"
+        )
+        assert parse_unified_diff(patch) == {}
+
+    def test_renames_use_post_path(self):
+        from core.reporter.reporter import parse_unified_diff
+        patch = (
+            "diff --git a/old.py b/new.py\n"
+            "rename from old.py\nrename to new.py\n"
+            "--- a/old.py\n+++ b/new.py\n"
+            "@@ -1,1 +1,1 @@\n"
+            "-x = 1\n"
+            "+x = 1  # noqa\n"
+        )
+        assert parse_unified_diff(patch) == {"new.py": [(1, "x = 1  # noqa")]}
+
+    def test_empty_patch(self):
+        from core.reporter.reporter import parse_unified_diff
+        assert parse_unified_diff("") == {}
+
+
+# --------------------------------------------------------------------------
+# Suppressions resolution (Phase 2)
+# --------------------------------------------------------------------------
+
+class TestSuppressionsResolution:
+    def test_absent_block_means_detection_off(self, tmp_path):
+        """Spec §1.4 compatibility — non-negotiable."""
+        from core.reporter.reporter import resolve_suppressions_config
+        cfg = resolve_suppressions_config(policy={}, repo_root=tmp_path)
+        assert cfg is None
+
+    def test_missing_vendored_file_is_silent_when_no_block(self, tmp_path):
+        from core.reporter.reporter import resolve_suppressions_config
+        # Policy has no suppressions block; vendored file absent. No error.
+        cfg = resolve_suppressions_config(policy={"version": 1}, repo_root=tmp_path)
+        assert cfg is None
+
+    def test_missing_vendored_file_errors_only_when_useDefaults_true(self, tmp_path):
+        from core.reporter.reporter import resolve_suppressions_config
+        policy = {"suppressions": {"useExtensionDefaults": True}}
+        # All three conditions met (block + useDefaults + missing file).
+        try:
+            resolve_suppressions_config(policy=policy, repo_root=tmp_path)
+            assert False, "expected FileNotFoundError"
+        except FileNotFoundError as e:
+            msg = str(e)
+            assert ".agent-redline/suppressions.yaml" in msg
+            # Confirm the three remediations are surfaced (spec §1.4):
+            # (1) re-run bootstrap, (2) useExtensionDefaults: false, (3) remove the block.
+            assert "re-run bootstrap" in msg
+            assert "useExtensionDefaults: false" in msg
+            assert "remove the suppressions" in msg
+
+    def test_useDefaults_false_skips_missing_file(self, tmp_path):
+        from core.reporter.reporter import resolve_suppressions_config
+        policy = {"suppressions": {"useExtensionDefaults": False,
+                                   "add": {"inlineComments": ["# nosec"]}}}
+        cfg = resolve_suppressions_config(policy=policy, repo_root=tmp_path)
+        assert cfg.inline_comments == ["# nosec"]
+        assert cfg.annotations == []
+
+    def test_merge_add_then_remove(self, tmp_path):
+        # Vendored: ["# noqa", "# type: ignore"]; add: ["# custom"]; remove: ["# noqa"]
+        (tmp_path / ".agent-redline").mkdir()
+        (tmp_path / ".agent-redline" / "suppressions.yaml").write_text(
+            "suppressions:\n"
+            "  inlineComments:\n"
+            "    - '# noqa'\n"
+            "    - '# type: ignore'\n"
+        )
+        from core.reporter.reporter import resolve_suppressions_config
+        policy = {"suppressions": {
+            "useExtensionDefaults": True,
+            "add": {"inlineComments": ["# custom"]},
+            "remove": {"inlineComments": ["# noqa"]},
+        }}
+        cfg = resolve_suppressions_config(policy=policy, repo_root=tmp_path)
+        assert sorted(cfg.inline_comments) == ["# custom", "# type: ignore"]
+
+    def test_exempt_paths_round_trip(self, tmp_path):
+        from core.reporter.reporter import resolve_suppressions_config
+        policy = {"suppressions": {
+            "useExtensionDefaults": False,
+            "add": {"inlineComments": ["# nosec"]},
+            "exemptPaths": ["**/tests/**", "vendor/**"],
+        }}
+        cfg = resolve_suppressions_config(policy=policy, repo_root=tmp_path)
+        assert cfg.exempt_paths == ["**/tests/**", "vendor/**"]
+
+
+class TestScanSuppressions:
+    def test_inline_comment_substring_match(self):
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(inline_comments=["# noqa"])
+        added = {"src/example/orders.py": [(42, "from pkg.x import y  # noqa: F401")]}
+        classification = {"red": ["src/example/orders.py"], "blue": [], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert len(matches) == 1
+        m = matches[0]
+        assert m.file == "src/example/orders.py"
+        assert m.line == 42
+        assert m.marker == "# noqa"
+        assert m.category == "inlineComment"
+        assert m.zone == "red"
+        assert "# noqa" in m.context
+
+    def test_multiple_markers_one_line_produce_multiple_matches(self):
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(inline_comments=["# noqa", "# type: ignore"])
+        added = {"a.py": [(1, "x = y  # noqa: F401  # type: ignore[misc]")]}
+        classification = {"red": [], "blue": ["a.py"], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert len(matches) == 2
+        markers = [m.marker for m in matches]
+        # Order = order of inline_comments list (deterministic)
+        assert markers == ["# noqa", "# type: ignore"]
+
+    def test_annotation_token_match_word_bounded(self):
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(annotations=["@SuppressWarnings"])
+        # Real annotation matches.
+        added = {"X.java": [(10, '@SuppressWarnings("ArchUnit")')]}
+        classification = {"red": ["X.java"], "blue": [], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert len(matches) == 1
+        assert matches[0].category == "annotation"
+        assert matches[0].marker == "@SuppressWarnings"
+
+    def test_annotation_no_match_on_extended_name(self):
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(annotations=["@SuppressWarnings"])
+        added = {"X.java": [(10, '@SuppressWarningsExt("foo")')]}
+        classification = {"red": ["X.java"], "blue": [], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert matches == []
+
+    def test_config_edits_structural_key_match(self):
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(
+            config_files=["pyproject.toml"],
+            config_keys=["ignore_imports"],
+        )
+        added = {"pyproject.toml": [(20, 'ignore_imports = ["pkg.a -> pkg.b"]')]}
+        classification = {"red": ["pyproject.toml"], "blue": [], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert len(matches) == 1
+        assert matches[0].category == "configEdit"
+        assert matches[0].marker == "ignore_imports"
+
+    def test_config_edits_ignores_comment_lines(self):
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(
+            config_files=["pyproject.toml"],
+            config_keys=["ignore_imports"],
+        )
+        # A line that mentions the key only inside a comment must NOT match.
+        added = {"pyproject.toml": [(20, "# ignore_imports does cool stuff")]}
+        classification = {"red": ["pyproject.toml"], "blue": [], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert matches == []
+
+    def test_exempt_paths_skips_file(self):
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(
+            inline_comments=["# noqa"],
+            exempt_paths=["**/tests/**"],
+        )
+        added = {"tests/conftest.py": [(5, "import x  # noqa: E402")]}
+        classification = {"red": [], "blue": ["tests/conftest.py"], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert matches == []
+
+    def test_reformat_fires_known_fp(self):
+        """Spec §6 — accepted v1 false positive. Naive added-line scanning."""
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(inline_comments=["# noqa"])
+        # `foo()  # noqa` was removed; `bar()  # noqa` was added (rename-on-line reformat).
+        # The naive algorithm fires on the added line. By design.
+        added = {"a.py": [(10, "bar()  # noqa: E501")]}
+        classification = {"red": ["a.py"], "blue": [], "gray": [], "watch": []}
+        matches = scan_suppressions(added, config, classification)
+        assert len(matches) == 1
+        assert matches[0].marker == "# noqa"
+
+    def test_no_config_returns_empty(self):
+        """Compatibility path: no suppressions config → no matches."""
+        from core.reporter.reporter import scan_suppressions
+        added = {"a.py": [(1, "import x  # noqa")]}
+        classification = {"red": ["a.py"], "blue": [], "gray": [], "watch": []}
+        matches = scan_suppressions(added, None, classification)
+        assert matches == []
+
+    def test_no_diff_returns_empty(self):
+        """No `--diff-unified` provided → no matches."""
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(inline_comments=["# noqa"])
+        classification = {"red": [], "blue": [], "gray": [], "watch": []}
+        assert scan_suppressions(None, config, classification) == []
+
+    def test_zone_classification_from_classify_files(self):
+        """Match's zone = file's primary zone (red > gray > blue residual)."""
+        from core.reporter.reporter import scan_suppressions, SuppressionsConfig
+        config = SuppressionsConfig(inline_comments=["# noqa"])
+        added = {
+            "red.py":   [(1, "x  # noqa")],
+            "blue.py":  [(1, "y  # noqa")],
+            "gray.py":  [(1, "z  # noqa")],
+        }
+        classification = {
+            "red":   ["red.py"],
+            "blue":  ["blue.py"],
+            "gray":  ["gray.py"],
+            "watch": [],
+        }
+        matches = scan_suppressions(added, config, classification)
+        zones = {m.file: m.zone for m in matches}
+        assert zones == {"red.py": "red", "blue.py": "blue", "gray.py": "gray"}
+
+
+# --------------------------------------------------------------------------
+# Suppressions checkpoint wiring (Phase 4b.2 — cmt_000010)
+#
+# Spec §2.3: a suppression match on a non-exempt path always contributes
+# architecture-review to the reporter's required checkpoints, INDEPENDENT
+# of the headline verdict. setdefault semantics mean a higher-priority
+# reason (red-zone change, arch-test edit) wins for the displayed reason,
+# but the requirement is still emitted from the suppression code path.
+#
+# These tests pin _required_checkpoints() wiring only. End-to-end
+# headline + comment behavior lands in Phase 4b.3 / 4b.4 and is covered
+# by the seven Phase-5 golden fixtures.
+# --------------------------------------------------------------------------
+
+class TestSuppressionsCheckpointWiring:
+
+    @staticmethod
+    def _policy_no_red():
+        """Policy with no red zone — isolates the suppression code path."""
+        return {
+            "version": 1,
+            "project": {"name": "t"},
+            "zones": {
+                "blue": [{"path": "src/**", "reason": "x"}],
+            },
+            "checkpoints": {
+                "architecture-review": {"satisfiedBy": [{"label": "ok"}]},
+            },
+            "modes": {"default": "shadow"},
+        }
+
+    @staticmethod
+    def _policy_with_red():
+        return {
+            "version": 1,
+            "project": {"name": "t"},
+            "zones": {
+                "red": [{"path": "src/main/**/domain/**", "reason": "domain",
+                         "checkpoint": "architecture-review"}],
+                "blue": [{"path": "src/**", "reason": "x"}],
+            },
+            "checkpoints": {
+                "architecture-review": {"satisfiedBy": [{"label": "ok"}]},
+            },
+            "modes": {"default": "shadow"},
+        }
+
+    def test_suppression_only_diff_emits_architecture_review(self):
+        """Case 1: suppression match on non-red blue file → architecture-review required.
+
+        Headline verdict in this phase may be BLUE (4b.3 promotes to RED).
+        We assert only on Verdict.suppressions and required-checkpoints.
+        """
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        diff = Diff(
+            changed_files=["src/example/orders.py"],
+            files_changed=1,
+            lines_changed=1,
+            added_by_file={"src/example/orders.py": [(7, "import x  # noqa: F401")]},
+        )
+        v = classify(self._policy_no_red(), diff, suppressions_config=cfg)
+        # The match landed.
+        assert len(v.suppressions) == 1
+        assert v.suppressions[0].marker == "# noqa"
+        # architecture-review is required, attributed to the suppression.
+        cp_ids = [c.id for c in v.checkpoints]
+        assert cp_ids.count("architecture-review") == 1
+        cp = next(c for c in v.checkpoints if c.id == "architecture-review")
+        assert "Suppression marker" in cp.reason
+        assert "# noqa" in cp.reason
+        assert "src/example/orders.py:7" in cp.reason
+
+    def test_suppression_plus_red_zone_dedupes_reason_wins_red(self):
+        """Case 2: suppression + red-zone path → architecture-review required ONCE.
+
+        setdefault means the existing red-zone reason wins. The requirement
+        stays put — that's the cmt_000010 invariant.
+        """
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        red_file = "src/main/foo/domain/Order.java"
+        diff = Diff(
+            changed_files=[red_file],
+            files_changed=1,
+            lines_changed=1,
+            added_by_file={red_file: [(42, "x  // noqa: something")]},
+        )
+        # The marker `# noqa` won't substring-match `// noqa`, so use a marker
+        # that matches Java-style comments — switch to a marker we control.
+        cfg = SuppressionsConfig(inline_comments=["// noqa"])
+        v = classify(self._policy_with_red(), diff, suppressions_config=cfg)
+        # Both signals fire: the suppression match and the red-zone change.
+        assert len(v.suppressions) == 1
+        # architecture-review appears exactly once (deduped via setdefault).
+        cp_ids = [c.id for c in v.checkpoints]
+        assert cp_ids.count("architecture-review") == 1
+        cp = next(c for c in v.checkpoints if c.id == "architecture-review")
+        # Existing red-zone reason wins (setdefault semantics).
+        assert "red-zone change" in cp.reason
+        assert red_file in cp.reason
+        assert "Suppression marker" not in cp.reason
+
+    def test_empty_match_list_does_not_add_checkpoint(self):
+        """Case 3: no suppression matches → suppression code path is a no-op.
+
+        Use a no-red-zone policy with a blue-only diff so the only way
+        architecture-review could get added is via the suppression branch.
+        """
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        diff = Diff(
+            changed_files=["src/example/orders.py"],
+            files_changed=1,
+            lines_changed=1,
+            added_by_file={"src/example/orders.py": [(7, "import x  # plain")]},
+        )
+        v = classify(self._policy_no_red(), diff, suppressions_config=cfg)
+        assert v.suppressions == []
+        cp_ids = [c.id for c in v.checkpoints]
+        assert "architecture-review" not in cp_ids
+
+    def test_suppression_on_exempt_path_does_not_add_checkpoint(self):
+        """Case 4: scan_suppressions filtered the match → no checkpoint added."""
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(
+            inline_comments=["# noqa"],
+            exempt_paths=["**/tests/**"],
+        )
+        diff = Diff(
+            changed_files=["tests/conftest.py"],
+            files_changed=1,
+            lines_changed=1,
+            added_by_file={"tests/conftest.py": [(5, "import x  # noqa: E402")]},
+        )
+        v = classify(self._policy_no_red(), diff, suppressions_config=cfg)
+        # scan_suppressions returned [] because the file is exempt.
+        assert v.suppressions == []
+        cp_ids = [c.id for c in v.checkpoints]
+        assert "architecture-review" not in cp_ids
+
+
+class TestSuppressionsBindingAndExit:
+    """Phase 4b.3 — _binding hardcode for suppression + headline + exit code.
+
+    Spec §2.4: `suppression` is hardcoded to `binding`. `modes.default: shadow`
+    does NOT downgrade it; only an explicit `modes.perCheck.suppression: shadow`
+    flips it.
+    """
+
+    @staticmethod
+    def _policy(modes: dict | None = None):
+        """Blue-only policy that isolates the suppression code path."""
+        p: dict = {
+            "version": 1,
+            "project": {"name": "t"},
+            "zones": {
+                "blue": [{"path": "src/**", "reason": "x"}],
+            },
+            "checkpoints": {
+                "architecture-review": {
+                    "satisfiedBy": [{"label": "architecture-reviewed"}],
+                },
+            },
+        }
+        if modes is not None:
+            p["modes"] = modes
+        return p
+
+    @staticmethod
+    def _diff(n: int = 1):
+        added = {
+            "src/example/orders.py": [
+                (10 + i, f"x{i}  # noqa: F401") for i in range(n)
+            ],
+        }
+        return Diff(
+            changed_files=["src/example/orders.py"],
+            files_changed=1,
+            lines_changed=n,
+            added_by_file=added,
+        )
+
+    def test_a_default_modes_absent_suppression_red_exit2(self):
+        """(a) modes absent: default binding via §2.4 hardcode → exit 2."""
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        v = classify(self._policy(modes=None), self._diff(1), suppressions_config=cfg)
+        assert len(v.suppressions) == 1
+        assert v.verdict == "RED"
+        assert v.exit_code == 2
+        cp = next(c for c in v.checkpoints if c.id == "architecture-review")
+        assert not cp.satisfied
+        assert v.recommended_action == "satisfy-suppression-checkpoint"
+
+    def test_b_explicit_perCheck_shadow_warns_only(self):
+        """(b) explicit perCheck.suppression: shadow flips the §2.4 hardcode.
+
+        Use modes.default: shadow so the `report` check is NOT binding and
+        cannot itself lift exit to 2. With perCheck.suppression: shadow the
+        suppression lift also does not fire, so exit stays at 1 (shadow warn).
+        Verdict is still RED (headline ladder is mode-independent) and the
+        architecture-review checkpoint is still required + unsatisfied.
+        """
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        modes = {"default": "shadow", "perCheck": {"suppression": "shadow"}}
+        v = classify(self._policy(modes=modes), self._diff(1), suppressions_config=cfg)
+        assert len(v.suppressions) == 1
+        assert v.verdict == "RED"
+        # Exit is shadow (1) — checkpoint is still required and unsatisfied.
+        assert v.exit_code == 1
+        cp = next(c for c in v.checkpoints if c.id == "architecture-review")
+        assert not cp.satisfied
+        # recommended is the shadow-warn flavor, not the suppression lift.
+        assert v.recommended_action != "satisfy-suppression-checkpoint"
+
+    def test_c_modes_default_shadow_does_not_downgrade(self):
+        """(c) modes.default: shadow without perCheck override → still binding (§2.4)."""
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        modes = {"default": "shadow"}  # No perCheck.suppression override.
+        v = classify(self._policy(modes=modes), self._diff(1), suppressions_config=cfg)
+        assert len(v.suppressions) == 1
+        assert v.verdict == "RED"
+        # Hardcoded binding wins over modes.default: shadow.
+        assert v.exit_code == 2
+        assert v.recommended_action == "satisfy-suppression-checkpoint"
+
+    def test_d_checkpoint_satisfied_via_label_exit0(self):
+        """(d) architecture-reviewed label → exit 0; verdict still RED."""
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        v = classify(
+            self._policy(modes=None),
+            self._diff(1),
+            suppressions_config=cfg,
+            pr_labels=["architecture-reviewed"],
+        )
+        assert len(v.suppressions) == 1
+        assert v.verdict == "RED"
+        assert v.summary == "1 suppression marker(s) added on guarded surfaces."
+        cp = next(c for c in v.checkpoints if c.id == "architecture-review")
+        assert cp.satisfied
+        assert v.exit_code == 0
+        assert v.recommended_action == "none"
+
+    def test_e_suppression_only_headline_summary(self):
+        """(e) headline summary names the count for N=1 and N=3."""
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        v1 = classify(self._policy(modes=None), self._diff(1), suppressions_config=cfg)
+        assert v1.verdict == "RED"
+        assert v1.summary == "1 suppression marker(s) added on guarded surfaces."
+
+        v3 = classify(self._policy(modes=None), self._diff(3), suppressions_config=cfg)
+        assert v3.verdict == "RED"
+        assert v3.summary == "3 suppression marker(s) added on guarded surfaces."
+
+
+class TestSuppressionsRendering:
+    """Phase 4b.4 — render_markdown() emits the spec §2.5 suppressions block.
+
+    The renderer is silent when verdict.suppressions is empty, shows a
+    File/Line/Marker/Zone table (cap 5 rows + "more" tail) when it is not,
+    and includes the architecture-review footer + docs link.
+    """
+
+    @staticmethod
+    def _policy():
+        return {
+            "version": 1,
+            "project": {"name": "t"},
+            "zones": {"blue": [{"path": "src/**", "reason": "x"}]},
+            "checkpoints": {
+                "architecture-review": {
+                    "satisfiedBy": [{"label": "architecture-reviewed"}],
+                },
+            },
+        }
+
+    @staticmethod
+    def _diff(n: int):
+        added = {
+            "src/example/orders.py": [
+                (10 + i, f"x{i}  # noqa: F401") for i in range(n)
+            ],
+        }
+        return Diff(
+            changed_files=["src/example/orders.py"],
+            files_changed=1,
+            lines_changed=n,
+            added_by_file=added,
+        )
+
+    def test_single_match_renders_table_and_footer(self):
+        from core.reporter.reporter import SuppressionsConfig, render_markdown
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        v = classify(self._policy(), self._diff(1), suppressions_config=cfg)
+        out = render_markdown(v)
+        assert "**Suppressions added (1):**" in out
+        assert "| File | Line | Marker | Zone |" in out
+        assert "|---|---|---|---|" in out
+        assert "| `src/example/orders.py` | 10 | `# noqa` | blue |" in out
+        assert (
+            "Suppressions on guarded surfaces require `architecture-review`."
+            in out
+        )
+        assert (
+            "[Why this matters](docs/agent/boundary-violation.md#suppressions)"
+            in out
+        )
+
+    def test_multiple_matches_capped_at_five_with_more_tail(self):
+        from core.reporter.reporter import SuppressionsConfig, render_markdown
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        v = classify(self._policy(), self._diff(7), suppressions_config=cfg)
+        out = render_markdown(v)
+        assert "**Suppressions added (7):**" in out
+        # Five rows shown.
+        rows = [ln for ln in out.splitlines() if ln.startswith("| `src/")]
+        assert len(rows) == 5
+        # Truncation tail after the cap.
+        assert "(+2 more)" in out
+        # Footer still present.
+        assert (
+            "Suppressions on guarded surfaces require `architecture-review`."
+            in out
+        )
+
+    def test_empty_matches_silent(self):
+        """No suppressions → no table, no footer, no docs link."""
+        from core.reporter.reporter import render_markdown
+        # No suppressions_config → Verdict.suppressions == [].
+        v = classify(self._policy(), self._diff(1))
+        assert v.suppressions == []
+        out = render_markdown(v)
+        assert "Suppressions added" not in out
+        assert "| File | Line | Marker | Zone |" not in out
+        assert "boundary-violation.md#suppressions" not in out
+        assert "architecture-review`" not in out
+
+
+class TestMainMissingVendoredSuppressions:
+    """
+    Phase 4 fix — when the policy declares suppressions with
+    useExtensionDefaults: true but `.agent-redline/suppressions.yaml` is
+    missing, `main()` must surface a clean stderr message and return 1
+    instead of letting the FileNotFoundError propagate as a traceback.
+    """
+
+    def test_main_returns_1_with_clean_stderr(self, tmp_path, monkeypatch, capsys):
+        from core.reporter.reporter import main
+
+        policy_path = tmp_path / "agent-policy.yaml"
+        policy_path.write_text(
+            "version: 1\n"
+            "project:\n"
+            "  name: test-service\n"
+            "zones:\n"
+            "  red:\n"
+            "    - path: src/main/**/domain/**\n"
+            "      reason: x\n"
+            "      checkpoint: architecture-review\n"
+            "checkpoints:\n"
+            "  architecture-review:\n"
+            "    satisfiedBy:\n"
+            "      - label: architecture-reviewed\n"
+            "suppressions:\n"
+            "  useExtensionDefaults: true\n",
+            encoding="utf-8",
+        )
+
+        changed_files = tmp_path / "changed-files.txt"
+        changed_files.write_text("src/main/java/Foo.java\n", encoding="utf-8")
+
+        # CWD must be tmp_path so the missing-file lookup happens here, NOT
+        # in the real repo (where .agent-redline/suppressions.yaml exists).
+        monkeypatch.chdir(tmp_path)
+
+        rc = main([
+            "--policy", str(policy_path),
+            "--changed-files", str(changed_files),
+        ])
+
+        captured = capsys.readouterr()
+        assert rc == 1
+        assert "error:" in captured.err
+        assert ".agent-redline/suppressions.yaml" in captured.err

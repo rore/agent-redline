@@ -110,6 +110,8 @@ Why a separate script: `import-linter`'s CLI emits Rich-rendered text only (no `
 
 The script is self-contained — no further integration needed. CI invokes it (§4), the reporter reads its output (§5).
 
+Also copy `extensions/python/suppressions.yaml` to `.agent-redline/suppressions.yaml`. The reporter reads the vendored file at runtime.
+
 ## 4. CI snippet
 
 Two flow modes — bootstrap-mode.md Phase 1 elicits which one applies:
@@ -230,11 +232,16 @@ jobs:
           git diff --numstat \
             ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
             > build/lines-per-file.txt
+          # `--unified=0`: scan only added lines for suppression markers.
+          git diff --unified=0 \
+            ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
+            > build/diff-unified.patch
           LABELS="$(jq -r '.pull_request.labels[].name' "$GITHUB_EVENT_PATH" | paste -sd,)"
           python scripts/agent-redline-report.py \
             --policy agent-policy.yaml \
             --changed-files build/changed-files.txt \
             --lines-per-file build/lines-per-file.txt \
+            --diff-unified build/diff-unified.patch \
             --pr-labels "$LABELS" \
             --json-out build/verdict.json \
             --comment-out build/comment.md
@@ -322,11 +329,14 @@ jobs:
           # `--numstat` so the reporter can apply policy.excludes to
           # the size budget (excludes-aware prSize).
           git diff --numstat "$BEFORE"..."$AFTER" > build/lines-per-file.txt
+          # `--unified=0`: added-line scan for suppression markers.
+          git diff --unified=0 "$BEFORE"..."$AFTER" > build/diff-unified.patch
           python scripts/agent-redline-report.py \
             --policy agent-policy.yaml \
             --flow-mode push \
             --changed-files build/changed-files.txt \
             --lines-per-file build/lines-per-file.txt \
+            --diff-unified build/diff-unified.patch \
             --json-out build/verdict.json \
             --comment-out build/comment.md
           EXIT=$?

@@ -1,0 +1,25 @@
+version: 1
+project:
+  name: example
+  extension: jvm-archunit
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+  blue:
+    - path: src/test/**
+      reason: tests
+  watch:
+    - path: src/main/java/**/*Controller.java
+      reason: controller change; structural API impact surfaced via OpenAPI diff
+suppressions:
+  useExtensionDefaults: true
+  exemptPaths: ["src/test/**"]
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+      - label: architecture-reviewed
+modes:
+  default: shadow

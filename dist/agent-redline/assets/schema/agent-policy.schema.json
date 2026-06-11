@@ -184,7 +184,8 @@
           "properties": {
             "boundary_violation": { "enum": ["shadow", "binding"] },
             "report": { "enum": ["shadow", "binding"] },
-            "pr_size": { "enum": ["shadow", "binding"] }
+            "pr_size": { "enum": ["shadow", "binding"] },
+            "suppression": { "enum": ["shadow", "binding"] }
           }
         }
       }
@@ -229,6 +230,21 @@
           "then": { "required": ["outputPath"] }
         }
       ]
+    },
+
+    "suppressions": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional. When absent, suppression detection is OFF (spec §1.4 compatibility). When present, declares overrides on the vendored marker list at .agent-redline/suppressions.yaml.",
+      "properties": {
+        "useExtensionDefaults": { "type": "boolean" },
+        "add":    { "$ref": "#/$defs/suppressionsList" },
+        "remove": { "$ref": "#/$defs/suppressionsList" },
+        "exemptPaths": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
     }
   },
 
@@ -252,6 +268,22 @@
       "properties": {
         "warn": { "type": "integer", "minimum": 1 },
         "fail": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "suppressionsList": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "inlineComments": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "annotations":    { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "configEdits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "files": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "keys":  { "type": "array", "items": { "type": "string", "minLength": 1 } }
+          }
+        }
       }
     }
   }

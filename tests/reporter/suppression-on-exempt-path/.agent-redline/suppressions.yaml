@@ -1,0 +1,4 @@
+suppressions:
+  inlineComments:
+    - "# noqa"
+    - "# type: ignore"

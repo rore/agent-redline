@@ -32,6 +32,7 @@
     "detected": false
   },
   "summary": "Persistence schema changed.",
+  "suppressions": [],
   "verdict": "SCHEMA_CHANGE",
   "zones": {
     "blue": [

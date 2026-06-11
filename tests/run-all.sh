@@ -70,6 +70,7 @@ done
 layers=(
   "budget|bash tests/budget/check-budget.sh|"
   "schema|python tests/schema/check-schema.py|REQUIRES_SCHEMA_DEPS"
+  "suppressions-files|bash tests/extensions/check-suppressions-files.sh|REQUIRES_SCHEMA_DEPS"
   "skill-yaml|python tests/skill-yaml/check-skill-yaml.py|REQUIRES_SCHEMA_DEPS"
   "skill-refs|python tests/skill-refs/check-skill-refs.py|REQUIRES_PYTHON"
   "skill-scripts-runnable|bash tests/skill-scripts-runnable/check-skill-scripts-runnable.sh|REQUIRES_PYTHON"

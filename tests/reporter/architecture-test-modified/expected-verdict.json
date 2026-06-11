@@ -33,6 +33,7 @@
     "detected": false
   },
   "summary": "Architecture-test files modified; architecture-review required.",
+  "suppressions": [],
   "verdict": "RED",
   "zones": {
     "blue": [],

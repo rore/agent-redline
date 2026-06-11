@@ -90,10 +90,15 @@ copy_demo_artifacts() {
   cp "$DEMO_SOURCE/AGENTS.md" "$dest/"
   cp "$DEMO_SOURCE/README.md" "$dest/"
 
-  mkdir -p "$dest/scripts" "$dest/.github/workflows"
+  mkdir -p "$dest/scripts" "$dest/.github/workflows" "$dest/.agent-redline"
   cp "$DEMO_SOURCE/scripts/agent-redline-check.sh" "$dest/scripts/"
   chmod +x "$dest/scripts/agent-redline-check.sh"
   cp "$DEMO_SOURCE/.github/workflows/agent-redline.yml" "$dest/.github/workflows/"
+  # Vendor the suppression-defaults file the policy points at via
+  # useExtensionDefaults: true. Without this the reporter aborts.
+  if [[ -f "$DEMO_SOURCE/.agent-redline/suppressions.yaml" ]]; then
+    cp "$DEMO_SOURCE/.agent-redline/suppressions.yaml" "$dest/.agent-redline/"
+  fi
 
   # Vendor the reporter and the import-linter adapter.
   cp "$REPORTER" "$dest/scripts/agent-redline-report.py"

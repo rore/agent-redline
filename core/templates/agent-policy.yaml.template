@@ -77,6 +77,12 @@ modes:
   default: shadow
   perCheck:
     boundary_violation: binding
+    # suppression: binding   # hardcoded default; uncomment to make explicit
+
+# suppressions:
+#   useExtensionDefaults: true
+#   exemptPaths:
+#     - "**/tests/**"
 
 # excludes:
 #   - src/main/generated/**

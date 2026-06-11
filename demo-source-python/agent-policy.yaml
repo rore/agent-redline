@@ -79,6 +79,18 @@ modes:
   default: shadow
   perCheck:
     boundary_violation: binding
+    # suppression: binding   # uncomment after a shadow window to make
+                             # newly-added suppressions on red zones a hard fail.
+
+suppressions:
+  # Use the python extension's vendored marker list (noqa, type: ignore,
+  # pyright: ignore, etc.). The vendored copy lives at
+  # .agent-redline/suppressions.yaml.
+  useExtensionDefaults: true
+  # Tests legitimately pin types/skip checks — the blue zone (tests/**)
+  # is exempt from suppression detection.
+  exemptPaths:
+    - "tests/**"
 
 boundaryAdapter:
   outputFormat: json-violations

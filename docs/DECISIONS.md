@@ -668,3 +668,65 @@ Plus three PR-scenario branches (`demo/blue-only-pr`, `demo/red-with-checkpoint-
 
 - A new bug class emerges that isn't covered by an existing layer. Add a new layer; don't try to retrofit an existing one.
 - A layer grows brittle (false positives on legitimate changes). Either tighten the assertion (the empty-commit case in `tests/tuner/` was tightened from "either outcome OK" to "must skip empty" to make the test meaningful) or split the layer.
+
+---
+
+## 2026-06-11 — Suppression detection: vendored markers, naive added-line scan, absent-block-is-OFF compatibility
+
+**Decision:**
+
+1. **Reporter scans the unified diff for added-line suppression markers.** A new `--diff-unified` input feeds `git diff --unified=0` (or equivalent) into the reporter. The scan walks added-line tokens against a per-extension finite list with three categories: **inline comments** (substring match — `# noqa`, `# type: ignore`, `// archunit: ignore`), **annotations** (word-bounded token match — `@SuppressWarnings`, `@ArchIgnore`), and **config-edit keys** (structural assignment match in a declared file — `ignore_imports = [...]` in `pyproject.toml`, `per-file-ignores` in `setup.cfg`).
+2. **Marker lists are vendored at bootstrap from `extensions/<name>/suppressions.yaml` to `.agent-redline/suppressions.yaml`.** The reporter reads only the in-repo copy at runtime; there is no extension reachback. The path is fixed.
+3. **Absent `suppressions:` block in the policy → detection OFF.** This is the compatibility contract. Existing v0.2 policies must keep working unchanged; the missing-vendored-file error fires only when the block is declared, `useExtensionDefaults: true` (default within the block), and `.agent-redline/suppressions.yaml` is absent.
+4. **Naive added-line scanning.** No hunk parsing, no removed-line tracking, no equivalence by marker family. Every added line that contains a known marker token is a match.
+5. **Match list feeds BOTH the comment renderer AND `_required_checkpoints()`.** The latter is computed independently of the headline verdict — adding `architecture-review` to the required-checkpoints set whether or not boundary-violation / api / schema / etc. is the headline.
+6. **`modes.perCheck.suppression: binding` is the hardcoded default**, symmetric with `boundary_violation` (see [`docs/superpowers/specs/2026-06-10-suppression-detection-design.md`](superpowers/specs/2026-06-10-suppression-detection-design.md) §2.4). `modes.default: shadow` does NOT downgrade `suppression`; only an explicit `modes.perCheck.suppression: shadow` flips it.
+
+**Alternatives considered** (full discussion in [`docs/superpowers/specs/2026-06-10-suppression-detection-design.md`](superpowers/specs/2026-06-10-suppression-detection-design.md) §6):
+
+- **A new `SUPPRESSION` top-level verdict.** Rejected: routing is identical to `RED + architecture-review`. A new verdict would split a single review obligation across two enum values without changing the obligation itself.
+- **Hunk-local set-difference equivalence** (a marker added is OK if an equivalent marker was removed in the same hunk). Rejected: opens a real laundering bypass — remove `# noqa` on line 12, add `# noqa` on line 50, the set-difference is empty and the bypass is silent.
+- **Hunk-local count-based equivalence.** Same shape of bypass as above; the count is symmetric across move + add.
+- **Per-position pairing within hunk** (added marker on line N is OK if a removed marker existed at the same relative position). Considered seriously, rejected after the asymmetry analysis below. The reformat false-positive (clean re-indent shifts marker positions) is **visible-and-cheap**: the reviewer sees an unexpected `architecture-review` requirement, looks at the diff, applies the label, moves on. The laundering false-negative (suppression added under cover of reformat noise) is **silent-and-load-bearing**: the bypass produces no visible artifact, the architecture-review obligation never fires, and a guarded surface ships unreviewed. The asymmetry argues for the simpler rule with the cheaper failure mode.
+- **Inlining the marker list into every policy.** Rejected: bloats the operating-mode load path (the policy is read every turn) for a list that's stable per stack and rarely changes.
+- **Reporter loads the extension at runtime.** Rejected: the reporter has no concept of "extension root" beyond the consuming repo. Vendoring at bootstrap makes the dependency explicit and the runtime read local.
+- **Auto-migration on upgrade** (the bootstrap script silently writes `.agent-redline/suppressions.yaml` when an existing repo upgrades). Rejected: quietly writing files into a consuming repo is the wrong shape. Existing repos opt in by re-running bootstrap, which surfaces the change as a normal artifact write.
+- **Justification comments alongside suppressions** (`# noqa  # justification: third-party API requires unused import`). Rejected: teams game any rule of this shape — the justification text becomes a ritual phrase pasted next to every suppression. The architecture-review checkpoint is the human-attention mechanism; routing the change there is more honest than asking the agent (or developer) to author a justification the reviewer is meant to evaluate.
+- **Semgrep / ast-grep as the matching engine.** Rejected: substring + word-bounded token + key-in-config-file match is a few hundred lines of Python with `re` and `tomllib`. Adding a heavy parsing dependency for a finite-list match would be disproportionate.
+
+**Rationale:**
+
+The asymmetry argument is the load-bearing piece: visible-and-cheap false positive (a clean reformat surfaces an unexpected `architecture-review` requirement, the reviewer sees the diff, the reviewer either applies the label or asks the author to split the reformat from the suppression edit) versus silent-and-load-bearing false negative (a suppression on a guarded surface ships without architecture-review and the framework's central promise is broken without anyone noticing). Every cleverer alternative — set difference, count balancing, position pairing — trades a non-observable mistake for an observable one. The naive scan is the right choice when the failure modes are asymmetric in this direction.
+
+The vendored-file decision mirrors how `adapter.yaml` already works: extension data copies to the consuming repo at bootstrap, the reporter operates on what's in the repo. The reporter's runtime contract stays "read the consuming repo, produce a verdict." Adding a "find the extension root and read its config" path would invert that contract for one feature.
+
+**The cmt_000010 invariant came from review:** `_required_checkpoints()` is computed independently of the headline verdict, by design. Without explicitly feeding suppressions into it, a `BOUNDARY_VIOLATION` headline would silently drop the architecture-review requirement that the suppression should have introduced — the boundary-violation routing populates its own checkpoint set and the suppression set never makes it in. The fix is one-line in code (the suppression match list flows into `_required_checkpoints()` regardless of which other signals fired), but the failure mode it prevents is exactly the laundering case the whole feature is supposed to catch. The seven golden fixtures (specifically `tests/reporter/suppression-and-boundary-violation/`) and the live demo PRs verify the invariant end-to-end — the review pipeline produces architecture-review when both signals are present, not just one.
+
+**Mechanics:**
+
+- Spec: [`docs/superpowers/specs/2026-06-10-suppression-detection-design.md`](superpowers/specs/2026-06-10-suppression-detection-design.md)
+- Plan: [`docs/superpowers/plans/2026-06-10-suppression-detection-plan.md`](superpowers/plans/2026-06-10-suppression-detection-plan.md)
+- Reporter (`core/reporter/reporter.py`):
+  - Phase 1 — `parse_unified_diff()` (added-line extraction per file)
+  - Phase 2 — `resolve_suppressions_config()` (vendored-file load + policy override merge)
+  - Phase 4 — `scan_suppressions()`, headline ladder integration, `_binding()` hardcoded `binding` default for `suppression`, exit-code lift, comment renderer Suppressions section
+- Schemas: `core/schema/suppressions.schema.json` (vendored file shape), `core/schema/agent-policy.schema.json` extended with the `suppressions:` block (Phase 3)
+- Skill:
+  - `core/skill/operating-mode.md` — Phase 6a bullet generalizing the existing BOUNDARY_RISK suppression refusal to all guarded surfaces
+  - `core/templates/skills/boundary-violation.md` — Phase 6b Suppressions section listing the patterns to refuse
+- Marker lists: `core/templates/suppressions.yaml` (stack-neutral baseline), `extensions/python/suppressions.yaml`, `extensions/jvm-archunit/suppressions.yaml` (Phase 7)
+- Bootstrap:
+  - `core/skill/bootstrap-mode.md` — Phase 8a vendor instruction (copy extension's `suppressions.yaml` to `.agent-redline/suppressions.yaml`)
+  - `core/templates/agent-policy.yaml.template` — commented `suppressions:` block illustrating the override surface
+- CI producers: `core/templates/pre-push-check.sh`, both demo workflows (PR-driven + push-driven), demo pre-push scripts — all updated to pipe `--diff-unified` (Phase 8b/8c)
+- Test guards:
+  - 7 golden reporter fixtures (`tests/reporter/suppression-*/` — `noqa-on-red`, `archignore-on-watch`, `ignore-imports`, `and-boundary-violation`, `on-exempt-path`, `reformat-fires-known-fp`, `policy-without-suppressions-block`)
+  - 4 schema fixtures (valid + invalid mixes covering `suppressions:` shape)
+  - 3 marker-list files validated by new layer `tests/extensions/check-suppressions-files.sh`
+- Live demo PRs: `demo/suppression-change-pr` on `rore/agent-redline-demo` (PR #83) and `rore/agent-redline-python-demo` (PR #23) — verified label-flip behavior end-to-end on real GitHub Actions, not just golden-fixture byte-equality.
+
+**Revisit if:**
+
+- Adopters report the reformat false-positive rate is high enough to dilute the `architecture-review` signal (reviewers start applying the label without inspection because "it's always reformat"). The simplest mitigation is a per-line "exact line-content match between added and removed" check — a marker is dismissed only if the entire added line equals an entire removed line in the same hunk. A more ambitious mitigation is per-position pairing. Both are still rejected as v1 scope; the asymmetry argument prefers the visible failure mode until the false-positive rate is shown to be load-bearing in practice.
+- Per-rule vs blanket suppression differentiation becomes important (`# noqa: F401` is targeted; bare `# noqa` is a wildcard). Adding a `severity` field to the marker list — `wildcard` markers always route, `targeted` markers route only on guarded surfaces — is the natural answer. Out of scope for v1.
+- A real adopter's policy needs a non-standard backend allowlist file. Today the team extends `configEdits.files` in their policy; if the line shape isn't structural-assignment compatible (e.g. an XML-shaped allowlist), we'd need a backend-specific parser. Out of scope for now; revisit when an adopter actually hits this.

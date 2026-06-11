@@ -79,9 +79,14 @@ HEAD_SHA=$(git rev-parse HEAD)
 # etc.) silently inflate the size budget.
 CHANGED_FILES_LIST="$(mktemp)"
 LINES_PER_FILE="$(mktemp)"
-trap 'rm -f "$CHANGED_FILES_LIST" "$LINES_PER_FILE"' EXIT
+DIFF_UNIFIED="$(mktemp)"
+trap 'rm -f "$CHANGED_FILES_LIST" "$LINES_PER_FILE" "$DIFF_UNIFIED"' EXIT
 git diff --name-only "$BASE_SHA"..."$HEAD_SHA" > "$CHANGED_FILES_LIST"
 git diff --numstat   "$BASE_SHA"..."$HEAD_SHA" > "$LINES_PER_FILE"
+# `--unified=0` so the reporter can scan only added lines for suppression
+# markers (noqa / @SuppressWarnings / etc.). Without this, suppressions in
+# unchanged context would be falsely attributed to this push.
+git diff --unified=0 "$BASE_SHA"..."$HEAD_SHA" > "$DIFF_UNIFIED"
 LINES_CHANGED=$(git diff --shortstat "$BASE_SHA"..."$HEAD_SHA" \
   | awk '{for (i=1;i<=NF;i++) if ($i ~ /insertions?|deletions?/) s+=$(i-1)} END{print s+0}')
 LINES_CHANGED=${LINES_CHANGED:-0}
@@ -103,5 +108,6 @@ exec python "$REPORTER_PY" \
   --policy "$POLICY" \
   --changed-files "$CHANGED_FILES_LIST" \
   --lines-per-file "$LINES_PER_FILE" \
+  --diff-unified "$DIFF_UNIFIED" \
   --lines-changed "$LINES_CHANGED" \
   --default-mode "${MODE:-shadow}"

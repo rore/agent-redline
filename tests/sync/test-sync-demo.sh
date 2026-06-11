@@ -115,7 +115,7 @@ fi
 # Check PR-scenario branches.
 # ----------------------------------------------------------------------
 
-for branch in demo/blue-only-pr demo/red-with-checkpoint-pr demo/boundary-violation-pr; do
+for branch in demo/blue-only-pr demo/red-with-checkpoint-pr demo/boundary-violation-pr demo/suppression-change-pr; do
   echo "==> checking $branch"
   assert_branch_exists "$branch"
   if git -C "$SCRATCH" rev-parse --verify "$branch" >/dev/null 2>&1; then

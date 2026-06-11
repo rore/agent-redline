@@ -1,0 +1,57 @@
+{
+  "apiChanges": {
+    "detected": false
+  },
+  "boundaryViolations": [],
+  "checkpoints": [
+    {
+      "id": "architecture-review",
+      "reason": "Suppression marker on guarded surface: @SuppressWarnings at src/main/java/com/example/orders/api/OrderController.java:11",
+      "satisfied": false,
+      "satisfy_by": [
+        "CODEOWNER approval",
+        "label `architecture-reviewed`"
+      ]
+    }
+  ],
+  "exitCode": 2,
+  "prSize": {
+    "excludedFiles": 0,
+    "excludedLines": 0,
+    "files": 1,
+    "lines": 1,
+    "verdict": "ok"
+  },
+  "recommendedAction": "satisfy-suppression-checkpoint",
+  "runtimeConfigChanges": {
+    "detected": false
+  },
+  "schemaChanges": {
+    "detected": false
+  },
+  "securityChanges": {
+    "detected": false
+  },
+  "summary": "1 suppression marker(s) added on guarded surfaces.",
+  "suppressions": [
+    {
+      "category": "annotation",
+      "context": "@SuppressWarnings(\"ArchUnit\")",
+      "file": "src/main/java/com/example/orders/api/OrderController.java",
+      "line": 11,
+      "marker": "@SuppressWarnings",
+      "zone": "gray"
+    }
+  ],
+  "verdict": "RED",
+  "zones": {
+    "blue": [],
+    "gray": [
+      "src/main/java/com/example/orders/api/OrderController.java"
+    ],
+    "red": [],
+    "watch": [
+      "src/main/java/com/example/orders/api/OrderController.java"
+    ]
+  }
+}

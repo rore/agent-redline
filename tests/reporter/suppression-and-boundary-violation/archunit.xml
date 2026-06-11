@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="com.example.orders.architecture.DependencyArchitectureTest" tests="1" failures="1" errors="0" skipped="0">
+    <testcase name="domain_must_not_import_adapters" classname="com.example.orders.architecture.DependencyArchitectureTest" time="0.014">
+      <failure type="java.lang.AssertionError" message="Architecture Violation [Priority: MEDIUM]">Architecture Violation: Rule 'no classes that reside in a package '..domain..' should depend on classes that reside in any package ['..adapter..']' was violated (1 times):
+Class &lt;com.example.orders.domain.Order&gt; depends on &lt;com.example.orders.adapter.persistence.OrderRow&gt;</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

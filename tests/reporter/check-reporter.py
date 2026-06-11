@@ -12,6 +12,11 @@ Each fixture directory contains:
                               #   (added<TAB>deleted<TAB>path).
                               #   When present, excludes are applied
                               #   to size accounting.
+  diff-unified.patch          # optional; `git diff --unified=0` output.
+                              #   When present, parsed into added lines
+                              #   per file and surfaced on the Diff
+                              #   dataclass for Phase-4 suppression
+                              #   detection. No semantic effect yet.
   archunit.xml                # optional
   api-spec-base.yaml          # optional; OpenAPI spec at base SHA
   api-spec-head.yaml          # optional; OpenAPI spec at head SHA
@@ -41,7 +46,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from core.reporter.reporter import (  # noqa: E402
     classify, load_policy, load_diff_from_files, load_archunit_xml,
-    diff_openapi_specs, render_markdown,
+    diff_openapi_specs, render_markdown, resolve_suppressions_config,
 )
 
 
@@ -75,10 +80,12 @@ def read_lines_changed(fixture: Path) -> int:
 def run_fixture(fixture: Path) -> tuple[dict, str]:
     policy = load_policy(resolve_policy(fixture))
     lines_per_file_path = fixture / "lines-per-file.txt"
+    diff_unified_path = fixture / "diff-unified.patch"
     diff = load_diff_from_files(
         fixture / "changed-files.txt",
         read_lines_changed(fixture),
         lines_per_file_path=lines_per_file_path if lines_per_file_path.exists() else None,
+        diff_unified_path=diff_unified_path if diff_unified_path.exists() else None,
     )
     archunit = load_archunit_xml(fixture / "archunit.xml")
     pr_labels = read_lines(fixture / "pr-labels.txt")
@@ -125,6 +132,7 @@ def run_fixture(fixture: Path) -> tuple[dict, str]:
         api_spec_diff=api_spec_diff,
         pr_labels=pr_labels,
         codeowner_approvals=approvals,
+        suppressions_config=resolve_suppressions_config(policy, repo_root=fixture),
     )
     return verdict.to_dict(), render_markdown(verdict, flow_mode=flow_mode)
 

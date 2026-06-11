@@ -35,11 +35,18 @@ class Diff:
     budget; without it, the legacy scalar `lines_changed` is used as-is
     and `excludes` does not affect size accounting (PR-mode pre-v0.3
     behavior).
+
+    `added_by_file` (when present) maps each post-image path to a list of
+    `(line_no, content)` tuples for every added line, derived from
+    `git diff --unified=0`. Populated by `parse_unified_diff()` when
+    `--diff-unified` is supplied. Phase-4 suppression detection walks this
+    structure; absent → suppression detection is a no-op.
     """
     changed_files: list[str]
     files_changed: int
     lines_changed: int
     lines_by_file: dict[str, int] | None = None
+    added_by_file: dict[str, list[tuple[int, str]]] | None = None
 
 
 @dataclass
@@ -72,6 +79,7 @@ class Verdict:
     pr_size: dict[str, Any]
     exit_code: int
     recommended_action: str
+    suppressions: list["SuppressionMatch"] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -87,6 +95,7 @@ class Verdict:
             "prSize": self.pr_size,
             "exitCode": self.exit_code,
             "recommendedAction": self.recommended_action,
+            "suppressions": [asdict(s) for s in self.suppressions],
         }
 
 
@@ -478,6 +487,257 @@ def _summarize_violation(text: str, max_len: int = 400) -> str:
 
 
 # --------------------------------------------------------------------------
+# Unified-diff parsing (suppression-detection input)
+# --------------------------------------------------------------------------
+
+def parse_unified_diff(patch: str) -> dict[str, list[tuple[int, str]]]:
+    """
+    Parse a unified diff (produced by `git diff --unified=0`).
+
+    Returns: {post_path: [(line_no, added_line_content), ...]}.
+
+    Skips deleted files. For renames, the post-rename path is the key.
+    Tracks the per-hunk new-file line counter so each added line carries
+    its line number in the post-image. Hunk-boundary semantics are NOT
+    used by callers; suppression detection (Phase 4) walks added lines
+    per file regardless of hunk shape (spec §2.2 — naive algorithm).
+    """
+    out: dict[str, list[tuple[int, str]]] = {}
+    current_path: str | None = None
+    new_lineno = 0
+    for raw in patch.splitlines():
+        if raw.startswith("diff --git "):
+            current_path = None  # reset; +++ line below sets it
+            continue
+        if raw.startswith("+++ "):
+            target = raw[4:].strip()
+            if target == "/dev/null":
+                current_path = None
+            else:
+                # `+++ b/path/to/file` → strip the `b/` prefix
+                current_path = target[2:] if target.startswith(("a/", "b/")) else target
+            continue
+        if raw.startswith("@@"):
+            # @@ -<old>[,<n>] +<new>[,<n>] @@
+            # Extract `<new>` and seed the counter.
+            m = re.match(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@", raw)
+            if m and current_path is not None:
+                new_lineno = int(m.group(1))
+            continue
+        if current_path is None:
+            continue
+        if raw.startswith("+") and not raw.startswith("+++"):
+            out.setdefault(current_path, []).append((new_lineno, raw[1:]))
+            new_lineno += 1
+        elif raw.startswith("-") or raw.startswith("---"):
+            # deletion — does not advance new-file lineno
+            pass
+        else:
+            # context line (only present with -U > 0; harmless either way)
+            new_lineno += 1
+    return out
+
+
+# --------------------------------------------------------------------------
+# Suppressions resolution (vendored-file contract)
+# --------------------------------------------------------------------------
+
+VENDORED_SUPPRESSIONS_PATH = ".agent-redline/suppressions.yaml"
+
+
+@dataclass
+class SuppressionsConfig:
+    """Effective suppression marker list resolved from vendored defaults + policy overrides."""
+    inline_comments: list[str] = field(default_factory=list)
+    annotations: list[str] = field(default_factory=list)
+    config_files: list[str] = field(default_factory=list)
+    config_keys: list[str] = field(default_factory=list)
+    exempt_paths: list[str] = field(default_factory=list)
+
+
+def load_suppressions_defaults(repo_root: Path) -> dict[str, Any] | None:
+    """Read `.agent-redline/suppressions.yaml` if present. Returns None if absent."""
+    p = repo_root / VENDORED_SUPPRESSIONS_PATH
+    if not p.exists():
+        return None
+    with p.open(encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict):
+        raise SystemExit(f"error: vendored suppressions at {p} is not a mapping")
+    return (data.get("suppressions") or {})
+
+
+def resolve_suppressions_config(
+    policy: dict[str, Any],
+    repo_root: Path,
+) -> SuppressionsConfig | None:
+    """
+    Resolve the active suppression marker list.
+
+    Spec §1.4 compatibility: absent `suppressions:` block in the policy →
+    detection OFF (returns None). The missing-vendored-file error fires
+    only when (1) the policy declares the block AND (2) useExtensionDefaults
+    is true (default) AND (3) `.agent-redline/suppressions.yaml` is absent.
+    """
+    block = policy.get("suppressions")
+    if block is None:
+        return None  # detection OFF — non-negotiable per §1.4
+
+    use_defaults = block.get("useExtensionDefaults", True)
+    add = block.get("add", {}) or {}
+    remove = block.get("remove", {}) or {}
+    exempt_paths = block.get("exemptPaths", []) or []
+
+    defaults: dict[str, Any] = {}
+    if use_defaults:
+        loaded = load_suppressions_defaults(repo_root)
+        if loaded is None:
+            raise FileNotFoundError(
+                f"policy declares a suppressions block with "
+                f"useExtensionDefaults: true, but {VENDORED_SUPPRESSIONS_PATH} "
+                f"is absent. Either re-run bootstrap (which vendors the file), "
+                f"set useExtensionDefaults: false, or remove the suppressions "
+                f"block to disable detection."
+            )
+        defaults = loaded
+
+    def merge_list(category: str) -> list[str]:
+        base = list(defaults.get(category, []) or [])
+        added = list(add.get(category, []) or [])
+        removed = set(remove.get(category, []) or [])
+        return [m for m in base + added if m not in removed]
+
+    def merge_sub(category: str, sub: str) -> list[str]:
+        base = list((defaults.get(category, {}) or {}).get(sub, []) or [])
+        added = list((add.get(category, {}) or {}).get(sub, []) or [])
+        removed = set((remove.get(category, {}) or {}).get(sub, []) or [])
+        return [m for m in base + added if m not in removed]
+
+    return SuppressionsConfig(
+        inline_comments=merge_list("inlineComments"),
+        annotations=merge_list("annotations"),
+        config_files=merge_sub("configEdits", "files"),
+        config_keys=merge_sub("configEdits", "keys"),
+        exempt_paths=list(exempt_paths),
+    )
+
+
+# --------------------------------------------------------------------------
+# Suppression scanner (spec §2.2 — naive added-line scan)
+# --------------------------------------------------------------------------
+
+@dataclass
+class SuppressionMatch:
+    file: str
+    line: int
+    marker: str
+    category: str         # "inlineComment" | "annotation" | "configEdit"
+    zone: str             # "red" | "blue" | "gray"
+    context: str          # the added-line content, truncated
+
+
+_ANNOTATION_TOKEN_RE_CACHE: dict[str, re.Pattern] = {}
+
+
+def _annotation_token_re(marker: str) -> re.Pattern:
+    """Word-boundary regex for an annotation token (e.g. @SuppressWarnings).
+
+    `@` is not a word character, so a leading boundary isn't useful; we
+    anchor on the literal `@<Name>` and require a non-word character (or
+    end-of-string) after the name to prevent `@SuppressWarningsExt` from
+    matching `@SuppressWarnings`.
+    """
+    if marker not in _ANNOTATION_TOKEN_RE_CACHE:
+        _ANNOTATION_TOKEN_RE_CACHE[marker] = re.compile(
+            re.escape(marker) + r"(?![A-Za-z0-9_])"
+        )
+    return _ANNOTATION_TOKEN_RE_CACHE[marker]
+
+
+def _is_config_key_assignment(line: str, key: str) -> bool:
+    """Structural key match for configEdits.
+
+    `ignore_imports = [...]`           → True
+    `[ignore_imports]`                 → True (TOML/INI section header)
+    `"ignore_imports": [...]`          → True (JSON-ish)
+    `# ignore_imports stuff`           → False (comment)
+    `// ignore_imports`                → False (comment)
+
+    Note: nested TOML table headers like `[tool.x.ignore_imports]` do NOT
+    match by this rule — the leading `.` is not in the boundary character
+    class. Such lines land in a config file because someone declared a
+    nested TOML table; if an extension wants to flag them, register the
+    fully-qualified key (e.g. `tool.x.ignore_imports`) in `markerLists`.
+    """
+    stripped = line.lstrip()
+    if not stripped or stripped[0] == "#" or stripped.startswith("//"):
+        return False
+    pattern = re.compile(
+        r"(?:^|[\s\[\"'])"
+        + re.escape(key)
+        + r"\s*[=:\[\]]"
+    )
+    return bool(pattern.search(line))
+
+
+def scan_suppressions(
+    added_by_file: dict[str, list[tuple[int, str]]] | None,
+    config: SuppressionsConfig | None,
+    classification: dict[str, list[str]],
+) -> list[SuppressionMatch]:
+    """
+    Naive added-line scanner. Spec §2.2 — deliberately no hunk parsing,
+    no removed-line tracking, no equivalence by marker family. Reformat
+    false positives are visible-and-cheap by design (see spec §6).
+    """
+    if config is None or added_by_file is None:
+        return []
+
+    file_zone: dict[str, str] = {}
+    for f in classification.get("red", []):
+        file_zone[f] = "red"
+    for f in classification.get("gray", []):
+        file_zone.setdefault(f, "gray")
+    for f in classification.get("blue", []):
+        file_zone.setdefault(f, "blue")
+
+    matches: list[SuppressionMatch] = []
+    for path, lines in added_by_file.items():
+        if config.exempt_paths and matches_any(path, config.exempt_paths):
+            continue
+        zone = file_zone.get(path, "gray")
+        is_config_file = (
+            bool(config.config_files)
+            and matches_any(path, config.config_files)
+        )
+
+        for line_no, content in lines:
+            for marker in config.inline_comments:
+                if marker in content:
+                    matches.append(SuppressionMatch(
+                        file=path, line=line_no, marker=marker,
+                        category="inlineComment", zone=zone,
+                        context=content[:200],
+                    ))
+            for marker in config.annotations:
+                if _annotation_token_re(marker).search(content):
+                    matches.append(SuppressionMatch(
+                        file=path, line=line_no, marker=marker,
+                        category="annotation", zone=zone,
+                        context=content[:200],
+                    ))
+            if is_config_file:
+                for key in config.config_keys:
+                    if _is_config_key_assignment(content, key):
+                        matches.append(SuppressionMatch(
+                            file=path, line=line_no, marker=key,
+                            category="configEdit", zone=zone,
+                            context=content[:200],
+                        ))
+    return matches
+
+
+# --------------------------------------------------------------------------
 # Checkpoint satisfaction
 # --------------------------------------------------------------------------
 
@@ -497,6 +757,7 @@ def _required_checkpoints(
     security_changed: bool,
     runtime_config_changed: bool,
     architecture_test_modified: bool,
+    suppression_matches: list["SuppressionMatch"] | None = None,
 ) -> dict[str, str]:
     """Return {checkpoint_id: reason} for each required checkpoint."""
     required: dict[str, str] = {}
@@ -528,6 +789,26 @@ def _required_checkpoints(
         required.setdefault(
             "architecture-review",
             "Architecture-test files modified",
+        )
+
+    # Spec §2.3 (cmt_000010): a suppression match on a non-exempt path always
+    # contributes architecture-review, INDEPENDENT of the headline verdict.
+    # `setdefault` is critical — when a higher-priority reason (e.g. a red-zone
+    # path or arch-test edit) already required architecture-review, that reason
+    # wins for the comment, but the requirement stays put either way. The
+    # exempt-paths filter has already been applied by scan_suppressions(), so
+    # a non-empty list here means at least one non-exempt match exists.
+    if suppression_matches:
+        first = suppression_matches[0]
+        extra = (
+            f" (+{len(suppression_matches) - 1} more)"
+            if len(suppression_matches) > 1
+            else ""
+        )
+        required.setdefault(
+            "architecture-review",
+            f"Suppression marker on guarded surface: {first.marker} "
+            f"at {first.file}:{first.line}{extra}",
         )
 
     return required
@@ -633,10 +914,21 @@ def _pr_size_status(diff: Diff, policy: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# Spec §2.4: checks in this set default to `binding` regardless of
+# `modes.default`. Only an explicit `modes.perCheck.<name>: shadow` flips it.
+# Only `suppression` is hardcoded — `boundary_violation` still respects
+# `modes.default` so existing fixtures/tests remain valid.
+_HARDCODED_BINDING_DEFAULTS = {"suppression"}
+
+
 def _binding(modes: dict[str, Any], check_name: str) -> bool:
     """Whether a given check is binding under the policy's modes config."""
-    default = (modes or {}).get("default", "shadow")
     per_check = (modes or {}).get("perCheck", {}) or {}
+    if check_name in _HARDCODED_BINDING_DEFAULTS:
+        # Hardcoded default is `binding`; modes.default has no effect.
+        # Explicit perCheck override (e.g. shadow) still applies.
+        return per_check.get(check_name, "binding") == "binding"
+    default = (modes or {}).get("default", "shadow")
     return per_check.get(check_name, default) == "binding"
 
 
@@ -650,6 +942,7 @@ def classify(
     api_spec_diff: dict[str, Any] | None = None,
     pr_labels: Iterable[str] = (),
     codeowner_approvals: Iterable[str] = (),
+    suppressions_config: SuppressionsConfig | None = None,
 ) -> Verdict:
     """The single entry point. Pure function.
 
@@ -670,6 +963,10 @@ def classify(
     """
     files = diff.changed_files
     classification = classify_files(files, policy)
+
+    suppression_matches = scan_suppressions(
+        diff.added_by_file, suppressions_config, classification,
+    )
 
     arch_test_modified = any(_is_architecture_test_file(f) for f in files)
 
@@ -700,6 +997,7 @@ def classify(
         classification, policy,
         api_changed, schema_changed, security_changed, runtime_changed,
         arch_test_modified,
+        suppression_matches=suppression_matches,
     )
 
     checkpoints_defs = policy.get("checkpoints", {}) or {}
@@ -738,6 +1036,14 @@ def classify(
     elif runtime_changed:
         verdict = "CONFIG_CHANGE"
         summary = "Runtime configuration changed."
+    elif suppression_matches:
+        # Spec §2.4: a pure-suppression diff (no higher signal) headlines as RED
+        # with a suppression-flavored summary. Combined cases (e.g. + red zone)
+        # already hit the higher arm above; the suppressions still surface in
+        # Verdict.suppressions and the architecture-review checkpoint.
+        verdict = "RED"
+        n = len(suppression_matches)
+        summary = f"{n} suppression marker(s) added on guarded surfaces."
     elif classification["red"]:
         verdict = "RED"
         summary = "Red-zone files changed."
@@ -776,6 +1082,21 @@ def classify(
         exit_code = 1
         recommended = "review-warnings"
 
+    # Spec §2.4: a binding suppression match with an unmet architecture-review
+    # checkpoint lifts the exit code to 2 (never lowers an already-elevated
+    # code). Applied AFTER the chain so it overrides shadow/warn arms when
+    # binding, but does not downgrade a 2 from boundary/report/pr_size.
+    suppression_unmet = bool(suppression_matches) and any(
+        c.id == "architecture-review" and not c.satisfied
+        for c in checkpoint_statuses
+    )
+    if suppression_unmet and _binding(modes, "suppression"):
+        exit_code = max(exit_code, 2)
+        if recommended == "none" or recommended in (
+            "review-shadow-warnings", "review-warnings",
+        ):
+            recommended = "satisfy-suppression-checkpoint"
+
     return Verdict(
         verdict=verdict,
         summary=summary,
@@ -794,6 +1115,7 @@ def classify(
         pr_size=pr_size,
         exit_code=exit_code,
         recommended_action=recommended,
+        suppressions=suppression_matches,
     )
 
 
@@ -882,6 +1204,32 @@ def render_markdown(verdict: Verdict, flow_mode: str = "pr") -> str:
     else:
         lines.append("**Boundary check:** passed")
 
+    # Suppressions added (spec §2.5). Silent when the list is empty —
+    # absent suppressions block, no policy detection, or no markers found
+    # all funnel through Verdict.suppressions == [] and must not surface
+    # the section.
+    if verdict.suppressions:
+        n = len(verdict.suppressions)
+        lines.append("")
+        lines.append(f"**Suppressions added ({n}):**")
+        lines.append("")
+        lines.append("| File | Line | Marker | Zone |")
+        lines.append("|---|---|---|---|")
+        shown = verdict.suppressions[:5]
+        for s in shown:
+            lines.append(f"| `{s.file}` | {s.line} | `{s.marker}` | {s.zone} |")
+        if n > 5:
+            lines.append(f"| (+{n - 5} more) | | | |")
+        lines.append("")
+        lines.append(
+            "Suppressions on guarded surfaces require `architecture-review`."
+        )
+        lines.append("")
+        lines.append(
+            "[Why this matters](docs/agent/boundary-violation.md#suppressions)"
+        )
+        lines.append("")
+
     # Other signals
     if verdict.api_changes.get("detected"):
         spec_diff = verdict.api_changes.get("specDiff")
@@ -933,6 +1281,7 @@ def load_diff_from_files(
     changed_files_path: Path,
     lines_changed: int = 0,
     lines_per_file_path: Path | None = None,
+    diff_unified_path: Path | None = None,
 ) -> Diff:
     files = [line.strip() for line in changed_files_path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
@@ -959,11 +1308,18 @@ def load_diff_from_files(
         if lines_by_file:
             lines_changed = sum(lines_by_file.values())
 
+    added_by_file: dict[str, list[tuple[int, str]]] | None = None
+    if diff_unified_path is not None and diff_unified_path.exists():
+        added_by_file = parse_unified_diff(
+            diff_unified_path.read_text(encoding="utf-8")
+        )
+
     return Diff(
         changed_files=files,
         files_changed=len(files),
         lines_changed=lines_changed,
         lines_by_file=lines_by_file,
+        added_by_file=added_by_file,
     )
 
 
@@ -1073,6 +1429,13 @@ def main(argv: list[str] | None = None) -> int:
                         "check: files matching any excludes glob are subtracted "
                         "from both file and line counts. Without this flag, "
                         "excludes affects only zone classification, not size.")
+    p.add_argument("--diff-unified", type=Path,
+                   help="Path to a unified diff with -U0 (produced by "
+                        "`git diff --unified=0 <base> <head>`). Used by "
+                        "Phase-4 suppression detection to read added-line "
+                        "content. Optional; absent -> suppression detection "
+                        "falls back to no-op (compatible with policies that "
+                        "lack a suppressions block).")
     p.add_argument("--archunit-xml", type=Path,
                    help="(Deprecated) Path to an ArchUnit JUnit XML report. Use "
                         "--boundary-report with --boundary-format=junit-xml instead.")
@@ -1126,6 +1489,7 @@ def main(argv: list[str] | None = None) -> int:
         args.changed_files,
         args.lines_changed,
         lines_per_file_path=args.lines_per_file,
+        diff_unified_path=args.diff_unified,
     )
 
     if args.archunit_xml is not None:
@@ -1140,6 +1504,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     api_spec_diff = _load_api_spec_diff(args.api_spec_base, args.api_spec_head)
 
+    # Phase 4b.4: resolve the suppression marker list once per CLI invocation.
+    # repo_root is the CWD because that's where `--changed-files` paths are
+    # anchored AND where `.agent-redline/suppressions.yaml` lives in the
+    # consuming repo. Returns None when the policy has no `suppressions:`
+    # block — detection stays OFF and end-to-end behavior is unchanged for
+    # policies that haven't opted in (spec §1.4).
+    try:
+        suppressions_cfg = resolve_suppressions_config(policy, repo_root=Path("."))
+    except FileNotFoundError as e:
+        sys.stderr.write(f"error: {e}\n")
+        return 1
+
     pr_labels = [s.strip() for s in args.pr_labels.split(",") if s.strip()]
     codeowner_approvals = [s.strip() for s in args.codeowner_approvals.split(",") if s.strip()]
 
@@ -1150,6 +1526,7 @@ def main(argv: list[str] | None = None) -> int:
         api_spec_diff=api_spec_diff,
         pr_labels=pr_labels,
         codeowner_approvals=codeowner_approvals,
+        suppressions_config=suppressions_cfg,
     )
 
     if args.json_out:

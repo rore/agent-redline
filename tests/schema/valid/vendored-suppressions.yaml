@@ -1,0 +1,7 @@
+suppressions:
+  inlineComments:
+    - "# noqa"
+    - "# type: ignore"
+  configEdits:
+    files: ["pyproject.toml", ".importlinter"]
+    keys: ["ignore_imports", "per-file-ignores"]

@@ -36,6 +36,7 @@
     "detected": false
   },
   "summary": "2 boundary violation(s) detected.",
+  "suppressions": [],
   "verdict": "BOUNDARY_VIOLATION",
   "zones": {
     "blue": [],

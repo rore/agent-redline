@@ -43,6 +43,12 @@ def iter_markdown_files() -> list[Path]:
     for path in REPO_ROOT.rglob("*.md"):
         if any(part in SKIP_DIRS for part in path.parts):
             continue
+        # Reporter golden-fixture snapshots are byte-for-byte recordings of
+        # PR-comment output. Their relative links resolve against the
+        # consuming repo (where the comment is rendered), not against the
+        # fixture directory inside this repo.
+        if path.name == "expected-comment.md" and "reporter" in path.parts:
+            continue
         files.append(path)
     return files
 

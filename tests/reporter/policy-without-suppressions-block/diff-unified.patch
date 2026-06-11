@@ -1,0 +1,5 @@
+diff --git a/src/example/domain/orders.py b/src/example/domain/orders.py
+--- a/src/example/domain/orders.py
++++ b/src/example/domain/orders.py
+@@ -10,0 +11,1 @@
++from example.adapters.postgres import OrderRow  # noqa: import-linter

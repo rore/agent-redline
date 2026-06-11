@@ -1,0 +1,5 @@
+diff --git a/tests/conftest.py b/tests/conftest.py
+--- a/tests/conftest.py
++++ b/tests/conftest.py
+@@ -5,0 +6,1 @@
++import importlib  # noqa: E402

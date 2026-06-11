@@ -1,0 +1,36 @@
+{
+  "apiChanges": {
+    "detected": false
+  },
+  "boundaryViolations": [],
+  "checkpoints": [],
+  "exitCode": 0,
+  "prSize": {
+    "excludedFiles": 0,
+    "excludedLines": 0,
+    "files": 1,
+    "lines": 1,
+    "verdict": "ok"
+  },
+  "recommendedAction": "none",
+  "runtimeConfigChanges": {
+    "detected": false
+  },
+  "schemaChanges": {
+    "detected": false
+  },
+  "securityChanges": {
+    "detected": false
+  },
+  "summary": "All changes in blue zones.",
+  "suppressions": [],
+  "verdict": "BLUE",
+  "zones": {
+    "blue": [
+      "tests/conftest.py"
+    ],
+    "gray": [],
+    "red": [],
+    "watch": []
+  }
+}

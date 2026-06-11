@@ -1,0 +1,18 @@
+version: 1
+project:
+  name: example
+zones:
+  red:
+    - path: src/example/domain/**
+      reason: domain
+      checkpoint: architecture-review
+  blue:
+    - path: tests/**
+      reason: tests
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+      - label: architecture-reviewed
+modes:
+  default: shadow

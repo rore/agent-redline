@@ -102,6 +102,17 @@ Either:
 
 The skill must refuse to ship a boundary-violating PR. Without this, every other rule is gameable: the easy local shortcut becomes the path of least resistance and the system stops working.
 
+### Suppression markers
+
+Adding a suppression marker on a guarded surface — `# noqa`, `# type: ignore`, `@SuppressWarnings`, `@SuppressFBWarnings`, `@ArchIgnore`, `ignore_imports`, `per-file-ignores`, or any other marker listed in `.agent-redline/suppressions.yaml` — is the same shape of shortcut as a boundary workaround, regardless of whether the touched path is red, blue, or gray. The agent must not silence the check.
+
+Either:
+
+1. **Fix the structure** so the marker isn't needed (extract the unused import, narrow the type, open the port). The fix may itself be red-zone.
+2. **Escalate.** If the suppression is genuinely warranted (third-party API quirk, generated code, an exempt-path-worthy surface that the policy doesn't yet exempt), surface it to the developer and let them decide whether to extend `suppressions.exemptPaths` — that policy edit is itself red-zone.
+
+The reporter scans added lines independently. Even if the agent slips a marker through, CI's suppression scan surfaces it as a `Suppressions` row in the PR comment and routes the change to `architecture-review`. Detection is opt-in per policy (`suppressions:` block); see [`docs/superpowers/specs/2026-06-10-suppression-detection-design.md`](superpowers/specs/2026-06-10-suppression-detection-design.md) and the corresponding entry in [`DECISIONS.md`](DECISIONS.md) for the rationale and the marker lists.
+
 ### API / schema / security change
 
 Treat as red. Produce the appropriate checkpoint note. Verify the developer has authorized the contract change before proceeding.

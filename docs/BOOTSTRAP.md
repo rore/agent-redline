@@ -22,6 +22,7 @@ It is a one-time setup conversation, not an automated install.
 - `scripts/agent-redline-check.sh` — local pre-push check (vendored from the skill's `core/templates/pre-push-check.sh`)
 - `scripts/agent-redline-report.py` — vendored reporter copy
 - For Python repos: `scripts/run-import-linter.py` — vendored adapter
+- `.agent-redline/suppressions.yaml` — vendored from the chosen extension's `suppressions.yaml` (or `core/templates/suppressions.yaml` if zone-only); the reporter reads only this in-repo copy at runtime
 - `.github/pull_request_template.md` — additions or new file (PR-driven flow only)
 - `docs/agent/*.md` — copied skill docs (`blue-zone-work`, `red-zone-change`, `boundary-violation`, plus any checkpoint-specific ones)
 
@@ -120,6 +121,8 @@ Once the developer signs off on the policy, the agent writes the directly-commit
 The agent reads the extension's `scaffold.md` to know how to generate the boundary-backend setup. Boundary rules in the policy map one-to-one to backend rules (e.g., one ArchUnit test method per `boundaries[]` entry on JVM). The scaffolding is wired into the existing build/test task.
 
 `scripts/agent-redline-check.sh` is written and made executable. It runs the same reporter the CI runs, on the local diff.
+
+`.agent-redline/suppressions.yaml` is vendored from the chosen extension's `suppressions.yaml` (or `core/templates/suppressions.yaml` for zone-only setups). The reporter reads only this in-repo copy — there is no extension reachback at runtime — so the consuming repo's CI scans against the marker list it shipped with.
 
 `AGENTS.md` is written. If `CLAUDE.md` / `GEMINI.md` already exist, they get a clearly-marked reference section pointing to `AGENTS.md` and `agent-policy.yaml`.
 

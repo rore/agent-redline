@@ -89,6 +89,8 @@ class DependencyArchitectureTest {
 
 ArchUnit produces JUnit XML through Gradle's default test reporting. Verify nothing has disabled it. Default location: `build/test-results/test/`. If the project writes elsewhere, update `outputPath` in the policy's adapter config.
 
+Also copy `extensions/jvm-archunit/suppressions.yaml` to `.agent-redline/suppressions.yaml`. The reporter reads the vendored file at runtime.
+
 ## 4. CI snippet
 
 Two flow modes — bootstrap-mode.md Phase 1 picks one:
@@ -183,6 +185,10 @@ api:
         git diff --numstat \
           ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
           > build/lines-per-file.txt
+        # `--unified=0`: added-line scan for suppression markers.
+        git diff --unified=0 \
+          ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
+          > build/diff-unified.patch
         # The reporter reads policy.boundaryAdapter to find the ArchUnit
         # JUnit XML; for openapi-from-controllers it also takes the two
         # generated specs explicitly.
@@ -190,6 +196,7 @@ api:
           --policy agent-policy.yaml \
           --changed-files build/changed-files.txt \
           --lines-per-file build/lines-per-file.txt \
+          --diff-unified build/diff-unified.patch \
           --api-spec-base /tmp/spec_base.yaml \
           --api-spec-head /tmp/spec_head.yaml \
           --pr-labels "$(jq -r '.pull_request.labels[].name' "$GITHUB_EVENT_PATH" | paste -sd,)" \

@@ -94,6 +94,34 @@ boundaryAdapter:                      # optional; how the boundary-rule backend'
   violationFilter:                    # optional; only meaningful for outputFormat: junit-xml.
     matchClassName: <substring>       # Identifies architecture failures vs unrelated test
     matchTestNamePattern: <regex>     # failures when both share a JUnit XML.
+
+suppressions:                         # optional; absence turns suppression detection OFF.
+                                      # Defaults come from the vendored .agent-redline/suppressions.yaml
+                                      # (copied from the chosen extension at bootstrap). The
+                                      # policy declares overrides-only.
+  useExtensionDefaults: true          # default: true. When true, load .agent-redline/suppressions.yaml
+                                      # and apply the add/remove deltas below. When false, only the
+                                      # add: lists are used (the policy supplies the entire marker set).
+  add:                                # markers to add on top of vendored defaults
+    inlineComments:
+      - <substring>                   # e.g. "# pragma: no-cover"
+    annotations:
+      - <token>                       # e.g. "MyTeamSuppressWarnings"
+    configEdits:
+      - file: <glob>                  # which file's keys count as config-edit suppressions
+        keys:
+          - <key>                     # e.g. "my_custom_ignore_list"
+  remove:                             # markers to drop from vendored defaults
+    inlineComments:
+      - <substring>
+    annotations:
+      - <token>
+    configEdits:
+      - file: <glob>
+        keys:
+          - <key>
+  exemptPaths:                        # globs where suppressions are accepted without routing
+    - <glob>                          # e.g. "**/tests/**", "**/test/**"
 ```
 
 ## Defaults
@@ -106,6 +134,9 @@ If a section is absent, these defaults apply:
 | `prRules.maxLinesChanged` | `{ warn: 1000, fail: 2000 }` |
 | `modes.default` | `shadow` |
 | `modes.perCheck.boundary_violation` | `binding` |
+| `modes.perCheck.suppression` | `binding` (hardcoded — symmetric with `boundary_violation`; see Mode semantics below) |
+| `suppressions` | absent → suppression detection OFF (compatibility) |
+| `suppressions.useExtensionDefaults` | `true` (within the block) |
 
 Files not matched by any zone are treated as gray.
 
@@ -165,6 +196,7 @@ The reporter consults the mode for these rules:
 | `boundary_violation` | Whether reported boundary violations should fail the check (vs. surface as warnings) |
 | `report` | Whether unmet required checkpoints should fail the check |
 | `pr_size` | Whether exceeding `prRules.maxChangedFiles.fail` / `maxLinesChanged.fail` should fail the check |
+| `suppression` | Whether suppression markers added on guarded surfaces should fail the check. Hardcoded default: `binding`. `modes.default: shadow` does NOT downgrade `suppression`; only an explicit `modes.perCheck.suppression: shadow` flips it. |
 
 Other signals (`api_changed`, `schema_changed`, `security_changed`, `config_changed`, gray-zone changes) always surface in the PR comment regardless of mode. They influence the `MIXED` / `RED` / `GRAY` verdict but do not, on their own, set the binding-fail exit code.
 
@@ -192,6 +224,90 @@ The `boundaryAdapter` block tells the reporter how the boundary-rule backend's o
 When `boundaryAdapter` is present and the reporter CLI is not given an explicit `--boundary-report` flag, the reporter reads the file at `outputPath` and dispatches on `outputFormat`. CI snippets that pass `--boundary-report` and `--boundary-format` directly still work; the policy-level dispatch is a fallback for non-CI invocations (e.g. local pre-push).
 
 The legacy `--archunit-xml <path>` flag is still accepted (it implies `outputFormat: junit-xml`) and is preserved for back-compat with v0.1 CI snippets.
+
+## `suppressions` block
+
+The `suppressions` block declares that the policy participates in suppression detection. The reporter scans the unified diff for added-line suppression markers and routes additions on guarded surfaces (any path that isn't on `exemptPaths`) to `architecture-review`. The full algorithm and rationale live in [`docs/superpowers/specs/2026-06-10-suppression-detection-design.md`](superpowers/specs/2026-06-10-suppression-detection-design.md); this section documents the schema surface.
+
+### Vendored marker list
+
+The defaults come from a vendored file at the fixed path `.agent-redline/suppressions.yaml`. Bootstrap copies it from the chosen language extension's `extensions/<name>/suppressions.yaml`; the reporter reads only the in-repo copy at runtime (no extension reachback). The path is fixed — there is no override.
+
+The vendored file declares three categories of marker:
+
+| Category | Match | Example |
+|---|---|---|
+| `inlineComments` | substring match on added lines | `# noqa`, `# type: ignore`, `// archunit: ignore` |
+| `annotations` | word-bounded token match on added lines | `@SuppressWarnings`, `@ArchIgnore` |
+| `configEdits` | structural assignment match in declared config files | `ignore_imports = [...]` in `**/pyproject.toml`, `per-file-ignores` in `**/setup.cfg` |
+
+Categories and structure are defined by `core/schema/suppressions.schema.json`.
+
+### Fields
+
+| Field | Default | Meaning |
+|---|---|---|
+| `useExtensionDefaults` | `true` | Whether to load `.agent-redline/suppressions.yaml` and apply `add` / `remove` on top. When `false`, only the `add` lists are used and the vendored file is ignored. |
+| `add.inlineComments` | `[]` | Extra comment substrings on top of the vendored defaults. |
+| `add.annotations` | `[]` | Extra annotation tokens. |
+| `add.configEdits` | `[]` | Extra `{file, keys}` entries; `file` is a glob, `keys` are exact key names. |
+| `remove.inlineComments` | `[]` | Vendored substrings to drop. |
+| `remove.annotations` | `[]` | Vendored tokens to drop. |
+| `remove.configEdits` | `[]` | Vendored `{file, keys}` entries to drop. Match is by `file` glob; the listed `keys` are removed from that entry. |
+| `exemptPaths` | `[]` | Globs (repo-relative) where suppressions are accepted without routing. Typical value: `**/tests/**`. |
+
+### Compatibility (§1.4)
+
+A policy without a `suppressions:` block keeps suppression detection OFF. The reporter does not require `.agent-redline/suppressions.yaml` to exist in this case. This is non-negotiable: existing v0.2 policies must keep working unchanged.
+
+The missing-vendored-file error fires only when **all three** conditions hold:
+
+1. The policy declares a `suppressions:` block, AND
+2. `suppressions.useExtensionDefaults` is `true` (default within the block), AND
+3. `.agent-redline/suppressions.yaml` is absent from the repo.
+
+When `useExtensionDefaults: false`, the vendored file is not read and the policy's `add` lists are the entire marker set.
+
+### Mode semantics
+
+`modes.perCheck.suppression` is a `shadow | binding` enum. The hardcoded default is `binding` (symmetric with `boundary_violation`; see the design spec §2.4 at [`docs/superpowers/specs/2026-06-10-suppression-detection-design.md`](superpowers/specs/2026-06-10-suppression-detection-design.md)). `modes.default: shadow` does NOT downgrade `suppression`; only an explicit `modes.perCheck.suppression: shadow` flips it to advisory. This mirrors how `boundary_violation` resists the default downgrade.
+
+### Example: opt in with the vendored defaults plus a project-specific exemption
+
+```yaml
+suppressions:
+  exemptPaths:
+    - "**/tests/**"
+    - "**/integration-tests/**"
+```
+
+### Example: opt in, drop one vendored marker, add a project-local one
+
+```yaml
+suppressions:
+  add:
+    annotations:
+      - "MyTeamSuppressWarnings"
+  remove:
+    inlineComments:
+      - "# pragma: no-cover"
+  exemptPaths:
+    - "**/tests/**"
+```
+
+### Example: ignore vendored defaults, supply the entire marker set in the policy
+
+```yaml
+suppressions:
+  useExtensionDefaults: false
+  add:
+    inlineComments:
+      - "# noqa"
+    annotations:
+      - "@SuppressWarnings"
+  exemptPaths:
+    - "**/tests/**"
+```
 
 ## Example: minimal valid policy
 

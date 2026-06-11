@@ -1,0 +1,5 @@
+diff --git a/src/main/java/com/example/orders/api/OrderController.java b/src/main/java/com/example/orders/api/OrderController.java
+--- a/src/main/java/com/example/orders/api/OrderController.java
++++ b/src/main/java/com/example/orders/api/OrderController.java
+@@ -10,0 +11,1 @@
++@SuppressWarnings("ArchUnit")

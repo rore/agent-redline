@@ -1,0 +1,5 @@
+diff --git a/pyproject.toml b/pyproject.toml
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -20,0 +21,1 @@
++ignore_imports = ["example.domain -> example.application"]

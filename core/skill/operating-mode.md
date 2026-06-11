@@ -98,6 +98,7 @@ Refuse to edit these as a side-effect of another task. The only legitimate edit 
 - **Architecture-test files** (matching the policy's architecture-test red entries).
 - **`agent-policy.yaml`** — including widening a threshold, dropping a red entry, relaxing a checkpoint.
 - **Already-shipped migrations** (any `V*.sql` / Flyway / Liquibase file already on `main`). To change V1, write V2 that compensates.
+- **Suppression markers on guarded surfaces** — adding `# noqa`, `# type: ignore`, `@SuppressWarnings`, `@ArchIgnore`, `ignore_imports`, `per-file-ignores`, or any other marker on a non-exempt path. Fix the structure or escalate; do not silence the check. `.agent-redline/suppressions.yaml` and the policy's `suppressions:` block list which markers count and which paths are exempt.
 
 If the task asks for any of these as a side-effect, stop and escalate.
 

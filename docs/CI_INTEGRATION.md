@@ -94,11 +94,20 @@ jobs:
           git diff --numstat \
             ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
             > build/lines-per-file.txt
+          # `--unified=0` raw patch so the reporter can scan added lines
+          # for suppression markers (`# noqa`, `@SuppressWarnings`,
+          # backend-allowlist edits, etc.). Only consumed when the policy
+          # declares a `suppressions:` block; otherwise the reporter
+          # ignores the file. See "Suppression detection" below.
+          git diff --unified=0 \
+            ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
+            > build/diff-unified.patch
           LABELS=$(jq -r '.pull_request.labels[].name' "$GITHUB_EVENT_PATH" | paste -sd,)
           python scripts/agent-redline-report.py \
             --policy agent-policy.yaml \
             --changed-files build/changed-files.txt \
             --lines-per-file build/lines-per-file.txt \
+            --diff-unified build/diff-unified.patch \
             --pr-labels "$LABELS" \
             --json-out build/verdict.json \
             --comment-out build/comment.md
@@ -176,11 +185,16 @@ jobs:
           git diff --name-only "$BEFORE"..."$AFTER" > build/changed-files.txt
           # Per-file line counts so policy.excludes applies to prSize.
           git diff --numstat "$BEFORE"..."$AFTER" > build/lines-per-file.txt
+          # Raw `--unified=0` patch for suppression-marker detection (see
+          # "Suppression detection" below). Reporter ignores the file
+          # unless the policy declares a `suppressions:` block.
+          git diff --unified=0 "$BEFORE"..."$AFTER" > build/diff-unified.patch
           python scripts/agent-redline-report.py \
             --policy agent-policy.yaml \
             --flow-mode push \
             --changed-files build/changed-files.txt \
             --lines-per-file build/lines-per-file.txt \
+            --diff-unified build/diff-unified.patch \
             --json-out build/verdict.json \
             --comment-out build/comment.md
           EXIT=$?
@@ -223,6 +237,14 @@ The differences from PR-driven, summarized:
 - Verdict also uploaded as a CI artifact
 - Enforce step gates on `EXIT != 0`, so GitHub's default workflow-failure email fires for both RED and BOUNDARY_VIOLATION
 - agent-redline ships as its own `.github/workflows/` file; failing it does not affect other workflows in the repo
+
+## Suppression detection
+
+When the consuming repo's `agent-policy.yaml` declares a `suppressions:` block, the reporter scans `build/diff-unified.patch` for added-line suppression markers — inline comments (`# noqa`, `# type: ignore`, `// archunit: ignore`), annotations (`@SuppressWarnings`, `@ArchIgnore`), and structural edits to declared backend-config keys (`ignore_imports` in `pyproject.toml`, `per-file-ignores` in `setup.cfg`, etc.). Markers added on guarded surfaces escalate the verdict to `RED` and route to the `architecture-review` checkpoint, which is the same human-attention mechanism red-zone changes already use.
+
+The marker list is per-stack and ships with the language extension (see [EXTENSIONS.md](EXTENSIONS.md) — `suppressions.yaml`). Bootstrap vendors it to `.agent-redline/suppressions.yaml` in the consuming repo; the reporter reads only that vendored copy. Repos that don't declare a `suppressions:` block in their policy keep working unchanged — the `--diff-unified` input is harmless when detection is OFF.
+
+The escalation is hardcoded `binding` by default — symmetric with `boundary_violation`. `modes.default: shadow` does not downgrade it; only an explicit `modes.perCheck.suppression: shadow` flips it. Full design rationale (including why the naive added-line scan over per-position pairing) is in [`superpowers/specs/2026-06-10-suppression-detection-design.md`](superpowers/specs/2026-06-10-suppression-detection-design.md); the decision record is in [DECISIONS.md](DECISIONS.md) under "2026-06-11 — Suppression detection".
 
 ## Boundary-backend baseline
 

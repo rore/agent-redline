@@ -6,7 +6,7 @@ If you want agent-redline to work with a stack that doesn't have an extension ye
 
 ## What an extension is
 
-A folder with five files (plus an optional `scripts/` subdirectory):
+A folder with six files (plus an optional `scripts/` subdirectory):
 
 ```
 extensions/<name>/
@@ -15,12 +15,13 @@ extensions/<name>/
 ├── scaffold.md        # how the agent generates backend artifacts + CI snippets
 ├── operating.md       # (optional) stack-specific operating-mode notes
 ├── adapter.yaml       # tells the reporter where backend output is and what format
+├── suppressions.yaml  # per-stack suppression-marker list (vendored at bootstrap)
 └── scripts/           # (optional) adapter scripts when the backend has no
                        # machine-readable output — see "Backends without
                        # machine-readable output" below
 ```
 
-Four markdown files, one small YAML file, and — only when the backend forces it — a focused adapter script. No manifest, no version metadata, no plugin loader.
+Five markdown files, two small YAML files, and — only when the backend forces it — a focused adapter script. No manifest, no version metadata, no plugin loader.
 
 ## What an extension owns
 
@@ -46,7 +47,8 @@ Four markdown files, one small YAML file, and — only when the backend forces i
 3. **Rewrite `profile.md`** — zones (red/blue) and watch-list entries for your stack, recommended boundary rules, API contract location, persistence paths, security conventions, gotchas. Keep the same structure; replace stack-specific paths with yours.
 4. **Rewrite `scaffold.md`** — how the agent installs the boundary-rule backend (`pip install`, `npm install`, `cargo add`, etc.), generates the config/test files, and adds the CI step.
 5. **Update `adapter.yaml`** — set `outputFormat` to `junit-xml`, `json-violations`, or `none`, and `outputPath` to where your backend writes its output. If your backend doesn't natively produce a supported format, either add a conversion step in `scaffold.md` or ship a `scripts/run-<backend>.py` adapter (see "Backends without machine-readable output").
-6. **Optional: `operating.md`** — only add this if there are stack-specific operating-mode rules the agent needs beyond the core ones. Most extensions don't need it.
+6. **Author `suppressions.yaml`** — list the inline comments, annotations, and config-edit (file, key) pairs that count as suppressions in your stack (see "The suppression-marker list" below). Copy the closest reference (`extensions/python/suppressions.yaml` or `extensions/jvm-archunit/suppressions.yaml`) and trim to your stack's actual markers.
+7. **Optional: `operating.md`** — only add this if there are stack-specific operating-mode rules the agent needs beyond the core ones. Most extensions don't need it.
 
 That's it. No manifest, no registration, no versioning ceremony.
 
@@ -100,6 +102,24 @@ If your backend doesn't natively produce one of the supported formats, two paths
 1. **Convert in the build.** `scaffold.md` instructs the consuming repo's CI to convert (most static-analysis tools have community converters or multiple output options).
 2. **Ship an adapter script** in `extensions/<name>/scripts/`. See the next section for the contract.
 
+## The suppression-marker list
+
+`suppressions.yaml` is the per-stack list of markers the reporter scans the unified diff for. When a marker is added on a guarded surface, the verdict escalates to `RED + architecture-review`. The mechanism is documented in [CI_INTEGRATION.md — Suppression detection](CI_INTEGRATION.md#suppression-detection); this section is what an extension author owns.
+
+Three categories, all matched on diff-added lines:
+
+- **Inline comments** — substring match on added lines. Examples: `# noqa`, `# type: ignore`, `# pylint: disable`, `// archunit: ignore`, `// eslint-disable`.
+- **Annotations** — word-bounded token match on added lines. Examples: `@SuppressWarnings`, `@SuppressFBWarnings`, `@ArchIgnore`, `@SuppressLint`.
+- **Config edits** — structural assignment match against a declared file + key pair. Lists the backend-allowlist files (`pyproject.toml`, `.flake8`, `setup.cfg`, the ArchUnit baseline file, etc.) and the keys whose addition counts as a suppression (`ignore_imports`, `per-file-ignores`, etc.).
+
+Schema: `core/schema/suppressions.schema.json`. The Layer-3 `suppressions-files` test (see [VALIDATION.md](VALIDATION.md)) validates every shipped `extensions/*/suppressions.yaml` against it.
+
+**Vendoring contract.** Bootstrap copies `extensions/<name>/suppressions.yaml` to `.agent-redline/suppressions.yaml` in the consuming repo as a snapshot — no symlink, no extension reachback. The reporter reads only the in-repo copy at runtime. This matches how `adapter.yaml` flows into the policy: the extension is the source of truth at bootstrap time; the consuming repo is the source of truth at run time. The consuming repo's `agent-policy.yaml` declares only `add` / `remove` / `exemptPaths` overrides on top of the vendored defaults.
+
+Keep the list **narrow on purpose.** Markers not on the active list (license headers, conditional-import workarounds, type-only-import hacks) don't fire. Adding every conceivable marker dilutes the signal — pick the ones that are genuinely used to silence checks the framework cares about.
+
+`extensions/python/suppressions.yaml` and `extensions/jvm-archunit/suppressions.yaml` are the references.
+
 ## Backends without machine-readable output
 
 Some boundary-rule backends only produce human-readable text. The reference example is Python's `import-linter`: its CLI emits Rich-formatted text with no `--format` flag, and its public Python API exposes only a boolean pass/fail.
@@ -149,9 +169,10 @@ If extensions become numerous, a registry or convention can come later. Prematur
 
 If you build an extension for a common stack and want it shared, open a PR adding it under `extensions/`. The bar:
 
-- Follows the file shape (markdown + `adapter.yaml`, plus an optional `scripts/` only when the backend has no machine-readable output)
+- Follows the file shape (markdown + `adapter.yaml` + `suppressions.yaml`, plus an optional `scripts/` only when the backend has no machine-readable output)
 - The backend has at least one mature open-source implementation
 - `adapter.yaml` declares a supported output format, or `scripts/` ships a focused adapter that produces one
+- `suppressions.yaml` validates against `core/schema/suppressions.schema.json` and lists the markers actually used in the stack (narrow, not encyclopedic)
 - `profile.md` is honest about gotchas, not a happy-path-only document
 
 We don't promise to merge every contributed extension, but the door is open.

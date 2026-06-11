@@ -12,32 +12,33 @@ This is a doc about *testing the project itself*, not about how a consuming repo
 |---|---|---|---|
 | 1 | **budget** | No skill/template/extension file exceeds its declared token ceiling | — |
 | 2 | **schema** | Policies in `tests/schema/{valid,invalid}/`, `core/templates/agent-policy.yaml.template`, `dist/agent-redline/assets/templates/agent-policy.yaml.template`, and both demo policies validate correctly | python |
-| 3 | **skill-yaml** | Every ` ```yaml ` block inside skill markdown that looks like a policy fragment validates against the policy schema | python |
-| 4 | **skill-refs** | Every `scripts/`, `assets/`, `references/` reference in the packaged skill content resolves to either a shipped file, a documented "consuming-repo path", or a search glob | python |
-| 5 | **skill-scripts-runnable** | Every CLI script in the packaged skill invokes cleanly with `--help` from a clean tempdir, without any `ModuleNotFoundError` / `ImportError` | python |
-| 6 | **skill-toml** | Every `[[tool.importlinter.contracts]]` example in skill markdown validates against import-linter's actual schema (correct field names, no unknown fields). Also enforces multi-package + `allow_indirect_imports` policy | import-linter installed |
-| 7 | **scaffold-ci** | Every reporter run-block in scaffold.md follows the canonical pattern (set +e + EXIT capture + GITHUB_OUTPUT publish + sticky-comment OR enforce-on-non-zero, depending on flow mode) | python |
-| 8 | **scaffold-ci-e2e** | Python push-mode scaffold's reporter run-block extracted, executed against a 2-commit fixture, asserts verdict.json shape | python |
-| 9 | **scaffold-spring-e2e** | Spring scaffold §6 reporter run-block extracted, executed against a Spring fixture with hand-crafted base+head OpenAPI specs, asserts apiChanges.specDiff.pathsAdded contains the expected path | python |
-| 10 | **bootstrap-detect** | Eight fixture repos (Python service/library/fallback shapes plus JVM service/library shapes) each detect to the expected shape + layout per profile.md | python |
-| 11 | **tuner** | Five cases: happy path (5 commits, known firing rates), empty repo, missing branch, empty commit (skipped), `--limit > available` | python |
-| 12 | **pre-push** | `core/templates/pre-push-check.sh`: bash syntax, awk pipeline produces `0` on empty input, `LINES_CHANGED=${LINES_CHANGED:-0}` defensive fallback present | — |
-| 13 | **reporter-goldens** | Reporter produces correct verdicts + comments for known fixtures (`tests/reporter/<scenario>/`) | python |
-| 14 | **reporter-unit** | Reporter unit tests (parsers, matchers, classification) | pytest |
-| 15 | **workflow-scripts** | The reporter's diff-input handling against a few canonical Git diff shapes | — |
-| 16 | **links** | Every relative link in markdown files resolves | python |
-| 17 | **gitignore** | Build artifacts and known-transient files are gitignored | — |
-| 18 | **package** | `dist/agent-redline/` matches a freshly-built package (catches drift when sources change without re-running `package-skill.sh`) | python |
-| 19 | **sync-demo** | `scripts/sync-demo.sh` produces the expected branch shape from `demo-source/` + `examples/spring-hexagonal/` | — |
-| 20 | **extension-jvm** | JVM/ArchUnit extension's Layer-3 dry-run: gradle test on the fixture, inject a violation, confirm the right rule fails, restore | gradle |
-| 21 | **extension-python** | Python extension's Layer-3 dry-run: import-linter against fixture, inject a forbidden import, confirm adapter emits the right violation, reporter ingests JSON, BOUNDARY_VIOLATION verdict, restore | import-linter |
+| 3 | **suppressions-files** | Every production marker-list file (`core/templates/suppressions.yaml`, `extensions/*/suppressions.yaml`, and the bootstrap-vendored copy under `dist/agent-redline/`) validates against `core/schema/suppressions.schema.json` | python |
+| 4 | **skill-yaml** | Every ` ```yaml ` block inside skill markdown that looks like a policy fragment validates against the policy schema | python |
+| 5 | **skill-refs** | Every `scripts/`, `assets/`, `references/` reference in the packaged skill content resolves to either a shipped file, a documented "consuming-repo path", or a search glob | python |
+| 6 | **skill-scripts-runnable** | Every CLI script in the packaged skill invokes cleanly with `--help` from a clean tempdir, without any `ModuleNotFoundError` / `ImportError` | python |
+| 7 | **skill-toml** | Every `[[tool.importlinter.contracts]]` example in skill markdown validates against import-linter's actual schema (correct field names, no unknown fields). Also enforces multi-package + `allow_indirect_imports` policy | import-linter installed |
+| 8 | **scaffold-ci** | Every reporter run-block in scaffold.md follows the canonical pattern (set +e + EXIT capture + GITHUB_OUTPUT publish + sticky-comment OR enforce-on-non-zero, depending on flow mode) | python |
+| 9 | **scaffold-ci-e2e** | Python push-mode scaffold's reporter run-block extracted, executed against a 2-commit fixture, asserts verdict.json shape | python |
+| 10 | **scaffold-spring-e2e** | Spring scaffold §6 reporter run-block extracted, executed against a Spring fixture with hand-crafted base+head OpenAPI specs, asserts apiChanges.specDiff.pathsAdded contains the expected path | python |
+| 11 | **bootstrap-detect** | Eight fixture repos (Python service/library/fallback shapes plus JVM service/library shapes) each detect to the expected shape + layout per profile.md | python |
+| 12 | **tuner** | Five cases: happy path (5 commits, known firing rates), empty repo, missing branch, empty commit (skipped), `--limit > available` | python |
+| 13 | **pre-push** | `core/templates/pre-push-check.sh`: bash syntax, awk pipeline produces `0` on empty input, `LINES_CHANGED=${LINES_CHANGED:-0}` defensive fallback present | — |
+| 14 | **reporter-goldens** | Reporter produces correct verdicts + comments for known fixtures (`tests/reporter/<scenario>/`) — including the seven suppression-detection scenarios: `policy-without-suppressions-block`, `suppression-and-boundary-violation`, `suppression-archignore-on-watch`, `suppression-ignore-imports`, `suppression-noqa-on-red`, `suppression-on-exempt-path`, `suppression-reformat-fires-known-fp` | python |
+| 15 | **reporter-unit** | Reporter unit tests (parsers, matchers, classification) | pytest |
+| 16 | **workflow-scripts** | The reporter's diff-input handling against a few canonical Git diff shapes | — |
+| 17 | **links** | Every relative link in markdown files resolves | python |
+| 18 | **gitignore** | Build artifacts and known-transient files are gitignored | — |
+| 19 | **package** | `dist/agent-redline/` matches a freshly-built package (catches drift when sources change without re-running `package-skill.sh`) | python |
+| 20 | **sync-demo** | `scripts/sync-demo.sh` produces the expected branch shape from `demo-source/` + `examples/spring-hexagonal/` | — |
+| 21 | **extension-jvm** | JVM/ArchUnit extension's Layer-3 dry-run: gradle test on the fixture, inject a violation, confirm the right rule fails, restore | gradle |
+| 22 | **extension-python** | Python extension's Layer-3 dry-run: import-linter against fixture, inject a forbidden import, confirm adapter emits the right violation, reporter ingests JSON, BOUNDARY_VIOLATION verdict, restore | import-linter |
 
 The layers cluster into four kinds:
 
-- **Schema/content correctness** (1, 2, 3, 6) — every shipped artifact matches its schema or contract.
-- **Skill referential integrity** (4, 5) — the skill's docs reference what actually ships.
-- **Behavioral end-to-end** (7, 8, 9, 10, 11, 13, 14, 19, 20, 21) — the reporter, scaffolds, tuner, and detection actually do what they say.
-- **Hygiene** (12, 15, 16, 17, 18) — pre-push script works, links resolve, gitignore is right, package is in sync.
+- **Schema/content correctness** (1, 2, 3, 4, 7) — every shipped artifact matches its schema or contract.
+- **Skill referential integrity** (5, 6) — the skill's docs reference what actually ships.
+- **Behavioral end-to-end** (8, 9, 10, 11, 12, 14, 15, 20, 21, 22) — the reporter, scaffolds, tuner, and detection actually do what they say.
+- **Hygiene** (13, 16, 17, 18, 19) — pre-push script works, links resolve, gitignore is right, package is in sync.
 
 ## What's NOT covered by `tests/run-all.sh`
 
@@ -87,7 +88,7 @@ Two paired GitHub repos exercise the whole loop against real GitHub Actions, COD
   - `push-demo-red-zone-change` → RED, agent-redline workflow **red**, email fires; checkpoint text reads as a review obligation on the commit (no CODEOWNER / label phrasing)
   - `push-demo-boundary-violation` → BOUNDARY_VIOLATION, agent-redline workflow red, email fires
 
-Source-of-truth content lives at `demo-source/` (Spring) and `demo-source-python/` (Python — `pr-scenarios/` and `push-mode/` subtrees). `scripts/sync-demo.sh` (Spring) and `scripts/sync-python-demo.sh --with-pr-branches --with-push-demo` (Python) regenerate the demo repos' branches deterministically. The push-mode workflow is also exercised at the unit level by `tests/scaffold-ci-e2e/check-scaffold-ci-e2e.sh` (Layer 8 above), which extracts both the reporter run-block and the summary-write step from the scaffold and asserts they produce a verdict and write it to `$GITHUB_STEP_SUMMARY`.
+Source-of-truth content lives at `demo-source/` (Spring) and `demo-source-python/` (Python — `pr-scenarios/` and `push-mode/` subtrees). `scripts/sync-demo.sh` (Spring) and `scripts/sync-python-demo.sh --with-pr-branches --with-push-demo` (Python) regenerate the demo repos' branches deterministically. The push-mode workflow is also exercised at the unit level by `tests/scaffold-ci-e2e/check-scaffold-ci-e2e.sh` (Layer 9 above), which extracts both the reporter run-block and the summary-write step from the scaffold and asserts they produce a verdict and write it to `$GITHUB_STEP_SUMMARY`.
 
 **Effort:** medium one-time setup, then `sync-*.sh` for re-runs. **Value:** essential — without this, "the whole pipeline works" is a claim, not a fact.
 
@@ -119,4 +120,4 @@ When a bug surfaces in a real bootstrap or smoke run, the response is:
 3. Add a test layer that catches the class, not just the instance.
 4. Verify the layer would have caught the original bug by transiently reverting the fix.
 
-Layers 3 (skill-yaml), 4 (skill-refs), 5 (skill-scripts-runnable), 6 (skill-toml), 7 (scaffold-ci), 8 + 9 (scaffold-*-e2e), 10 (bootstrap-detect), 11 (tuner), and 12 (pre-push) were all added this way. The framework's reliability is downstream of this discipline.
+Layers 4 (skill-yaml), 5 (skill-refs), 6 (skill-scripts-runnable), 7 (skill-toml), 8 (scaffold-ci), 9 + 10 (scaffold-*-e2e), 11 (bootstrap-detect), 12 (tuner), and 13 (pre-push) were all added this way. The framework's reliability is downstream of this discipline.

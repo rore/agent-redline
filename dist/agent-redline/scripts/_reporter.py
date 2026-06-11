@@ -1198,6 +1198,32 @@ def render_markdown(verdict: Verdict, flow_mode: str = "pr") -> str:
     else:
         lines.append("**Boundary check:** passed")
 
+    # Suppressions added (spec §2.5). Silent when the list is empty —
+    # absent suppressions block, no policy detection, or no markers found
+    # all funnel through Verdict.suppressions == [] and must not surface
+    # the section.
+    if verdict.suppressions:
+        n = len(verdict.suppressions)
+        lines.append("")
+        lines.append(f"**Suppressions added ({n}):**")
+        lines.append("")
+        lines.append("| File | Line | Marker | Zone |")
+        lines.append("|---|---|---|---|")
+        shown = verdict.suppressions[:5]
+        for s in shown:
+            lines.append(f"| `{s.file}` | {s.line} | `{s.marker}` | {s.zone} |")
+        if n > 5:
+            lines.append(f"| (+{n - 5} more) | | | |")
+        lines.append("")
+        lines.append(
+            "Suppressions on guarded surfaces require `architecture-review`."
+        )
+        lines.append("")
+        lines.append(
+            "[Why this matters](docs/agent/boundary-violation.md#suppressions)"
+        )
+        lines.append("")
+
     # Other signals
     if verdict.api_changes.get("detected"):
         spec_diff = verdict.api_changes.get("specDiff")
@@ -1472,6 +1498,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     api_spec_diff = _load_api_spec_diff(args.api_spec_base, args.api_spec_head)
 
+    # Phase 4b.4: resolve the suppression marker list once per CLI invocation.
+    # repo_root is the CWD because that's where `--changed-files` paths are
+    # anchored AND where `.agent-redline/suppressions.yaml` lives in the
+    # consuming repo. Returns None when the policy has no `suppressions:`
+    # block — detection stays OFF and end-to-end behavior is unchanged for
+    # policies that haven't opted in (spec §1.4).
+    suppressions_cfg = resolve_suppressions_config(policy, repo_root=Path("."))
+
     pr_labels = [s.strip() for s in args.pr_labels.split(",") if s.strip()]
     codeowner_approvals = [s.strip() for s in args.codeowner_approvals.split(",") if s.strip()]
 
@@ -1482,6 +1516,7 @@ def main(argv: list[str] | None = None) -> int:
         api_spec_diff=api_spec_diff,
         pr_labels=pr_labels,
         codeowner_approvals=codeowner_approvals,
+        suppressions_config=suppressions_cfg,
     )
 
     if args.json_out:

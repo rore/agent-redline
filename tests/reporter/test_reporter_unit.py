@@ -1294,3 +1294,86 @@ class TestSuppressionsBindingAndExit:
         v3 = classify(self._policy(modes=None), self._diff(3), suppressions_config=cfg)
         assert v3.verdict == "RED"
         assert v3.summary == "3 suppression marker(s) added on guarded surfaces."
+
+
+class TestSuppressionsRendering:
+    """Phase 4b.4 — render_markdown() emits the spec §2.5 suppressions block.
+
+    The renderer is silent when verdict.suppressions is empty, shows a
+    File/Line/Marker/Zone table (cap 5 rows + "more" tail) when it is not,
+    and includes the architecture-review footer + docs link.
+    """
+
+    @staticmethod
+    def _policy():
+        return {
+            "version": 1,
+            "project": {"name": "t"},
+            "zones": {"blue": [{"path": "src/**", "reason": "x"}]},
+            "checkpoints": {
+                "architecture-review": {
+                    "satisfiedBy": [{"label": "architecture-reviewed"}],
+                },
+            },
+        }
+
+    @staticmethod
+    def _diff(n: int):
+        added = {
+            "src/example/orders.py": [
+                (10 + i, f"x{i}  # noqa: F401") for i in range(n)
+            ],
+        }
+        return Diff(
+            changed_files=["src/example/orders.py"],
+            files_changed=1,
+            lines_changed=n,
+            added_by_file=added,
+        )
+
+    def test_single_match_renders_table_and_footer(self):
+        from core.reporter.reporter import SuppressionsConfig, render_markdown
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        v = classify(self._policy(), self._diff(1), suppressions_config=cfg)
+        out = render_markdown(v)
+        assert "**Suppressions added (1):**" in out
+        assert "| File | Line | Marker | Zone |" in out
+        assert "|---|---|---|---|" in out
+        assert "| `src/example/orders.py` | 10 | `# noqa` | blue |" in out
+        assert (
+            "Suppressions on guarded surfaces require `architecture-review`."
+            in out
+        )
+        assert (
+            "[Why this matters](docs/agent/boundary-violation.md#suppressions)"
+            in out
+        )
+
+    def test_multiple_matches_capped_at_five_with_more_tail(self):
+        from core.reporter.reporter import SuppressionsConfig, render_markdown
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        v = classify(self._policy(), self._diff(7), suppressions_config=cfg)
+        out = render_markdown(v)
+        assert "**Suppressions added (7):**" in out
+        # Five rows shown.
+        rows = [ln for ln in out.splitlines() if ln.startswith("| `src/")]
+        assert len(rows) == 5
+        # Truncation tail after the cap.
+        assert "(+2 more)" in out
+        # Footer still present.
+        assert (
+            "Suppressions on guarded surfaces require `architecture-review`."
+            in out
+        )
+
+    def test_empty_matches_silent(self):
+        """No suppressions → no table, no footer, no docs link."""
+        from core.reporter.reporter import render_markdown
+        # No suppressions_config → Verdict.suppressions == [].
+        v = classify(self._policy(), self._diff(1))
+        assert v.suppressions == []
+        out = render_markdown(v)
+        assert "Suppressions added" not in out
+        assert "| File | Line | Marker | Zone |" not in out
+        assert "boundary-violation.md#suppressions" not in out
+        assert "architecture-review`" not in out

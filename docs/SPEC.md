@@ -835,7 +835,7 @@ Sections 15.1–15.4 capture the v0.1 shape. v0.2 layers the following on top; e
 - **Bootstrap-time calibration** (Phase 3b) — when ≥30 merged PRs (or push commits) exist, the bootstrap skill runs `scripts/agent-redline-tune.py` against history and proposes downgrades for high-firing rules before the policy is written. Solves the "first experience is alert fatigue" failure mode of inheriting raw defaults.
 - **`CONFIG_CHANGE` verdict** for runtime-config path changes. Runtime-config touches no longer headline as BLUE while requiring an `ops-review` checkpoint. Verdict ladder: BOUNDARY_VIOLATION > RED (arch-test) > API_CHANGE > SCHEMA_CHANGE > SECURITY_CHANGE > **CONFIG_CHANGE** > red-zone > gray > blue.
 - **Schema tightenings:**
-  - `modes.perCheck` is now an enum-restricted object — keys must be `boundary_violation`, `report`, or `pr_size` (the reporter's three rule-name sentinels). Previously, unknown keys silently no-op'd.
+  - `modes.perCheck` is now an enum-restricted object — keys must be `boundary_violation`, `report`, `pr_size`, or `suppression` (the reporter's rule-name sentinels; `suppression` was added with the suppression-detection feature). Previously, unknown keys silently no-op'd.
   - `boundaryAdapter.outputPath` is now load-bearing — when the policy declares a backend (`outputFormat` != `none`) and the report file is missing, the reporter raises `FileNotFoundError` instead of silently producing a clean BLUE. Set `outputFormat: none` to opt out explicitly.
 - **Bootstrap-detect harness** (`tests/bootstrap-detect/`) — fixture-based tests for shape detection. Eight fixtures cover both Python (layered/flat/multi-package + Django + library + zone-only) and JVM (Spring + library) repos.
 

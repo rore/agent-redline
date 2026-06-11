@@ -658,10 +658,16 @@ def _is_config_key_assignment(line: str, key: str) -> bool:
     """Structural key match for configEdits.
 
     `ignore_imports = [...]`           → True
-    `[tool.x.ignore_imports]`          → True (TOML table header)
+    `[ignore_imports]`                 → True (TOML/INI section header)
     `"ignore_imports": [...]`          → True (JSON-ish)
     `# ignore_imports stuff`           → False (comment)
     `// ignore_imports`                → False (comment)
+
+    Note: nested TOML table headers like `[tool.x.ignore_imports]` do NOT
+    match by this rule — the leading `.` is not in the boundary character
+    class. Such lines land in a config file because someone declared a
+    nested TOML table; if an extension wants to flag them, register the
+    fully-qualified key (e.g. `tool.x.ignore_imports`) in `markerLists`.
     """
     stripped = line.lstrip()
     if not stripped or stripped[0] == "#" or stripped.startswith("//"):

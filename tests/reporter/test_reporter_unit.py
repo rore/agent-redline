@@ -862,7 +862,13 @@ class TestSuppressionsResolution:
             resolve_suppressions_config(policy=policy, repo_root=tmp_path)
             assert False, "expected FileNotFoundError"
         except FileNotFoundError as e:
-            assert ".agent-redline/suppressions.yaml" in str(e)
+            msg = str(e)
+            assert ".agent-redline/suppressions.yaml" in msg
+            # Confirm the three remediations are surfaced (spec §1.4):
+            # (1) re-run bootstrap, (2) useExtensionDefaults: false, (3) remove the block.
+            assert "re-run bootstrap" in msg
+            assert "useExtensionDefaults: false" in msg
+            assert "remove the suppressions" in msg
 
     def test_useDefaults_false_skips_missing_file(self, tmp_path):
         from core.reporter.reporter import resolve_suppressions_config

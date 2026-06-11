@@ -51,7 +51,7 @@ The reporter currently takes `--changed-files` + `--lines-per-file`; it never se
 
 **Files:**
 - Modify: `core/reporter/reporter.py` — add `--diff-unified` CLI flag, a tiny `parse_unified_diff()` helper, surface added-lines-per-file on the `Diff` dataclass
-- Test: `core/reporter/test_reporter_unit.py::TestParseUnifiedDiff` (new test class)
+- Test: `tests/reporter/test_reporter_unit.py::TestParseUnifiedDiff` (new test class)
 - Test: `tests/reporter/check-reporter.py` — recognise an optional `diff-unified.patch` input file in fixtures (passes through; no semantic change yet)
 
 **Why this phase exists alone:** the unified-diff reader is a small, well-bounded change with its own tests. Bundling it with detection (Phase 4) would conflate "the reporter can read a diff" with "the reporter knows about suppressions."
@@ -59,7 +59,7 @@ The reporter currently takes `--changed-files` + `--lines-per-file`; it never se
 - [ ] **Step 1: Write the failing parser test (multiple files, hunk headers, mixed +/-/context)**
 
 ```python
-# core/reporter/test_reporter_unit.py — new class
+# tests/reporter/test_reporter_unit.py — new class
 class TestParseUnifiedDiff:
     def test_extracts_added_lines_per_file(self):
         from core.reporter.reporter import parse_unified_diff
@@ -126,7 +126,7 @@ class TestParseUnifiedDiff:
 - [ ] **Step 2: Run test — verify it fails (function not defined)**
 
 ```bash
-pytest core/reporter/test_reporter_unit.py::TestParseUnifiedDiff -v
+pytest tests/reporter/test_reporter_unit.py::TestParseUnifiedDiff -v
 # Expected: ImportError or AttributeError on parse_unified_diff
 ```
 
@@ -186,7 +186,7 @@ def parse_unified_diff(patch: str) -> dict[str, list[tuple[int, str]]]:
 - [ ] **Step 4: Run the new tests — verify they pass**
 
 ```bash
-pytest core/reporter/test_reporter_unit.py::TestParseUnifiedDiff -v
+pytest tests/reporter/test_reporter_unit.py::TestParseUnifiedDiff -v
 # Expected: 5 passed
 ```
 
@@ -221,7 +221,7 @@ In `load_diff_from_files()` add an optional kwarg `diff_unified_path: Path | Non
 - [ ] **Step 6: Run all reporter unit tests + golden fixtures — verify nothing regresses**
 
 ```bash
-pytest core/reporter/test_reporter_unit.py -v
+pytest tests/reporter/test_reporter_unit.py -v
 python tests/reporter/check-reporter.py
 # Expected: all green; no fixture mismatches (added_by_file is unused this phase)
 ```
@@ -236,7 +236,7 @@ bash tests/run-all.sh
 - [ ] **Step 8: Commit**
 
 ```bash
-git add core/reporter/reporter.py core/reporter/test_reporter_unit.py
+git add core/reporter/reporter.py tests/reporter/test_reporter_unit.py
 git commit -m "suppression-detection: phase 1 — reporter accepts --diff-unified input"
 ```
 
@@ -251,7 +251,7 @@ Define the shape of `.agent-redline/suppressions.yaml` (the file each language e
 - Create: `tests/schema/valid/vendored-suppressions.yaml`
 - Create: `tests/schema/invalid/vendored-suppressions-empty.yaml`, `tests/schema/invalid/vendored-suppressions-wrong-shape.yaml`
 - Modify: `core/reporter/reporter.py` — add `load_suppressions_defaults()`, `resolve_suppressions_config()`, dataclass `SuppressionsConfig`
-- Test: `core/reporter/test_reporter_unit.py::TestSuppressionsResolution` (new test class)
+- Test: `tests/reporter/test_reporter_unit.py::TestSuppressionsResolution` (new test class)
 - Test: `tests/schema/check-schema.py` — recognise the vendored-fixture filename pattern and validate it against the new schema
 
 - [ ] **Step 1: Write `core/schema/suppressions.schema.json`**
@@ -287,7 +287,7 @@ Test class covers five cases:
 - [ ] **Step 6: Run test — verify it fails (function not defined)**
 
 ```bash
-pytest core/reporter/test_reporter_unit.py::TestSuppressionsResolution -v
+pytest tests/reporter/test_reporter_unit.py::TestSuppressionsResolution -v
 ```
 
 - [ ] **Step 7: Implement `SuppressionsConfig`, `load_suppressions_defaults()`, `resolve_suppressions_config()`**
@@ -306,7 +306,7 @@ Add to `core/reporter/reporter.py`:
 - [ ] **Step 8: Run tests — verify they pass**
 
 ```bash
-pytest core/reporter/test_reporter_unit.py::TestSuppressionsResolution -v
+pytest tests/reporter/test_reporter_unit.py::TestSuppressionsResolution -v
 ```
 
 - [ ] **Step 9: Run full `tests/run-all.sh`**
@@ -325,7 +325,7 @@ git add core/schema/suppressions.schema.json \
         tests/schema/invalid/vendored-suppressions-empty.yaml \
         tests/schema/invalid/vendored-suppressions-wrong-shape.yaml \
         tests/schema/check-schema.py \
-        core/reporter/reporter.py core/reporter/test_reporter_unit.py
+        core/reporter/reporter.py tests/reporter/test_reporter_unit.py
 git commit -m "suppression-detection: phase 2 — vendored-file contract (schema + loader + missing-file gate)"
 ```
 
@@ -480,7 +480,7 @@ The core of the feature. Walks added lines per file, matches against the active 
 
 **Files:**
 - Modify: `core/reporter/reporter.py` — add `SuppressionMatch` dataclass, `scan_suppressions()` function, wire results into `Verdict`, `_required_checkpoints()`, `_binding()`, the headline-verdict ladder, and `render_markdown()`
-- Test: `core/reporter/test_reporter_unit.py::TestScanSuppressions` and `::TestSuppressionsCheckpointWiring` (new test classes)
+- Test: `tests/reporter/test_reporter_unit.py::TestScanSuppressions` and `::TestSuppressionsCheckpointWiring` (new test classes)
 
 - [ ] **Step 1: Write the failing scanner tests**
 
@@ -616,7 +616,7 @@ def scan_suppressions(
 - [ ] **Step 4: Run scanner tests — verify they pass**
 
 ```bash
-pytest core/reporter/test_reporter_unit.py::TestScanSuppressions -v
+pytest tests/reporter/test_reporter_unit.py::TestScanSuppressions -v
 ```
 
 - [ ] **Step 5: Write the failing checkpoint-wiring tests**
@@ -687,7 +687,7 @@ g. Update `main()` to call `resolve_suppressions_config(policy, repo_root=Path("
 - [ ] **Step 8: Run all unit tests — verify checkpoint-wiring tests pass and no existing test regresses**
 
 ```bash
-pytest core/reporter/test_reporter_unit.py -v
+pytest tests/reporter/test_reporter_unit.py -v
 ```
 
 - [ ] **Step 9: Run all golden fixtures — verify nothing regresses**
@@ -703,7 +703,7 @@ Expected: every existing fixture still passes byte-for-byte. None of the existin
 - [ ] **Step 11: Commit**
 
 ```bash
-git add core/reporter/reporter.py core/reporter/test_reporter_unit.py
+git add core/reporter/reporter.py tests/reporter/test_reporter_unit.py
 git commit -m "suppression-detection: phase 4 — scan_suppressions + checkpoint wiring (cmt_000010 fix)"
 ```
 

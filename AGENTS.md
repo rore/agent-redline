@@ -16,6 +16,7 @@ These are larger. Load only the section you need, when you need it.
 - **`docs/SPEC.md`** — normative spec. §1.4 for token budgets, §5.1 for layout, §10 for extensions, §15 for v0.1 scope. Use the table of contents; don't read whole.
 - **`docs/DECISIONS.md`** — ADR-style rationale. Read when proposing a change that touches a prior decision, or when puzzled why something was chosen.
 - **`docs/SKILL_AUTHORING.md`** — read before editing any file an agent loads mid-task (`core/skill/*.md`, `core/templates/skills/*.md`, `extensions/*/profile.md`, `scaffold.md`, `operating.md`, generated `agent-policy.yaml` / `AGENTS.md` in consuming repos).
+- **`docs/superpowers/specs/2026-06-10-suppression-detection-design.md`** — design for suppression-marker detection (recent: PR #4). Read when touching the reporter's suppression scan, per-extension `suppressions.yaml` files, the vendored `.agent-redline/suppressions.yaml`, or the `operating-mode.md` no-suppressions rule.
 - Other docs in `docs/` — read on demand by topic.
 
 ## Hard rules

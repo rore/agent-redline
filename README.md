@@ -183,4 +183,6 @@ Other tools and project-scope installs: see [`INSTALL.md`](INSTALL.md).
 
 Two flow modes for CI integration: PR-driven (sticky-comment surface, fail CI on exit 2) and push-driven (run-page `$GITHUB_STEP_SUMMARY` surface, fail the agent-redline workflow on `EXIT != 0` so GitHub's default email-on-failure fires for both RED warnings and BOUNDARY_VIOLATION hard fails). The agent-redline workflow ships as its own `.github/workflows/` file in either mode — its failure does not affect other workflows in the repo. Bootstrap picks the flow mode based on the repo's actual flow.
 
+The reporter also detects suppression markers (`# noqa`, `@SuppressWarnings`, `ignore_imports`, etc.) added on guarded surfaces and routes them to `architecture-review`. Marker lists ship per-extension (`extensions/<name>/suppressions.yaml`), get vendored into the consuming repo at `.agent-redline/suppressions.yaml` during bootstrap, and the operating-mode skill refuses to add them on non-exempt paths. Detection is opt-in per policy; v0.2 repos without a `suppressions:` block keep the previous behavior. Design: [`docs/superpowers/specs/2026-06-10-suppression-detection-design.md`](docs/superpowers/specs/2026-06-10-suppression-detection-design.md).
+
 Decisions and their rationale: [`docs/DECISIONS.md`](docs/DECISIONS.md). Roadmap: [`docs/SPEC.md` §15.3](docs/SPEC.md).

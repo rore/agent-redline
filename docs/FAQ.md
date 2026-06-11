@@ -99,6 +99,16 @@ Two safeguards:
 
 Neither is bulletproof against a determined bad actor. agent-redline is not a security perimeter. It's a discipline layer for cooperative agents and an enforcement layer for legitimate mistakes.
 
+## How does agent-redline detect suppression markers like `# noqa` or `@SuppressWarnings`?
+
+The reporter scans added lines in the diff for known suppression markers and routes any hit on a guarded surface to the `architecture-review` checkpoint. Marker lists are per-extension (`extensions/<name>/suppressions.yaml` — `# noqa`, `# type: ignore`, `ignore_imports` for Python; `@SuppressWarnings`, `@SuppressFBWarnings`, ArchUnit `@ArchTest` ignores for JVM), and bootstrap vendors them into the consuming repo at `.agent-redline/suppressions.yaml` so the consuming repo's CI scans against the version it shipped with.
+
+The scan is naive on purpose: substring match against added lines, no AST, no scope tracking. The asymmetry argument (full design at [`docs/superpowers/specs/2026-06-10-suppression-detection-design.md`](superpowers/specs/2026-06-10-suppression-detection-design.md) §6): false positives cost a checkpoint that gets resolved in seconds; false negatives let an agent silence a real boundary signal. We tune for catching the silent case, even at the cost of occasional review noise on legitimate suppressions.
+
+The skill side is paired: `operating-mode.md` now refuses to add suppressions on non-exempt paths regardless of zone — what used to be specific to the BOUNDARY_RISK branch generalizes, because adding `# noqa` to silence a domain-layer import is the same shape of shortcut whether the path is red or blue.
+
+Detection is opt-in. A policy without a `suppressions:` block keeps the previous behavior; v0.2 repos upgrade silently and turn detection on by adding the block (or by re-running bootstrap). See `docs/POLICY_SCHEMA.md` for the schema.
+
 ## Do I have to use pull requests?
 
 No. agent-redline supports two CI flow modes: **PR-driven** (`on: pull_request:`, sticky-comment surface, fail CI on exit 2) and **push-driven** (`on: push: branches: [main]`, run-page summary surface, fail the agent-redline workflow on `EXIT != 0` so GitHub's default workflow-failure email fires for the user who triggered the run). agent-redline ships as its own `.github/workflows/` file in either mode — its failure does not affect other workflows in the repo. Bootstrap detects which fits your repo from Phase 1 inspection — if the dominant flow is `git push` to a long-lived branch and PRs are rare or absent, push-driven is what gets proposed.

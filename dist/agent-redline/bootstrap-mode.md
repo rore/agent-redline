@@ -200,7 +200,9 @@ Once signed off, write the committed artifacts.
 - **Existing setup found in Phase 1** (ArchUnit test, `[tool.importlinter]` block, etc.): do NOT generate a new one. Translate its rules into `boundaries:` entries in the policy (one per rule). The policy's `boundaries:` is metadata the reporter surfaces; the existing setup does the actual checking.
 - **No existing setup:** generate per `scaffold.md`. Substitute the actual base package. Don't write `..domain..` if the repo uses `..core..`.
 
-**Vendor the reporter** — copy `scripts/agent-redline-report.py` (which the packaged skill ships as `scripts/agent-redline-report.py`) into the consuming repo at `scripts/agent-redline-report.py`, mark executable. The pre-push script and CI workflow both invoke it.
+**Suppression markers** — copy the extension's `suppressions.yaml` (or `assets/templates/suppressions.yaml` if zone-only) to `.agent-redline/suppressions.yaml`. Add to policy: `suppressions: { useExtensionDefaults: true, exemptPaths: ["**/tests/**"] }`. Re-bootstrap over a v0.2 policy without this block: ask; decline leaves it off.
+
+**Vendor the reporter** — copy `scripts/agent-redline-report.py` to the consuming repo at `scripts/agent-redline-report.py`, mark executable. The pre-push script and CI workflow both invoke it.
 
 **`scripts/agent-redline-check.sh`** — copy `assets/templates/pre-push-check.sh` verbatim, mark executable. Do NOT regenerate; a hand-rolled version will drift from CI.
 

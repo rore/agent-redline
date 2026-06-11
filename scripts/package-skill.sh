@@ -55,6 +55,7 @@ required_paths=(
   "core/templates/AGENTS.md.template"
   "core/templates/pr-template.md"
   "core/templates/pre-push-check.sh"
+  "core/templates/suppressions.yaml"
   "core/schema/agent-policy.schema.json"
   "core/reporter/reporter.py"
   "extensions/jvm-archunit"
@@ -171,6 +172,7 @@ cp "$REPO_ROOT/core/templates/agent-policy.yaml.template" "$DEST/assets/template
 cp "$REPO_ROOT/core/templates/AGENTS.md.template"        "$DEST/assets/templates/"
 cp "$REPO_ROOT/core/templates/pr-template.md"            "$DEST/assets/templates/"
 cp "$REPO_ROOT/core/templates/pre-push-check.sh"         "$DEST/assets/templates/"
+cp "$REPO_ROOT/core/templates/suppressions.yaml"         "$DEST/assets/templates/"
 chmod +x "$DEST/assets/templates/pre-push-check.sh"
 
 # ----------------------------------------------------------------------

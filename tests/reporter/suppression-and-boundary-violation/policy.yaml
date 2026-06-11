@@ -1,0 +1,34 @@
+version: 1
+project:
+  name: example
+  extension: jvm-archunit
+zones:
+  red:
+    - path: src/main/java/**/domain/**
+      reason: domain
+      checkpoint: architecture-review
+    - path: src/test/java/**/architecture/**
+      reason: arch tests
+      checkpoint: architecture-review
+  blue:
+    - path: src/test/**
+      reason: tests
+boundaries:
+  - id: domain-must-not-import-adapters
+    description: domain must not depend on adapters
+    from: src/main/java/**/domain/**
+    forbidImports:
+      - src/main/java/**/adapter/**
+    severity: error
+suppressions:
+  useExtensionDefaults: true
+  exemptPaths: ["src/test/**"]
+checkpoints:
+  architecture-review:
+    satisfiedBy:
+      - codeownerApproval
+      - label: architecture-reviewed
+modes:
+  default: shadow
+  perCheck:
+    boundary_violation: binding

@@ -1,0 +1,62 @@
+{
+  "apiChanges": {
+    "detected": false
+  },
+  "boundaryViolations": [
+    {
+      "detail": "Architecture Violation: Rule 'no classes that reside in a package '..domain..' should depend on classes that reside in any package ['..adapter..']' was violated (1 times): Class <com.example.orders.domain.Order> depends on <com.example.orders.adapter.persistence.OrderRow>",
+      "rule": "domain_must_not_import_adapters",
+      "severity": "error",
+      "source": "archunit"
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "architecture-review",
+      "reason": "Suppression marker on guarded surface: @SuppressWarnings at src/main/java/com/example/orders/api/OrderController.java:11",
+      "satisfied": false,
+      "satisfy_by": [
+        "CODEOWNER approval",
+        "label `architecture-reviewed`"
+      ]
+    }
+  ],
+  "exitCode": 2,
+  "prSize": {
+    "excludedFiles": 0,
+    "excludedLines": 0,
+    "files": 1,
+    "lines": 2,
+    "verdict": "ok"
+  },
+  "recommendedAction": "fix-boundary-violation",
+  "runtimeConfigChanges": {
+    "detected": false
+  },
+  "schemaChanges": {
+    "detected": false
+  },
+  "securityChanges": {
+    "detected": false
+  },
+  "summary": "1 boundary violation(s) detected.",
+  "suppressions": [
+    {
+      "category": "annotation",
+      "context": "@SuppressWarnings(\"ArchUnit\")",
+      "file": "src/main/java/com/example/orders/api/OrderController.java",
+      "line": 11,
+      "marker": "@SuppressWarnings",
+      "zone": "gray"
+    }
+  ],
+  "verdict": "BOUNDARY_VIOLATION",
+  "zones": {
+    "blue": [],
+    "gray": [
+      "src/main/java/com/example/orders/api/OrderController.java"
+    ],
+    "red": [],
+    "watch": []
+  }
+}

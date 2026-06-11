@@ -1034,3 +1034,145 @@ class TestScanSuppressions:
         matches = scan_suppressions(added, config, classification)
         zones = {m.file: m.zone for m in matches}
         assert zones == {"red.py": "red", "blue.py": "blue", "gray.py": "gray"}
+
+
+# --------------------------------------------------------------------------
+# Suppressions checkpoint wiring (Phase 4b.2 — cmt_000010)
+#
+# Spec §2.3: a suppression match on a non-exempt path always contributes
+# architecture-review to the reporter's required checkpoints, INDEPENDENT
+# of the headline verdict. setdefault semantics mean a higher-priority
+# reason (red-zone change, arch-test edit) wins for the displayed reason,
+# but the requirement is still emitted from the suppression code path.
+#
+# These tests pin _required_checkpoints() wiring only. End-to-end
+# headline + comment behavior lands in Phase 4b.3 / 4b.4 and is covered
+# by the seven Phase-5 golden fixtures.
+# --------------------------------------------------------------------------
+
+class TestSuppressionsCheckpointWiring:
+
+    @staticmethod
+    def _policy_no_red():
+        """Policy with no red zone — isolates the suppression code path."""
+        return {
+            "version": 1,
+            "project": {"name": "t"},
+            "zones": {
+                "blue": [{"path": "src/**", "reason": "x"}],
+            },
+            "checkpoints": {
+                "architecture-review": {"satisfiedBy": [{"label": "ok"}]},
+            },
+            "modes": {"default": "shadow"},
+        }
+
+    @staticmethod
+    def _policy_with_red():
+        return {
+            "version": 1,
+            "project": {"name": "t"},
+            "zones": {
+                "red": [{"path": "src/main/**/domain/**", "reason": "domain",
+                         "checkpoint": "architecture-review"}],
+                "blue": [{"path": "src/**", "reason": "x"}],
+            },
+            "checkpoints": {
+                "architecture-review": {"satisfiedBy": [{"label": "ok"}]},
+            },
+            "modes": {"default": "shadow"},
+        }
+
+    def test_suppression_only_diff_emits_architecture_review(self):
+        """Case 1: suppression match on non-red blue file → architecture-review required.
+
+        Headline verdict in this phase may be BLUE (4b.3 promotes to RED).
+        We assert only on Verdict.suppressions and required-checkpoints.
+        """
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        diff = Diff(
+            changed_files=["src/example/orders.py"],
+            files_changed=1,
+            lines_changed=1,
+            added_by_file={"src/example/orders.py": [(7, "import x  # noqa: F401")]},
+        )
+        v = classify(self._policy_no_red(), diff, suppressions_config=cfg)
+        # The match landed.
+        assert len(v.suppressions) == 1
+        assert v.suppressions[0].marker == "# noqa"
+        # architecture-review is required, attributed to the suppression.
+        cp_ids = [c.id for c in v.checkpoints]
+        assert cp_ids.count("architecture-review") == 1
+        cp = next(c for c in v.checkpoints if c.id == "architecture-review")
+        assert "Suppression marker" in cp.reason
+        assert "# noqa" in cp.reason
+        assert "src/example/orders.py:7" in cp.reason
+
+    def test_suppression_plus_red_zone_dedupes_reason_wins_red(self):
+        """Case 2: suppression + red-zone path → architecture-review required ONCE.
+
+        setdefault means the existing red-zone reason wins. The requirement
+        stays put — that's the cmt_000010 invariant.
+        """
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        red_file = "src/main/foo/domain/Order.java"
+        diff = Diff(
+            changed_files=[red_file],
+            files_changed=1,
+            lines_changed=1,
+            added_by_file={red_file: [(42, "x  // noqa: something")]},
+        )
+        # The marker `# noqa` won't substring-match `// noqa`, so use a marker
+        # that matches Java-style comments — switch to a marker we control.
+        cfg = SuppressionsConfig(inline_comments=["// noqa"])
+        v = classify(self._policy_with_red(), diff, suppressions_config=cfg)
+        # Both signals fire: the suppression match and the red-zone change.
+        assert len(v.suppressions) == 1
+        # architecture-review appears exactly once (deduped via setdefault).
+        cp_ids = [c.id for c in v.checkpoints]
+        assert cp_ids.count("architecture-review") == 1
+        cp = next(c for c in v.checkpoints if c.id == "architecture-review")
+        # Existing red-zone reason wins (setdefault semantics).
+        assert "red-zone change" in cp.reason
+        assert red_file in cp.reason
+        assert "Suppression marker" not in cp.reason
+
+    def test_empty_match_list_does_not_add_checkpoint(self):
+        """Case 3: no suppression matches → suppression code path is a no-op.
+
+        Use a no-red-zone policy with a blue-only diff so the only way
+        architecture-review could get added is via the suppression branch.
+        """
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(inline_comments=["# noqa"])
+        diff = Diff(
+            changed_files=["src/example/orders.py"],
+            files_changed=1,
+            lines_changed=1,
+            added_by_file={"src/example/orders.py": [(7, "import x  # plain")]},
+        )
+        v = classify(self._policy_no_red(), diff, suppressions_config=cfg)
+        assert v.suppressions == []
+        cp_ids = [c.id for c in v.checkpoints]
+        assert "architecture-review" not in cp_ids
+
+    def test_suppression_on_exempt_path_does_not_add_checkpoint(self):
+        """Case 4: scan_suppressions filtered the match → no checkpoint added."""
+        from core.reporter.reporter import SuppressionsConfig
+        cfg = SuppressionsConfig(
+            inline_comments=["# noqa"],
+            exempt_paths=["**/tests/**"],
+        )
+        diff = Diff(
+            changed_files=["tests/conftest.py"],
+            files_changed=1,
+            lines_changed=1,
+            added_by_file={"tests/conftest.py": [(5, "import x  # noqa: E402")]},
+        )
+        v = classify(self._policy_no_red(), diff, suppressions_config=cfg)
+        # scan_suppressions returned [] because the file is exempt.
+        assert v.suppressions == []
+        cp_ids = [c.id for c in v.checkpoints]
+        assert "architecture-review" not in cp_ids

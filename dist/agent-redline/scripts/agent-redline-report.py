@@ -751,6 +751,7 @@ def _required_checkpoints(
     security_changed: bool,
     runtime_config_changed: bool,
     architecture_test_modified: bool,
+    suppression_matches: list["SuppressionMatch"] | None = None,
 ) -> dict[str, str]:
     """Return {checkpoint_id: reason} for each required checkpoint."""
     required: dict[str, str] = {}
@@ -782,6 +783,26 @@ def _required_checkpoints(
         required.setdefault(
             "architecture-review",
             "Architecture-test files modified",
+        )
+
+    # Spec §2.3 (cmt_000010): a suppression match on a non-exempt path always
+    # contributes architecture-review, INDEPENDENT of the headline verdict.
+    # `setdefault` is critical — when a higher-priority reason (e.g. a red-zone
+    # path or arch-test edit) already required architecture-review, that reason
+    # wins for the comment, but the requirement stays put either way. The
+    # exempt-paths filter has already been applied by scan_suppressions(), so
+    # a non-empty list here means at least one non-exempt match exists.
+    if suppression_matches:
+        first = suppression_matches[0]
+        extra = (
+            f" (+{len(suppression_matches) - 1} more)"
+            if len(suppression_matches) > 1
+            else ""
+        )
+        required.setdefault(
+            "architecture-review",
+            f"Suppression marker on guarded surface: {first.marker} "
+            f"at {first.file}:{first.line}{extra}",
         )
 
     return required
@@ -959,6 +980,7 @@ def classify(
         classification, policy,
         api_changed, schema_changed, security_changed, runtime_changed,
         arch_test_modified,
+        suppression_matches=suppression_matches,
     )
 
     checkpoints_defs = policy.get("checkpoints", {}) or {}

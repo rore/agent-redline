@@ -55,6 +55,13 @@ jobs:
           git diff --numstat \
             ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
             > build/lines-per-file.txt
+          # `--unified=0` so the reporter can scan only added lines for
+          # suppression markers (noqa, type: ignore, pyright: ignore,
+          # etc.). Without this, suppressions in unchanged context would
+          # be falsely attributed to this PR.
+          git diff --unified=0 \
+            ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
+            > build/diff-unified.patch
       - name: Run reporter
         id: report
         # Capture the reporter's exit code without failing the step yet —
@@ -68,6 +75,7 @@ jobs:
             --policy agent-policy.yaml \
             --changed-files build/changed-files.txt \
             --lines-per-file build/lines-per-file.txt \
+            --diff-unified build/diff-unified.patch \
             --boundary-report build/import-linter-report.json \
             --boundary-format json-violations \
             --pr-labels "$LABELS" \

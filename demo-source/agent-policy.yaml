@@ -129,3 +129,15 @@ modes:
   perCheck:
     boundary_violation: binding
     pr_size: binding
+    # suppression: binding   # uncomment after a shadow window to make
+                             # newly-added suppressions on red zones a hard fail.
+
+suppressions:
+  # Use the jvm-archunit extension's vendored marker list (ArchUnit
+  # @SuppressWarnings, ArchIgnore, etc.). The vendored copy lives at
+  # .agent-redline/suppressions.yaml.
+  useExtensionDefaults: true
+  # Tests legitimately use @SuppressWarnings("unchecked") and similar —
+  # the blue zone (src/test/**) is exempt from suppression detection.
+  exemptPaths:
+    - "src/test/**"

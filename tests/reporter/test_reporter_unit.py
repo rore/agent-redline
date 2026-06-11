@@ -1377,3 +1377,51 @@ class TestSuppressionsRendering:
         assert "| File | Line | Marker | Zone |" not in out
         assert "boundary-violation.md#suppressions" not in out
         assert "architecture-review`" not in out
+
+
+class TestMainMissingVendoredSuppressions:
+    """
+    Phase 4 fix — when the policy declares suppressions with
+    useExtensionDefaults: true but `.agent-redline/suppressions.yaml` is
+    missing, `main()` must surface a clean stderr message and return 1
+    instead of letting the FileNotFoundError propagate as a traceback.
+    """
+
+    def test_main_returns_1_with_clean_stderr(self, tmp_path, monkeypatch, capsys):
+        from core.reporter.reporter import main
+
+        policy_path = tmp_path / "agent-policy.yaml"
+        policy_path.write_text(
+            "version: 1\n"
+            "project:\n"
+            "  name: test-service\n"
+            "zones:\n"
+            "  red:\n"
+            "    - path: src/main/**/domain/**\n"
+            "      reason: x\n"
+            "      checkpoint: architecture-review\n"
+            "checkpoints:\n"
+            "  architecture-review:\n"
+            "    satisfiedBy:\n"
+            "      - label: architecture-reviewed\n"
+            "suppressions:\n"
+            "  useExtensionDefaults: true\n",
+            encoding="utf-8",
+        )
+
+        changed_files = tmp_path / "changed-files.txt"
+        changed_files.write_text("src/main/java/Foo.java\n", encoding="utf-8")
+
+        # CWD must be tmp_path so the missing-file lookup happens here, NOT
+        # in the real repo (where .agent-redline/suppressions.yaml exists).
+        monkeypatch.chdir(tmp_path)
+
+        rc = main([
+            "--policy", str(policy_path),
+            "--changed-files", str(changed_files),
+        ])
+
+        captured = capsys.readouterr()
+        assert rc == 1
+        assert "error:" in captured.err
+        assert ".agent-redline/suppressions.yaml" in captured.err

@@ -1504,7 +1504,11 @@ def main(argv: list[str] | None = None) -> int:
     # consuming repo. Returns None when the policy has no `suppressions:`
     # block — detection stays OFF and end-to-end behavior is unchanged for
     # policies that haven't opted in (spec §1.4).
-    suppressions_cfg = resolve_suppressions_config(policy, repo_root=Path("."))
+    try:
+        suppressions_cfg = resolve_suppressions_config(policy, repo_root=Path("."))
+    except FileNotFoundError as e:
+        sys.stderr.write(f"error: {e}\n")
+        return 1
 
     pr_labels = [s.strip() for s in args.pr_labels.split(",") if s.strip()]
     codeowner_approvals = [s.strip() for s in args.codeowner_approvals.split(",") if s.strip()]
